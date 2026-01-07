@@ -4,6 +4,8 @@ import asyncio
 import os
 import base64
 import httpx
+import threading
+import time
 from contextlib import asynccontextmanager
 from typing import List
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status, Form
@@ -17,38 +19,30 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Background Task Management ---
-worker_task = None
-
+# --- Lifespan Management ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Lifespan manager to handle the background worker task.
-    This is the modern and correct way to manage background tasks in FastAPI.
+    Lifespan manager to start the background worker in a persistent thread.
+    This ensures the worker is started only once, preventing issues with
+    multiple Uvicorn workers on platforms like Hugging Face.
     """
-    global worker_task
-    logger.info("Application startup: starting background worker.")
-    # Start the worker in a background task
-    worker_task = asyncio.create_task(worker())
+    logger.info("Application startup...")
+    database.initialize_database()
+    logger.info("Database initialized.")
+
+    logger.info("Starting background worker.")
+    # Start the worker in a daemon thread.
+    worker_thread = threading.Thread(target=worker, daemon=True)
+    worker_thread.start()
     yield
-    # Cleanup on shutdown
-    logger.info("Application shutdown: stopping background worker.")
-    if worker_task:
-        worker_task.cancel()
-        try:
-            await worker_task
-        except asyncio.CancelledError:
-            logger.info("Worker task cancelled successfully.")
+    logger.info("Application shutdown.")
 
 # Initialize the FastAPI app with the lifespan manager
 app = FastAPI(lifespan=lifespan)
 
 # --- Configuration ---
 ESPECIALISTA_URL = "https://carley1234-vidspri.hf.space/remove-background/"
-
-# --- App Initialization ---
-database.initialize_database()
-logger.info("Database initialized.")
 
 # --- Security ---
 ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "_a_default_secret_key_that_should_be_changed_")
@@ -123,49 +117,51 @@ async def delete_code_admin(code: str):
     return {"message": f"Code {code} deleted successfully."}
 
 # --- Background Worker ---
-async def process_frame_remotely(image_data: bytes) -> bytes:
-    """Sends a single frame to the specialist service."""
-    async with httpx.AsyncClient(timeout=120.0) as client:
+def process_frame_remotely(image_data: bytes) -> bytes:
+    """Sends a single frame to the specialist service using a synchronous client."""
+    with httpx.Client(timeout=120.0) as client:
         files = {'file': ('image.png', image_data, 'image/png')}
-        response = await client.post(ESPECIALISTA_URL, files=files)
+        response = client.post(ESPECIALISTA_URL, files=files)
         response.raise_for_status()
         return response.content
 
-async def worker():
-    """The main worker loop that polls for jobs and processes them."""
+def worker():
+    """
+    The main worker loop that polls for jobs and processes them.
+    This function runs in a separate, persistent OS-level thread.
+    """
     logger.info("Worker has started and is polling for jobs.")
     while True:
         frame_to_process = None
         try:
-            # Offload synchronous DB call to a thread
-            frame_to_process = await asyncio.to_thread(database.get_next_frame_to_process)
+            # DB calls are synchronous, no need for asyncio.to_thread
+            frame_to_process = database.get_next_frame_to_process()
 
             if frame_to_process:
                 job_id = frame_to_process['job_id']
                 frame_order = frame_to_process['frame_order']
 
-                job_info = await asyncio.to_thread(database.get_job_status, job_id)
+                job_info = database.get_job_status(job_id)
                 if job_info and job_info['status'] == 'queued':
                     logger.info(f"Job {job_id} picked up for processing.")
-                    await asyncio.to_thread(database.set_job_status, job_id, "processing")
+                    database.set_job_status(job_id, "processing")
 
                 logger.info(f"Sending frame {frame_order} of job {job_id} to specialist.")
-                output_bytes = await process_frame_remotely(frame_to_process['image_data'])
-                await asyncio.to_thread(database.update_frame_as_completed, job_id, frame_order, output_bytes)
+                output_bytes = process_frame_remotely(frame_to_process['image_data'])
+                database.update_frame_as_completed(job_id, frame_order, output_bytes)
                 logger.info(f"Successfully processed frame {frame_order} of job {job_id}.")
             else:
-                await asyncio.sleep(2)
+                # Use synchronous sleep
+                time.sleep(2)
 
-        except asyncio.CancelledError:
-            logger.info("Worker task cancelled. Exiting loop.")
-            break
         except Exception as e:
             logger.error(f"An error occurred in the worker: {e}")
             if frame_to_process:
                 job_id = frame_to_process['job_id']
                 logger.error(f"Marking job {job_id} as failed.")
-                await asyncio.to_thread(database.set_job_status, job_id, "failed")
-            await asyncio.sleep(10)
+                database.set_job_status(job_id, "failed")
+            # Use synchronous sleep on error
+            time.sleep(10)
 
 @app.get("/")
 def read_root():

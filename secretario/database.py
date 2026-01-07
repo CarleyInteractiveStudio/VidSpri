@@ -230,5 +230,4 @@ def apply_priority_code_and_reorder(job_id):
     conn.close()
     return final_position
 
-# Initialize DB on import
-initialize_database()
+# DB is initialized in app.py's lifespan manager
