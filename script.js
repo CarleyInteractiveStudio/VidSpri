@@ -90,6 +90,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const closePremiumFeatureBtn = document.querySelector('.close-premium-feature-btn');
     const supportBtn = document.getElementById('support-btn');
 
+    // Action Bubble elements
+    const actionBubble = document.getElementById('action-bubble');
+    const bubbleDownloadBtn = document.getElementById('bubble-download-btn');
+    const bubbleShareBtn = document.getElementById('bubble-share-btn');
+    const bubbleDonateBtn = document.getElementById('bubble-donate-btn');
+
     // Footer buttons
     const donateBtnFooter = document.getElementById('donate-btn-footer');
     const shareBtnFooter = document.getElementById('share-btn-footer');
@@ -327,14 +333,14 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (e) => {
                 imagePreviewAnim.src = e.target.result;
                 imagePreviewContainerAnim.classList.remove('hidden');
-                dragDropArea.querySelector('p').style.display = 'none'; // Hide the text
+                dragDropArea.classList.add('hidden'); // Hide the entire drop area
             };
             reader.readAsDataURL(file);
         } else {
             showError('Por favor, selecciona un archivo de imagen válido (.png, .jpg).');
             // Reset if invalid file
             imagePreviewContainerAnim.classList.add('hidden');
-            dragDropArea.querySelector('p').style.display = 'block';
+            dragDropArea.classList.remove('hidden');
         }
     }
 
@@ -425,20 +431,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Modal Logic ---
 
     function closeModalOnClickOutside(event) {
-        if (event.target === premiumModal) {
-            premiumModal.classList.add('hidden');
-        }
-        if (event.target === unavailableModal) {
-            unavailableModal.classList.add('hidden');
-        }
-        if (event.target === shareModal) {
-            shareModal.classList.add('hidden');
-        }
-        if (event.target === downloadAppModal) {
-            downloadAppModal.classList.add('hidden');
-        }
-        if (event.target === premiumFeatureModal) {
-            premiumFeatureModal.classList.add('hidden');
+        if (event.target === premiumModal) premiumModal.classList.add('hidden');
+        if (event.target === unavailableModal) unavailableModal.classList.add('hidden');
+        if (event.target === shareModal) shareModal.classList.add('hidden');
+        if (event.target === downloadAppModal) downloadAppModal.classList.add('hidden');
+        if (event.target === premiumFeatureModal) premiumFeatureModal.classList.add('hidden');
+
+        // Close the action bubble if the click is outside of it and its trigger
+        if (!actionBubble.classList.contains('hidden') && !actionBubble.contains(event.target) && event.target !== downloadLink) {
+            actionBubble.classList.add('hidden');
         }
     }
 
@@ -464,9 +465,12 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadAppModal.classList.remove('hidden');
     });
 
-    downloadBtnResult.addEventListener('click', () => {
-        downloadAppModal.classList.remove('hidden');
-    });
+    // The downloadBtnResult is removed, but we keep the listener to avoid errors if not cleaned up
+    if (downloadBtnResult) {
+        downloadBtnResult.addEventListener('click', () => {
+            downloadAppModal.classList.remove('hidden');
+        });
+    }
 
     supportBtn.addEventListener('click', () => {
         window.open('https://www.paypal.com/donate/?hosted_button_id=SF9TB2TJLYL96', '_blank');
@@ -512,14 +516,13 @@ document.addEventListener('DOMContentLoaded', () => {
             videoPreview.src = videoURL;
             videoPreview.load();
             videoPreviewContainer.classList.remove('hidden');
-            // Hide the drag-drop text and show the preview instead
-            dragDropAreaVideo.querySelector('p').style.display = 'none';
+            dragDropAreaVideo.classList.add('hidden'); // Hide the entire drop area
             framePreviewContainer.classList.add('hidden');
             resultContainer.classList.add('hidden');
         } else {
             showError('Por favor, selecciona un archivo de video válido.');
             videoPreviewContainer.classList.add('hidden');
-            dragDropAreaVideo.querySelector('p').style.display = 'block';
+            dragDropAreaVideo.classList.remove('hidden');
         }
     }
 
@@ -802,6 +805,34 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 'image/png');
         });
     }
+
+    // --- Action Bubble Logic ---
+
+    downloadLink.addEventListener('click', (event) => {
+        event.stopPropagation();
+        actionBubble.classList.remove('hidden');
+    });
+
+    bubbleDownloadBtn.addEventListener('click', () => {
+        downloadAppModal.classList.remove('hidden'); // Open the modal directly
+        actionBubble.classList.add('hidden');
+    });
+
+    bubbleShareBtn.addEventListener('click', () => {
+        const shareUrl = 'https://carleyinteractivestudio.github.io/VidSpri/';
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            alert('¡Enlace de la aplicación copiado al portapapeles!');
+        }).catch(err => {
+            console.error('Error al copiar el enlace: ', err);
+            alert('No se pudo copiar el enlace.');
+        });
+        actionBubble.classList.add('hidden');
+    });
+
+    bubbleDonateBtn.addEventListener('click', () => {
+        supportBtn.click(); // Simulate click on the main support button
+        actionBubble.classList.add('hidden');
+    });
 });
 
 // --- Google Translate Initialization ---

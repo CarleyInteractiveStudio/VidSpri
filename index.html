@@ -213,8 +213,18 @@
         <div id="result-container" class="hidden">
             <h2>¡Tu Hoja de Sprites está Lista!</h2>
             <img id="sprite-image" src="" alt="Hoja de sprites generada">
-            <a id="download-link" href="" download="sprite.png">Descargar Hoja de Sprites</a>
-            <button type="button" id="download-app-btn-result" class="download-btn hidden-by-default" style="margin-top: 1rem;">Descargar la App</button>
+            <div class="result-actions">
+                <a id="download-link" href="" download="sprite.png">Descargar Hoja de Sprites</a>
+                <!-- Action Bubble -->
+                <div id="action-bubble" class="action-bubble hidden">
+                    <p>¿Te gustó el servicio? ¡Descarga la app, compártelo o dona para ayudarnos a seguir en la web y mejorar nuestros servidores!</p>
+                    <div class="action-bubble-actions">
+                        <span id="bubble-download-btn" class="action-bubble-link">Descargar App</span>
+                        <span id="bubble-share-btn" class="action-bubble-link">Compartir</span>
+                        <span id="bubble-donate-btn" class="action-bubble-link">Donar</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="error-message" class="hidden">

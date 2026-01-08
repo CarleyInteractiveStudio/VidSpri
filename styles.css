@@ -219,6 +219,11 @@ input[type="number"] {
     transition: background-color 0.3s;
 }
 
+.result-actions {
+    position: relative;
+    display: inline-block;
+}
+
 #download-link:hover {
     background-color: #018786;
 }
@@ -364,6 +369,77 @@ input[type="number"] {
     width: 20px;
     height: 20px;
 }
+
+/* --- Download Container & Action Bubble --- */
+.action-bubble {
+    position: absolute;
+    bottom: calc(100% + 12px); /* Position it 12px above the trigger element */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 280px;
+    background-color: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+    z-index: 10;
+    text-align: left;
+    transform-origin: bottom center;
+    animation: fadeInScale 0.2s ease-out;
+}
+
+/* The little arrow pointing down */
+.action-bubble::after {
+    content: '';
+    position: absolute;
+    top: 100%; /* At the bottom of the bubble */
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 8px;
+    border-style: solid;
+    border-color: #2a2a2a transparent transparent transparent;
+}
+
+.action-bubble p {
+    font-size: 0.9rem;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #b0b0b0;
+    line-height: 1.4;
+}
+
+.action-bubble-actions {
+    display: flex;
+    justify-content: space-around;
+    gap: 1rem;
+    text-align: center;
+}
+
+.action-bubble-link {
+    color: #03dac6;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.2s;
+    font-size: 0.9rem;
+}
+
+.action-bubble-link:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
 
 /* --- Google Translate Widget Styles --- */
 #google_translate_element {
@@ -665,13 +741,17 @@ footer {
     background-color: #f0c400;
 }
 
-/* --- Sound Generation Section Styles --- */
-#sound-generation-section h2 {
+/* --- Sound & Text & Image Generation Section Styles --- */
+#sound-generation-section h2, #text-to-sprite-section h2 {
     margin-bottom: 1.5rem;
     color: #ffffff;
 }
 
-#sound-generation-section textarea {
+/* Generic styles for textareas/inputs in feature sections */
+#sound-generation-section textarea,
+#text-to-sprite-section textarea,
+#image-animation-section textarea,
+#image-animation-section input[type="number"] {
     width: 100%;
     padding: 0.75rem;
     border: 1px solid #333;
@@ -684,7 +764,22 @@ footer {
     resize: vertical;
 }
 
-#sound-generation-section button {
+#image-animation-section input[type="number"] {
+    resize: none; /* input numbers can't be resized */
+}
+
+#sound-generation-section textarea:focus,
+#text-to-sprite-section textarea:focus,
+#image-animation-section textarea:focus,
+#image-animation-section input[type="number"]:focus {
+    outline: none;
+    border-color: #03dac6;
+}
+
+/* Generic styles for main action buttons in feature sections */
+#generate-sound-btn,
+#generate-video-btn,
+#generate-animation-btn {
     width: 100%;
     padding: 0.75rem;
     border: none;
@@ -698,7 +793,9 @@ footer {
     margin-top: 0.5rem;
 }
 
-#sound-generation-section button:hover {
+#generate-sound-btn:hover,
+#generate-video-btn:hover,
+#generate-animation-btn:hover {
     background-color: #3700b3;
 }
 
