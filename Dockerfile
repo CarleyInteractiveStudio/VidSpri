@@ -1,20 +1,20 @@
-# Use the official Python image from the Docker Hub
+# Use an official Python runtime as a parent image
 FROM python:3.9-slim
 
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+# Copy the requirements file into the container at /app
+COPY secretario/requirements.txt .
 
-# Install the required packages
+# Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the application code into the container
-COPY . .
+# Copy the rest of the application code from the secretario directory into the container at /app
+COPY ./secretario /app/secretario
 
-# Expose the port the app runs on
-EXPOSE 7860
+# Make port 8000 available to the world outside this container
+EXPOSE 8000
 
-# Command to run the application
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+# Run uvicorn when the container launches
+CMD ["uvicorn", "secretario.app:app", "--host", "0.0.0.0", "--port", "8000"]
