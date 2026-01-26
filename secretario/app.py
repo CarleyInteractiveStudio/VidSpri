@@ -1,65 +1,54 @@
 
-import uuid
 import asyncio
-import os
 import base64
-import httpx
+import datetime
+import json
+import os
+import threading
+import time
 from contextlib import asynccontextmanager
-from typing import List
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status, Form
-from fastapi.responses import JSONResponse
+
+import httpx
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import APIKeyHeader
-import database
-import logging
+from pydantic import BaseModel
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from . import database as db
 
-# --- Background Task Management ---
-worker_task = None
-
+# This asynccontextmanager is the modern way to handle lifespan events in FastAPI
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Lifespan manager to handle the background worker task.
-    This is the modern and correct way to manage background tasks in FastAPI.
+    Handles application startup and shutdown events.
     """
-    global worker_task
-    logger.info("Application startup: starting background worker.")
-    # Start the worker in a background task
-    worker_task = asyncio.create_task(worker())
-    yield
-    # Cleanup on shutdown
-    logger.info("Application shutdown: stopping background worker.")
-    if worker_task:
-        worker_task.cancel()
-        try:
-            await worker_task
-        except asyncio.CancelledError:
-            logger.info("Worker task cancelled successfully.")
+    print("Connecting to database...")
+    await db.database.connect()
+    # Initialize the database and tables if they don't exist.
+    await db.initialize_database()
+    print("Database connection established.")
 
-# Initialize the FastAPI app with the lifespan manager
+    # Start the background worker
+    worker_thread = threading.Thread(target=run_background_worker, daemon=True)
+    worker_thread.start()
+
+    yield  # The application runs while the yield is active
+
+    print("Disconnecting from database...")
+    await db.database.disconnect()
+    print("Database connection closed.")
+
+
 app = FastAPI(lifespan=lifespan)
 
-# --- Configuration ---
-ESPECIALISTA_URL = "https://carley1234-vidspri.hf.space/remove-background/"
-
-# --- App Initialization ---
-database.initialize_database()
-logger.info("Database initialized.")
-
-# --- Security ---
-ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "_a_default_secret_key_that_should_be_changed_")
-api_key_header = APIKeyHeader(name="X-Admin-API-Key", auto_error=False)
-
-def get_api_key(api_key: str = Depends(api_key_header)):
-    if not ADMIN_API_KEY or api_key != ADMIN_API_KEY:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-
 # --- CORS Configuration ---
-origins = ["https://carleyinteractivestudio.github.io", "http://localhost:8002", "null"]
+# This allows the frontend hosted on GitHub Pages to communicate with this server.
+origins = [
+    "https://carleyinteractivestudio.github.io",
+    "http://localhost",
+    "http://localhost:8000",
+    "http://127.0.0.1:8001" # For local testing
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -68,105 +57,232 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Public API Endpoints ---
+# --- Admin Security ---
+# IMPORTANT: In a real production environment, this key should be loaded from a
+# secure source like an environment variable, not hardcoded.
+SECRET_ADMIN_KEY = os.environ.get("ADMIN_API_KEY", "CHANGE_ME_IN_PRODUCTION")
 
-@app.post("/remove-background/")
-async def queue_job(images: List[UploadFile] = File(...)):
-    if not images:
-        raise HTTPException(status_code=400, detail="No images were provided.")
-    job_id = str(uuid.uuid4())
-    frames_data = [await image.read() for image in images]
-    # Run synchronous DB code in a thread to not block the event loop
-    position = await asyncio.to_thread(database.add_job_and_frames, job_id, frames_data)
-    logger.info(f"Job {job_id} queued in position {position}.")
-    return {"job_id": job_id, "queue_position": position, "status": "queued", "total_frames": len(frames_data), "completed_frames": 0}
+async def require_admin_api_key(x_api_key: str = Header(...)):
+    """Dependency to protect admin routes."""
+    if x_api_key != SECRET_ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing Admin API Key")
+
+# --- Pydantic Models for Request Bodies ---
+class PrioritizeRequest(BaseModel):
+    job_id: str
+    code: str
+
+class NewCodeRequest(BaseModel):
+    uses: int = 1
+
+# --- Background Worker ---
+def run_background_worker():
+    """
+    A simple worker that runs in a separate thread.
+    It periodically checks the queue and marks the first job as "processing".
+    """
+    print("Background worker started.")
+    while True:
+        try:
+            # Create a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            # Run the async task
+            loop.run_until_complete(process_queue())
+            loop.close()
+        except Exception as e:
+            print(f"Error in background worker: {e}")
+
+        time.sleep(10) # Wait for 10 seconds before checking again
+
+async def process_queue():
+    """
+    The core logic of the background worker. It handles moving jobs to processing
+    and timing out jobs that are stuck.
+    """
+    PROCESSING_TIMEOUT_SECONDS = 300 # 5 minutes
+
+    if not db.database.is_connected:
+        await db.database.connect()
+
+    async with db.database.transaction():
+        # 1. Check for and handle timed-out jobs
+        timeout_threshold = datetime.datetime.utcnow() - datetime.timedelta(seconds=PROCESSING_TIMEOUT_SECONDS)
+
+        stuck_jobs_query = db.processing_jobs.select().where(
+            db.processing_jobs.c.status == "processing",
+            db.processing_jobs.c.processing_started_at < timeout_threshold
+        )
+        stuck_jobs = await db.database.fetch_all(stuck_jobs_query)
+
+        for job in stuck_jobs:
+            print(f"Job {job.id} timed out. Marking as failed and shifting queue.")
+            # Mark as failed
+            fail_query = db.processing_jobs.update().where(db.processing_jobs.c.id == job.id).values(status="failed")
+            await db.database.execute(fail_query)
+            # This job no longer holds a queue position, so we can shift others
+            shift_query = db.processing_jobs.update().where(
+                db.processing_jobs.c.queue_position > job.queue_position
+            ).values(queue_position=db.processing_jobs.c.queue_position - 1)
+            await db.database.execute(shift_query)
+
+
+        # 2. Check if a new job can be processed
+        currently_processing_query = db.processing_jobs.select().where(db.processing_jobs.c.status == "processing")
+        is_any_job_processing = await db.database.fetch_one(currently_processing_query)
+
+        if is_any_job_processing:
+            # A job is being actively worked on (or hasn't timed out yet), so we wait.
+            return
+
+        # 3. Get the next job from the queue
+        next_job_query = db.processing_jobs.select().where(
+            db.processing_jobs.c.queue_position == 1,
+            db.processing_jobs.c.status == "queued"
+        )
+        job_to_process = await db.database.fetch_one(next_job_query)
+
+        if job_to_process:
+            print(f"Moving job {job_to_process.id} to 'processing' state.")
+            # Set its status to "processing" and record the start time
+            update_query = db.processing_jobs.update().where(
+                db.processing_jobs.c.id == job_to_process.id
+            ).values(
+                status="processing",
+                processing_started_at=datetime.datetime.utcnow()
+            )
+            await db.database.execute(update_query)
+
+# --- API Endpoints ---
+@app.post("/join")
+async def join_queue():
+    """
+    Allows a user to join the processing queue.
+    Returns a unique job_id.
+    """
+    try:
+        job_id = await db.create_new_job()
+        return {"job_id": job_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/status/{job_id}")
 async def get_status(job_id: str):
-    # Run synchronous DB code in a thread
-    job_info = await asyncio.to_thread(database.get_job_status, job_id)
-    if not job_info:
+    """
+    Retrieves the status and queue position of a job.
+    """
+    job = await db.get_job_status(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job_info['status'] == 'completed':
-        encoded_frames = [base64.b64encode(frame_data).decode('utf-8') for frame_data in job_info['frames']]
-        return JSONResponse(content={"status": "completed", "frames": encoded_frames})
-    return job_info
 
-@app.post("/apply-code")
-async def apply_code(job_id: str = Form(...), code: str = Form(...)):
-    # Run synchronous DB code in a thread
-    if not await asyncio.to_thread(database.get_job_status, job_id):
-        raise HTTPException(status_code=404, detail="Job not found")
-    if not await asyncio.to_thread(database.validate_code, code):
-        raise HTTPException(status_code=400, detail="Invalid or expired code")
-    await asyncio.to_thread(database.use_code, code)
-    new_position = await asyncio.to_thread(database.apply_priority_code_and_reorder, job_id)
-    return {"message": f"Success! Your request has been moved to position #{new_position}.", "job_id": job_id, "new_queue_position": new_position}
+    if job.status == "processing":
+        return {
+            "status": "processing",
+            "position": 0,
+            "completed_frames": job.completed_frames,
+            "total_frames": job.total_frames
+        }
 
-# --- Admin API Endpoints ---
+    if job.status == "completed":
+        return {
+            "status": "completed",
+            "position": -1,
+            "result_frames": json.loads(job.result_frames) # Return the final result
+        }
 
-@app.get("/admin/codes", dependencies=[Depends(get_api_key)])
-async def get_all_codes_admin():
-    return await asyncio.to_thread(database.get_all_codes)
+    return {"status": job.status, "position": job.queue_position}
 
-@app.post("/admin/codes", dependencies=[Depends(get_api_key)])
-async def create_code_admin(uses: int = Form(...)):
-    if uses <= 0:
-        raise HTTPException(status_code=400, detail="Uses must be a positive integer.")
-    new_code = await asyncio.to_thread(database.generate_code)
-    await asyncio.to_thread(database.add_code, new_code, uses)
-    return {"code": new_code, "uses": uses, "total_uses": uses}
+@app.post("/prioritize")
+async def prioritize_job(request: PrioritizeRequest):
+    """
+    Applies a priority code to an existing job.
+    """
+    new_position, message = await db.upgrade_job_to_priority(request.job_id, request.code)
 
-@app.delete("/admin/codes/{code}", dependencies=[Depends(get_api_key)])
-async def delete_code_admin(code: str):
-    await asyncio.to_thread(database.delete_code, code)
-    return {"message": f"Code {code} deleted successfully."}
+    if new_position is None:
+        raise HTTPException(status_code=400, detail=message)
 
-# --- Background Worker ---
-async def process_frame_remotely(image_data: bytes) -> bytes:
-    """Sends a single frame to the specialist service."""
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        files = {'file': ('image.png', image_data, 'image/png')}
-        response = await client.post(ESPECIALISTA_URL, files=files)
-        response.raise_for_status()
-        return response.content
+    return {"message": message, "new_position": new_position}
 
-async def worker():
-    """The main worker loop that polls for jobs and processes them."""
-    logger.info("Worker has started and is polling for jobs.")
-    while True:
-        frame_to_process = None
-        try:
-            # Offload synchronous DB call to a thread
-            frame_to_process = await asyncio.to_thread(database.get_next_frame_to_process)
+@app.get("/admin/queue", dependencies=[Depends(require_admin_api_key)])
+async def get_full_queue():
+    """A simple admin endpoint to view the current state of the queue."""
+    queue = await db.get_current_queue()
+    return queue
 
-            if frame_to_process:
-                job_id = frame_to_process['job_id']
-                frame_order = frame_to_process['frame_order']
+@app.post("/admin/codes", dependencies=[Depends(require_admin_api_key)])
+async def create_new_priority_code(request: NewCodeRequest):
+    """
+    Admin endpoint to generate a new priority code.
+    Requires a valid admin API key in the 'x-api-key' header.
+    """
+    try:
+        new_code = await db.create_priority_code(uses=request.uses)
+        return {"message": "New priority code created successfully", "code": new_code, "uses": request.uses}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create code: {e}")
 
-                job_info = await asyncio.to_thread(database.get_job_status, job_id)
-                if job_info and job_info['status'] == 'queued':
-                    logger.info(f"Job {job_id} picked up for processing.")
-                    await asyncio.to_thread(database.set_job_status, job_id, "processing")
+# --- Image Processing Endpoint ---
+ESPECIALISTA_URL = "https://carley1234-vidspri.hf.space/remove-background/"
 
-                logger.info(f"Sending frame {frame_order} of job {job_id} to specialist.")
-                output_bytes = await process_frame_remotely(frame_to_process['image_data'])
-                await asyncio.to_thread(database.update_frame_as_completed, job_id, frame_order, output_bytes)
-                logger.info(f"Successfully processed frame {frame_order} of job {job_id}.")
-            else:
-                await asyncio.sleep(2)
+@app.post("/process/{job_id}")
+async def process_images(job_id: str, images: list[UploadFile] = File(...)):
+    """
+    Receives images from the frontend when it's their turn,
+    sends them to the 'especialista' service, and stores the results.
+    """
+    job = await db.get_job_status(job_id)
+    if not job or job.status != "processing":
+        raise HTTPException(status_code=400, detail="Job is not ready for processing.")
 
-        except asyncio.CancelledError:
-            logger.info("Worker task cancelled. Exiting loop.")
-            break
-        except Exception as e:
-            logger.error(f"An error occurred in the worker: {e}")
-            if frame_to_process:
-                job_id = frame_to_process['job_id']
-                logger.error(f"Marking job {job_id} as failed.")
-                await asyncio.to_thread(database.set_job_status, job_id, "failed")
-            await asyncio.sleep(10)
+    # Set total frames for progress tracking
+    total_frames = len(images)
+    update_total_query = db.processing_jobs.update().where(
+        db.processing_jobs.c.id == job_id
+    ).values(total_frames=total_frames)
+    await db.database.execute(update_total_query)
 
-@app.get("/")
-def read_root():
-    return {"status": "Secretario Service is running"}
+    processed_frames = []
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for i, image_file in enumerate(images):
+            contents = await image_file.read()
+            files = {'file': (image_file.filename, contents, image_file.content_type)}
+
+            try:
+                response = await client.post(ESPECIALISTA_URL, files=files)
+                response.raise_for_status() # Raises an exception for 4XX/5XX responses
+
+                # Store the processed image as a base64 string
+                processed_image_bytes = response.content
+                base64_encoded_image = base64.b64encode(processed_image_bytes).decode('utf-8')
+                processed_frames.append(base64_encoded_image)
+
+                # Update progress in the database
+                update_progress_query = db.processing_jobs.update().where(
+                    db.processing_jobs.c.id == job_id
+                ).values(completed_frames=i + 1)
+                await db.database.execute(update_progress_query)
+
+            except httpx.HTTPStatusError as e:
+                # Handle failure for a single frame
+                # Mark the whole job as failed to avoid incomplete spritesheets
+                fail_query = db.processing_jobs.update().where(db.processing_jobs.c.id == job_id).values(status="failed")
+                await db.database.execute(fail_query)
+                raise HTTPException(status_code=502, detail=f"Failed to process image with especialista: {e.response.text}")
+            except Exception as e:
+                 fail_query = db.processing_jobs.update().where(db.processing_jobs.c.id == job_id).values(status="failed")
+                 await db.database.execute(fail_query)
+                 raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+    # Once all frames are processed, update the job status to 'completed'
+    final_update_query = db.processing_jobs.update().where(
+        db.processing_jobs.c.id == job_id
+    ).values(
+        status="completed",
+        result_frames=json.dumps(processed_frames) # Store all results as a JSON string
+    )
+    await db.database.execute(final_update_query)
+
+    return {"message": "Processing complete", "job_id": job_id}

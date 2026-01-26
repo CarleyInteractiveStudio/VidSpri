@@ -1,234 +1,168 @@
 
-import sqlite3
-import string
-import random
+import asyncio
+import datetime
+import math
+import uuid
+from contextlib import asynccontextmanager
 
-DATABASE_NAME = "database.db"
+import sqlalchemy
+from databases import Database
 
-def get_db_connection():
-    conn = sqlite3.connect(DATABASE_NAME)
-    conn.row_factory = sqlite3.Row
-    return conn
+DATABASE_URL = "sqlite:///secretario/database.db"
 
-def initialize_database():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS priority_codes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            code TEXT UNIQUE NOT NULL,
-            uses_remaining INTEGER NOT NULL,
-            total_uses INTEGER NOT NULL
+database = Database(DATABASE_URL)
+metadata = sqlalchemy.MetaData()
+
+processing_jobs = sqlalchemy.Table(
+    "processing_jobs",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.String, primary_key=True),
+    sqlalchemy.Column("status", sqlalchemy.String, default="queued"), # queued, processing, completed, failed
+    sqlalchemy.Column("priority", sqlalchemy.Boolean, default=False),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.datetime.utcnow),
+    sqlalchemy.Column("processing_started_at", sqlalchemy.DateTime, nullable=True),
+    sqlalchemy.Column("queue_position", sqlalchemy.Integer, unique=True),
+    sqlalchemy.Column("total_frames", sqlalchemy.Integer, default=0),
+    sqlalchemy.Column("completed_frames", sqlalchemy.Integer, default=0),
+    sqlalchemy.Column("result_frames", sqlalchemy.Text, default="[]"), # JSON list of base64 strings
+)
+
+priority_codes = sqlalchemy.Table(
+    "priority_codes",
+    metadata,
+    sqlalchemy.Column("code", sqlalchemy.String, primary_key=True),
+    sqlalchemy.Column("uses_remaining", sqlalchemy.Integer, default=1),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.datetime.utcnow),
+    sqlalchemy.Column("is_active", sqlalchemy.Boolean, default=True),
+)
+
+async def initialize_database():
+    """Initializes the database and creates tables if they don't exist."""
+    engine = sqlalchemy.create_engine(DATABASE_URL)
+    metadata.create_all(engine)
+    await database.connect()
+    # Seed with a default priority code for testing
+    default_code = "TEST-CODE-123"
+    query = priority_codes.select().where(priority_codes.c.code == default_code)
+    exists = await database.fetch_one(query)
+    if not exists:
+        insert_query = priority_codes.insert().values(code=default_code, uses_remaining=999)
+        await database.execute(insert_query)
+    await database.disconnect()
+
+async def get_job_status(job_id: str):
+    """Retrieves the status and queue position of a specific job."""
+    query = processing_jobs.select().where(processing_jobs.c.id == job_id)
+    return await database.fetch_one(query)
+
+async def create_new_job():
+    """Adds a new non-priority job to the end of the queue."""
+    async with database.transaction():
+        count_query = sqlalchemy.select([sqlalchemy.func.count()]).select_from(processing_jobs)
+        job_count = await database.fetch_val(count_query)
+
+        new_job_id = str(uuid.uuid4())
+        insert_query = processing_jobs.insert().values(
+            id=new_job_id,
+            queue_position=job_count + 1,
+            priority=False,
         )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS processing_jobs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            job_id TEXT UNIQUE NOT NULL,
-            status TEXT NOT NULL,
-            queue_position INTEGER NOT NULL,
-            is_priority BOOLEAN DEFAULT FALSE,
-            total_frames INTEGER NOT NULL,
-            completed_frames INTEGER DEFAULT 0
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS job_frames (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            job_id TEXT NOT NULL,
-            frame_order INTEGER NOT NULL,
-            status TEXT NOT NULL,
-            image_data BLOB NOT NULL,
-            result_data BLOB,
-            FOREIGN KEY (job_id) REFERENCES processing_jobs (job_id)
-        )
-    ''')
-    conn.commit()
-    conn.close()
+        await database.execute(insert_query)
+        return new_job_id
 
-# --- Code Management ---
+async def validate_priority_code(code: str):
+    """Checks if a priority code is valid and has uses remaining."""
+    query = priority_codes.select().where(
+        priority_codes.c.code == code,
+        priority_codes.c.is_active == True,
+        priority_codes.c.uses_remaining > 0
+    )
+    return await database.fetch_one(query)
 
-def generate_code(length=8):
-    characters = string.ascii_letters + string.digits
+async def _find_next_priority_slot(current_priority_positions):
+    """
+    Finds the first available queue position for a priority job based on the 1P-2NP rule.
+    Priority slots are at positions 3, 6, 9, etc.
+    """
+    slot = 1
     while True:
-        code = ''.join(random.choice(characters) for i in range(length))
-        conn = get_db_connection()
-        if conn.execute("SELECT code FROM priority_codes WHERE code = ?", (code,)).fetchone() is None:
-            conn.close()
-            return code
-        conn.close()
+        target_pos = slot * 3
+        if target_pos not in current_priority_positions:
+            return target_pos
+        slot += 1
 
-def add_code(code, uses):
-    conn = get_db_connection()
-    conn.execute("INSERT INTO priority_codes (code, uses_remaining, total_uses) VALUES (?, ?, ?)", (code, uses, uses))
-    conn.commit()
-    conn.close()
+async def upgrade_job_to_priority(job_id: str, code: str):
+    """
+    Upgrades a job to priority, recalculates its queue position,
+    and updates the queue for all affected jobs.
+    """
+    async with database.transaction():
+        # 1. Validate the code and decrement its use count
+        code_record = await validate_priority_code(code)
+        if not code_record:
+            return None, "Invalid or expired code."
 
-def get_all_codes():
-    """Retrieves all active priority codes."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT code, uses_remaining, total_uses FROM priority_codes ORDER BY id DESC")
-    codes = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in codes]
+        update_code_query = priority_codes.update().where(
+            priority_codes.c.code == code
+        ).values(uses_remaining=priority_codes.c.uses_remaining - 1)
+        await database.execute(update_code_query)
 
-def delete_code(code):
-    """Deletes a priority code from the database."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM priority_codes WHERE code = ?", (code,))
-    conn.commit()
-    conn.close()
+        # 2. Get the current job's details
+        job = await get_job_status(job_id)
+        if not job or job.priority:
+            return None, "Job not found or is already priority."
 
-def validate_code(code):
-    conn = get_db_connection()
-    result = conn.execute("SELECT uses_remaining FROM priority_codes WHERE code = ?", (code,)).fetchone()
-    conn.close()
-    return result and result['uses_remaining'] > 0
+        current_position = job.queue_position
 
-def use_code(code):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT uses_remaining FROM priority_codes WHERE code = ?", (code,))
-    result = cursor.fetchone()
-    if result:
-        new_uses = result['uses_remaining'] - 1
-        if new_uses > 0:
-            cursor.execute("UPDATE priority_codes SET uses_remaining = ? WHERE code = ?", (new_uses, code))
-        else:
-            cursor.execute("DELETE FROM priority_codes WHERE code = ?", (code,))
-        conn.commit()
-    conn.close()
+        # 3. Temporarily "remove" the job by shifting subsequent jobs up
+        shift_up_query = processing_jobs.update().where(
+            processing_jobs.c.queue_position > current_position
+        ).values(queue_position=processing_jobs.c.queue_position - 1)
+        await database.execute(shift_up_query)
 
-# --- Job and Frame Management ---
+        # 4. Find the new target position for our priority job
+        priority_jobs_query = processing_jobs.select().where(
+            processing_jobs.c.priority == True
+        ).order_by(processing_jobs.c.queue_position)
 
-def set_job_status(job_id, status):
-    """Explicitly sets the status of a job."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE processing_jobs SET status = ? WHERE job_id = ?", (status, job_id))
-    conn.commit()
-    conn.close()
+        current_priority_positions = {
+            p.queue_position for p in await database.fetch_all(priority_jobs_query)
+        }
+        new_position = await _find_next_priority_slot(current_priority_positions)
 
-# ... (rest of the file is unchanged)
-def add_job_and_frames(job_id, frames_data):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+        # 5. Make space for the job by shifting subsequent jobs down
+        job_count_query = sqlalchemy.select([sqlalchemy.func.count()]).select_from(processing_jobs)
+        total_jobs = await database.fetch_val(job_count_query)
 
-    # Calculate initial queue position
-    queue_position = cursor.execute("SELECT COUNT(*) FROM processing_jobs WHERE status IN ('queued', 'processing')").fetchone()[0] + 1
+        if new_position > total_jobs:
+            new_position = total_jobs + 1 # It can't be further than the end
 
-    # Add the main job entry
-    cursor.execute(
-        "INSERT INTO processing_jobs (job_id, status, queue_position, total_frames) VALUES (?, ?, ?, ?)",
-        (job_id, "queued", queue_position, len(frames_data))
+        shift_down_query = processing_jobs.update().where(
+            processing_jobs.c.queue_position >= new_position
+        ).values(queue_position=processing_jobs.c.queue_position + 1)
+        await database.execute(shift_down_query)
+
+        # 6. Update the job to be priority and place it in its new slot
+        update_job_query = processing_jobs.update().where(
+            processing_jobs.c.id == job_id
+        ).values(priority=True, queue_position=new_position)
+        await database.execute(update_job_query)
+
+        return new_position, "Success"
+
+async def get_current_queue():
+    """Returns the entire job queue, ordered by position."""
+    query = processing_jobs.select().order_by(processing_jobs.c.queue_position)
+    return await database.fetch_all(query)
+
+async def create_priority_code(uses: int = 1):
+    """Generates a new unique priority code and adds it to the database."""
+    # Generates a more user-friendly code than a full UUID
+    new_code = f"PRIORITY-{str(uuid.uuid4())[:8].upper()}"
+    insert_query = priority_codes.insert().values(
+        code=new_code,
+        uses_remaining=uses,
+        is_active=True
     )
-
-    # Add all the frames
-    for i, frame_blob in enumerate(frames_data):
-        cursor.execute(
-            "INSERT INTO job_frames (job_id, frame_order, status, image_data) VALUES (?, ?, ?, ?)",
-            (job_id, i, "queued", frame_blob)
-        )
-
-    conn.commit()
-    conn.close()
-    return queue_position
-
-def get_job_status(job_id):
-    conn = get_db_connection()
-    job = conn.execute("SELECT * FROM processing_jobs WHERE job_id = ?", (job_id,)).fetchone()
-    if not job:
-        conn.close()
-        return None
-
-    if job['status'] == 'completed':
-        frames = conn.execute("SELECT result_data FROM job_frames WHERE job_id = ? ORDER BY frame_order ASC", (job_id,)).fetchall()
-        conn.close()
-        return {'status': 'completed', 'frames': [f['result_data'] for f in frames]}
-
-    conn.close()
-    return dict(job)
-
-def get_next_frame_to_process():
-    conn = get_db_connection()
-    # Find the job with the lowest queue position that is not yet completed
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT jf.*
-        FROM job_frames jf
-        JOIN processing_jobs pj ON jf.job_id = pj.job_id
-        WHERE jf.status = 'queued'
-          AND pj.status IN ('queued', 'processing')
-          AND pj.queue_position > 0
-        ORDER BY pj.queue_position ASC, jf.frame_order ASC
-        LIMIT 1
-    """)
-    frame = cursor.fetchone()
-    conn.close()
-    return frame
-
-def update_frame_as_completed(job_id, frame_order, result_data):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # Update the specific frame
-    cursor.execute(
-        "UPDATE job_frames SET status = 'completed', result_data = ? WHERE job_id = ? AND frame_order = ?",
-        (result_data, job_id, frame_order)
-    )
-
-    # Increment the completed_frames count on the main job
-    cursor.execute("UPDATE processing_jobs SET completed_frames = completed_frames + 1 WHERE job_id = ?", (job_id,))
-
-    # Check if the entire job is now complete
-    job = cursor.execute("SELECT total_frames, completed_frames FROM processing_jobs WHERE job_id = ?", (job_id,)).fetchone()
-    if job['completed_frames'] >= job['total_frames']:
-        cursor.execute("UPDATE processing_jobs SET status = 'completed', queue_position = 0 WHERE job_id = ?", (job_id,))
-        # Reorder the queue
-        cursor.execute("UPDATE processing_jobs SET queue_position = queue_position - 1 WHERE queue_position > (SELECT queue_position FROM processing_jobs WHERE job_id = ?)", (job_id,))
-
-    conn.commit()
-    conn.close()
-
-def update_frame_status(job_id, frame_order, status):
-    conn = get_db_connection()
-    conn.execute("UPDATE job_frames SET status = ? WHERE job_id = ? AND frame_order = ?", (status, job_id, frame_order))
-    conn.commit()
-    conn.close()
-
-def apply_priority_code_and_reorder(job_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT queue_position, is_priority FROM processing_jobs WHERE queue_position > 0 ORDER BY queue_position ASC")
-    all_jobs = cursor.fetchall()
-
-    last_priority_pos = 0
-    for job in all_jobs:
-        if job['is_priority']:
-            last_priority_pos = job['queue_position']
-
-    target_pos = max(1, last_priority_pos + 3)
-    if target_pos > len(all_jobs):
-        target_pos = len(all_jobs)
-
-    cursor.execute("UPDATE processing_jobs SET queue_position = queue_position + 1 WHERE queue_position >= ?", (target_pos,))
-    cursor.execute("UPDATE processing_jobs SET is_priority = TRUE, queue_position = ? WHERE job_id = ?", (target_pos, job_id))
-
-    # Re-normalize queue positions
-    cursor.execute("SELECT job_id FROM processing_jobs WHERE queue_position > 0 ORDER BY queue_position ASC")
-    sorted_jobs = cursor.fetchall()
-    for i, job in enumerate(sorted_jobs):
-        cursor.execute("UPDATE processing_jobs SET queue_position = ? WHERE job_id = ?", (i + 1, job['job_id']))
-
-    cursor.execute("SELECT queue_position FROM processing_jobs WHERE job_id = ?", (job_id,))
-    final_position = cursor.fetchone()['queue_position']
-
-    conn.commit()
-    conn.close()
-    return final_position
-
-# Initialize DB on import
-initialize_database()
+    await database.execute(insert_query)
+    return new_code
