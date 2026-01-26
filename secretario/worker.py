@@ -1,5 +1,5 @@
 import asyncio
-from .database import get_next_job, update_job_status
+from database import get_next_job, update_job_status
 
 async def async_queue_worker():
     """
