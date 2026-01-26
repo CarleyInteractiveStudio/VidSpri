@@ -1,8 +1,0 @@
-127.0.0.1 - - [26/Jan/2026 18:47:37] "GET / HTTP/1.1" 200 -
-127.0.0.1 - - [26/Jan/2026 18:47:37] "GET /VidSpri.png HTTP/1.1" 200 -
-127.0.0.1 - - [26/Jan/2026 18:47:37] "GET /styles.css HTTP/1.1" 200 -
-127.0.0.1 - - [26/Jan/2026 18:47:37] code 404, message File not found
-127.0.0.1 - - [26/Jan/2026 18:47:37] "GET /imagecrop.min.css HTTP/1.1" 404 -
-127.0.0.1 - - [26/Jan/2026 18:47:37] code 404, message File not found
-127.0.0.1 - - [26/Jan/2026 18:47:37] "GET /imagecrop.min.js HTTP/1.1" 404 -
-127.0.0.1 - - [26/Jan/2026 18:47:37] "GET /script.js HTTP/1.1" 200 -

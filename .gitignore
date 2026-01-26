@@ -3,3 +3,4 @@ __pycache__/
 server.log
 secretario.log
 frontend.log
+*.db
