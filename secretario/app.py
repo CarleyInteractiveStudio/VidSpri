@@ -1,5 +1,4 @@
 import asyncio
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
@@ -19,10 +18,12 @@ class PriorityRequest(BaseModel):
 class ProcessRequest(BaseModel):
     frame_count: int
 
-# --- Lifespan Manager ---
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup logic
+# --- FastAPI App ---
+app = FastAPI()
+
+# --- Database & Worker Lifecycle (Reverted to on_event) ---
+@app.on_event("startup")
+async def startup():
     await database.connect()
     await database.execute(CREATE_JOBS_TABLE)
     await database.execute(CREATE_CODES_TABLE)
@@ -30,16 +31,11 @@ async def lifespan(app: FastAPI):
     await database.execute(query=INSERT_LIMITED_CODE, values=[expires_date])
     await database.execute(INSERT_UNLIMITED_CODE)
     await database.execute(INSERT_COOLDOWN_CODE)
-    worker_task = asyncio.create_task(async_queue_worker())
+    asyncio.create_task(async_queue_worker())
 
-    yield  # Application runs here
-
-    # Shutdown logic
-    worker_task.cancel()
+@app.on_event("shutdown")
+async def shutdown():
     await database.disconnect()
-
-# --- FastAPI App ---
-app = FastAPI(lifespan=lifespan)
 
 # --- API Endpoints ---
 @app.post("/submit", response_model=Job)
