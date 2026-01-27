@@ -1,7 +1,8 @@
 ---
-title: VidSpri Secretario
-emoji: 👥
-colorFrom: indigo
+title: VidSpri-secretario
+emoji: 🏃
+colorFrom: green
 colorTo: blue
 sdk: docker
+pinned: false
 ---
