@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-import database as db
+from . import database as db
 
 # This asynccontextmanager is the modern way to handle lifespan events in FastAPI
 @asynccontextmanager
