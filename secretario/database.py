@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 import sqlalchemy
 from databases import Database
 
-DATABASE_URL = "sqlite:///secretario/database.db"
+DATABASE_URL = "sqlite:///database.db"
 
 database = Database(DATABASE_URL)
 metadata = sqlalchemy.MetaData()
