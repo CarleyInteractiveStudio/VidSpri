@@ -58,29 +58,6 @@ p {
     margin-bottom: 1rem;
 }
 
-.preview-controls {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-}
-
-.preview-controls button, #generate-sprite-btn, #generate-animation-btn {
-    background-color: #373737;
-    flex-grow: 1;
-    padding: 0.75rem;
-    border: none;
-    color: white;
-    font-size: 1rem;
-    font-weight: bold;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-.preview-controls button:hover, #generate-sprite-btn:hover, #generate-animation-btn:hover {
-    background-color: #4f4f4f;
-}
-
 #frame-preview-container {
     margin-top: 2rem;
     text-align: center;
@@ -358,7 +335,34 @@ input[type="number"] {
 .header-right-controls {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.5rem; /* Reduced gap for pill buttons */
+}
+
+.header-btn.pill-btn {
+    background-color: #2a2a2a;
+    border: 1px solid #444;
+    color: #e0e0e0;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px; /* Pill shape */
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: bold;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+    white-space: nowrap; /* Prevent text wrapping */
+}
+
+.header-btn.pill-btn:hover {
+    background-color: #333;
+    border-color: #03dac6;
+    color: #03dac6;
+}
+
+.header-btn.pill-btn svg {
+    width: 20px;
+    height: 20px;
 }
 
 /* --- Google Translate Widget Styles --- */
@@ -402,30 +406,8 @@ body > .skiptranslate {
     background-color: #003366;
 }
 
-.key-btn {
-    background: none;
-    border: 2px solid #555;
-    color: #e0e0e0;
-    font-size: 1.2rem;
-    cursor: pointer;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    transition: background-color 0.3s, border-color 0.3s;
-}
-
-.key-btn:hover {
-    background-color: #333;
-}
-
 .hidden-by-default {
     display: none;
-}
-
-.download-btn {
-    background-color: #4CAF50; /* Verde */
-    color: white;
 }
 
 /* Styles for Image Animation Section */
@@ -482,23 +464,6 @@ body > .skiptranslate {
     outline: none;
     border-color: #007bff;
     box-shadow: 0 0 5px rgba(0, 123, 255, 0.25);
-}
-
-.download-btn:hover {
-    background-color: #45a049;
-}
-
-/* Specificity override for the header download button */
-.key-btn.download-btn {
-    background-color: #4CAF50; /* Verde */
-}
-
-.key-btn.download-btn:hover {
-    background-color: #45a049;
-}
-
-.key-btn.active {
-    border-color: #ffd700; /* Gold color for active state */
 }
 
 input[type="text"] {
@@ -698,4 +663,89 @@ footer {
 
 .donate-link-modal:hover {
     background-color: #f0c400;
+}
+
+/* --- Sound Generation Section Styles --- */
+#sound-generation-section h2 {
+    margin-bottom: 1.5rem;
+    color: #ffffff;
+}
+
+#sound-generation-section textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #333;
+    background-color: #2c2c2c;
+    color: #e0e0e0;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 1rem;
+    resize: vertical;
+}
+
+#sound-generation-section button {
+    width: 100%;
+    padding: 0.75rem;
+    border: none;
+    background-color: #6200ea;
+    color: white;
+    font-size: 1rem;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin-top: 0.5rem;
+}
+
+#sound-generation-section button:hover {
+    background-color: #3700b3;
+}
+
+.sound-type-selector {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.sound-type-btn {
+    flex-grow: 1;
+    background-color: #373737 !important; /* Use important to override generic button style if needed */
+}
+
+.sound-type-btn.active, .video-type-btn.active {
+    background-color: #03dac6 !important;
+    color: #121212 !important;
+}
+
+.video-type-btn {
+    flex-grow: 1;
+    background-color: #373737 !important;
+}
+
+.inspiration-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.5rem;
+}
+
+.inspiration-grid button {
+    background-color: #373737 !important;
+    font-size: 0.9rem !important;
+    padding: 0.5rem !important;
+}
+
+.inspiration-grid button:hover {
+    background-color: #4f4f4f !important;
+}
+
+#audio-player {
+    width: 100%;
+    margin-top: 1rem;
+}
+
+#generation-info {
+    font-size: 0.9rem;
+    color: #a0a0a0;
+    margin-bottom: 0.5rem;
 }

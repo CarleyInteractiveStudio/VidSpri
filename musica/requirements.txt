@@ -1,5 +1,6 @@
 fastapi
 uvicorn
-rembg
-Pillow
+transformers
+torch
+scipy
 python-multipart

@@ -4,6 +4,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoSection = document.getElementById('video-section');
     const videoSpriteBtn = document.getElementById('video-sprite-btn');
     const imageSpriteBtn = document.getElementById('image-sprite-btn');
+    const soundGenerationBtn = document.getElementById('sound-generation-btn');
+    const textToSpriteBtn = document.getElementById('text-to-sprite-btn');
+
+    // Text to Sprite Section elements
+    const textToSpriteSection = document.getElementById('text-to-sprite-section');
+    const videoTypeButtons = document.querySelectorAll('.video-type-btn');
+    const textPrompt = document.getElementById('text-prompt');
+    const videoInspirationButtonsContainer = document.getElementById('video-inspiration-buttons');
+    const generateVideoBtn = document.getElementById('generate-video-btn');
+
+    // Sound Generation Section elements
+    const soundGenerationSection = document.getElementById('sound-generation-section');
+    const soundTypeButtons = document.querySelectorAll('.sound-type-btn');
+    const soundPrompt = document.getElementById('sound-prompt');
+    const inspirationButtonsContainer = document.getElementById('inspiration-buttons');
+    const generateSoundBtn = document.getElementById('generate-sound-btn');
+    const audioResultContainer = document.getElementById('audio-result-container');
+    const generationInfo = document.getElementById('generation-info');
+    const audioPlayer = document.getElementById('audio-player');
+
 
     // Image Animation Section elements
     const imageAnimationSection = document.getElementById('image-animation-section');
@@ -68,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Premium Feature Modal elements
     const premiumFeatureModal = document.getElementById('premium-feature-modal');
     const closePremiumFeatureBtn = document.querySelector('.close-premium-feature-btn');
+    const supportBtn = document.getElementById('support-btn');
 
     // Footer buttons
     const donateBtnFooter = document.getElementById('donate-btn-footer');
@@ -80,6 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- URLs de Servidores ---
     // URL del servidor para quitar el fondo de las imágenes
     const backgroundRemovalUrl = 'https://carley1234-vidspri.hf.space/remove-background/';
+    // URL del servidor para generar audio
+    const audioGenerationUrl = 'https://TU-ESPACIO-DE-MUSICA-EN-HF.hf.space/generate-audio/';
 
 
     // --- App Detection Logic ---
@@ -104,6 +127,196 @@ document.addEventListener('DOMContentLoaded', () => {
         mainMenu.classList.add('hidden');
         imageAnimationSection.classList.remove('hidden');
     });
+
+    soundGenerationBtn.addEventListener('click', () => {
+        mainMenu.classList.add('hidden');
+        soundGenerationSection.classList.remove('hidden');
+        updateInspirationButtons(); // Initialize with default selection
+    });
+
+    textToSpriteBtn.addEventListener('click', () => {
+        mainMenu.classList.add('hidden');
+        textToSpriteSection.classList.remove('hidden');
+        updateVideoInspirationButtons(); // Initialize with default selection
+    });
+
+    // --- Text to Sprite Logic ---
+
+    const videoInspirationData = {
+        effect: [
+            { text: 'Explosión de Fuego', prompt: 'Una explosión de fuego realista, con humo y chispas.' },
+            { text: 'Ataque de Rayo', prompt: 'Un rayo de energía azul brillante que golpea el suelo.' },
+            { text: 'Aura Mágica', prompt: 'Un aura de energía pulsante de color púrpura alrededor de un objeto.' }
+        ],
+        animation: [
+            { text: 'Correr a la Derecha', prompt: 'Un personaje de perfil corriendo hacia la derecha, estilo pixel art.' },
+            { text: 'Salto', prompt: 'Un personaje saltando en el sitio, con anticipación y aterrizaje.' },
+            { text: 'Ataque con Espada', prompt: 'Un personaje realizando un corte con la espada de izquierda a derecha.' }
+        ]
+    };
+
+    let currentVideoType = 'effect'; // Default type
+
+    function updateVideoInspirationButtons() {
+        videoInspirationButtonsContainer.innerHTML = '';
+        const buttonsData = videoInspirationData[currentVideoType];
+        buttonsData.forEach(data => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = data.text;
+            button.addEventListener('click', () => {
+                textPrompt.value = data.prompt;
+            });
+            videoInspirationButtonsContainer.appendChild(button);
+        });
+    }
+
+    videoTypeButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            videoTypeButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            currentVideoType = button.dataset.type;
+            updateVideoInspirationButtons();
+        });
+    });
+
+    generateVideoBtn.addEventListener('click', () => {
+        if (!textPrompt.value.trim()) {
+            showError("Por favor, describe el video que quieres generar.");
+            return;
+        }
+
+        // --- Simulation Logic ---
+        hideAllSections();
+        progressContainer.classList.remove('hidden');
+        progressText.textContent = "Generando video con IA...";
+        updateProgressBar(0);
+
+        const duration = currentVideoType === 'effect' ? 3 : 5;
+        // This is just for show, the actual video will have its own duration.
+
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += 10;
+            updateProgressBar(progress);
+            if (progress >= 100) {
+                clearInterval(interval);
+                progressContainer.classList.add('hidden');
+
+                // --- Hand over to the existing video processing flow ---
+                // For now, using a placeholder. Replace with a real video URL when backend is ready.
+                // Using a generic placeholder video.
+                const sampleVideoUrl = 'https://www.w3schools.com/html/mov_bbb.mp4';
+                videoPreview.src = sampleVideoUrl;
+                videoPreview.load();
+
+                // Show the video processing section
+                videoSection.classList.remove('hidden');
+                videoPreviewContainer.classList.remove('hidden');
+                dragDropAreaVideo.querySelector('p').style.display = 'none';
+            }
+        }, 300);
+    });
+
+
+    // --- Sound Generation Logic ---
+
+    const inspirationData = {
+        effect: [
+            { text: 'Disparo Láser', prompt: 'Sonido de un disparo láser de ciencia ficción, agudo y rápido.' },
+            { text: 'Explosión', prompt: 'Una gran explosión retumbante con eco.' },
+            { text: 'Pasos en Grava', prompt: 'Sonido claro de pasos lentos caminando sobre grava.' },
+            { text: 'Puerta Chirriante', prompt: 'Una puerta de madera vieja y pesada que chirría al abrirse lentamente.' },
+            { text: 'Moneda Cayendo', prompt: 'Sonido metálico de una moneda cayendo sobre un suelo de baldosas.' }
+        ],
+        music: [
+            { text: 'Melodía Relajante', prompt: 'Una melodía de piano suave y lenta, perfecta para relajarse o estudiar.' },
+            { text: 'Ritmo de Acción', prompt: 'Música de percusión electrónica, enérgica y rápida, para una escena de acción.' },
+            { text: 'Sonido de Bosque', prompt: 'Ambiente de un bosque tranquilo con canto de pájaros y un arroyo cercano.' },
+            { text: 'Ambiente de Ciudad', prompt: 'Sonido de fondo de una ciudad bulliciosa con tráfico y sirenas lejanas.' },
+            { text: 'Música de Suspenso', prompt: 'Una melodía de cuerdas de bajo tono, lenta y llena de suspenso.' }
+        ]
+    };
+
+    let currentSoundType = 'effect'; // Default type
+
+    function updateInspirationButtons() {
+        inspirationButtonsContainer.innerHTML = '';
+        const buttonsData = inspirationData[currentSoundType];
+        buttonsData.forEach(data => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = data.text;
+            button.addEventListener('click', () => {
+                soundPrompt.value = data.prompt;
+            });
+            inspirationButtonsContainer.appendChild(button);
+        });
+    }
+
+    soundTypeButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            soundTypeButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            currentSoundType = button.dataset.type;
+            updateInspirationButtons();
+        });
+    });
+
+    generateSoundBtn.addEventListener('click', async () => {
+        const prompt = soundPrompt.value.trim();
+        if (!prompt) {
+            showError("Por favor, describe el sonido que quieres generar.");
+            return;
+        }
+
+        hideAllSections();
+        progressContainer.classList.remove('hidden');
+        progressText.textContent = "Conectando con el servidor...";
+        updateProgressBar(10); // Initial progress
+
+        const duration = currentSoundType === 'effect' ? 5 : 30;
+        generationInfo.textContent = `Generando audio... (Duración máxima: ${duration}s). Esto puede tardar un momento.`;
+
+        try {
+            progressText.textContent = "Generando audio con IA...";
+            updateProgressBar(50);
+
+            const response = await fetch(audioGenerationUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: prompt,
+                    duration: duration,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ detail: 'Error desconocido del servidor.' }));
+                throw new Error(errorData.detail);
+            }
+
+            progressText.textContent = "Cargando audio...";
+            updateProgressBar(90);
+
+            const audioBlob = await response.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            audioPlayer.src = audioUrl;
+
+            updateProgressBar(100);
+            progressContainer.classList.add('hidden');
+            audioResultContainer.classList.remove('hidden');
+            soundGenerationSection.classList.remove('hidden');
+
+        } catch (error) {
+            showError(`No se pudo generar el audio: ${error.message}`);
+            // Show the sound generation section again on error
+            soundGenerationSection.classList.remove('hidden');
+        }
+    });
+
 
     // --- Image Animation Logic ---
 
@@ -199,13 +412,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function updatePremiumStatus() {
         const savedCode = localStorage.getItem('vidspri_premium_code');
         if (savedCode) {
-            premiumStatus.textContent = 'PREMIUM';
-            premiumStatus.style.color = 'gold';
-            premiumCodeBtn.classList.add('premium-active');
+            premiumStatus.textContent = 'PRIORITARIO';
+            premiumStatus.style.color = '#03dac6'; // Match the theme color
         } else {
-            premiumStatus.textContent = 'GRATIS';
-            premiumStatus.style.color = '#fff';
-            premiumCodeBtn.classList.remove('premium-active');
+            premiumStatus.textContent = 'ESTÁNDAR';
+            premiumStatus.style.color = '#b0b0b0';
         }
     }
 
@@ -255,6 +466,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     downloadBtnResult.addEventListener('click', () => {
         downloadAppModal.classList.remove('hidden');
+    });
+
+    supportBtn.addEventListener('click', () => {
+        window.open('https://www.paypal.com/donate/?hosted_button_id=SF9TB2TJLYL96', '_blank');
     });
 
     // --- Footer Buttons Logic ---
@@ -470,6 +685,10 @@ document.addEventListener('DOMContentLoaded', () => {
         errorMessage.classList.add('hidden');
         resultContainer.classList.add('hidden');
         framePreviewContainer.classList.add('hidden');
+        soundGenerationSection.classList.add('hidden');
+        videoSection.classList.add('hidden');
+        imageAnimationSection.classList.add('hidden');
+        textToSpriteSection.classList.add('hidden');
     }
 
     function showError(message) {
