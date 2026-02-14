@@ -243,7 +243,18 @@
             <div id="sprite-canvas-container">
                 <canvas id="sprite-canvas"></canvas>
             </div>
-            <button type="button" id="play-pause-animation-btn">Reproducir</button>
+
+            <!-- Info Bubble -->
+            <div id="sprite-info-bubble" class="info-bubble hidden">
+                <h3>Detalles del Sprite</h3>
+                <p><strong>Dimensiones:</strong> <span id="sprite-dimensions">N/A</span></p>
+                <p><strong>Fotogramas:</strong> <span id="sprite-frame-count">N/A</span></p>
+            </div>
+
+            <div class="preview-actions">
+                <button type="button" id="play-pause-animation-btn">Reproducir</button>
+                <a id="download-preview-link" href="#" class="button-like" download="sprite.png" style="display: none;">Descargar Sprite</a>
+            </div>
         </div>
 
         <div id="frame-preview-container" class="hidden">
@@ -271,21 +282,6 @@
             </div>
             <div style="text-align: center; margin-top: 1em;">
                 <button type="button" id="preview-sprite-btn" class="text-button">Previsualización de Sprite</button>
-            </div>
-        </div>
-
-        <!-- Sprite Preview Modal -->
-        <div id="sprite-preview-modal" class="modal hidden">
-            <div class="modal-content">
-                <span class="close-sprite-preview-btn">&times;</span>
-                <h2>Previsualización de Animación</h2>
-                <div id="modal-sprite-canvas-container" class="sprite-canvas-container">
-                     <canvas id="modal-sprite-canvas"></canvas>
-                </div>
-                <div class="form-group">
-                    <label for="modal-sprite-speed">Velocidad (FPS): <span id="modal-speed-value">12</span></label>
-                    <input type="range" id="modal-sprite-speed" name="modal_sprite_speed" min="1" max="60" value="12">
-                </div>
             </div>
         </div>
 

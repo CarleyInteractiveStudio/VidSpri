@@ -110,10 +110,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const spriteCanvas = document.getElementById('sprite-canvas');
     const playPauseBtn = document.getElementById('play-pause-animation-btn');
     const spriteCanvasContainer = document.getElementById('sprite-canvas-container');
+    const downloadPreviewLink = document.getElementById('download-preview-link');
+    const infoBubble = document.getElementById('sprite-info-bubble');
+    const spriteDimensionsSpan = document.getElementById('sprite-dimensions');
+    const spriteFrameCountSpan = document.getElementById('sprite-frame-count');
+
 
     // --- URLs de Servidores ---
-    // URL del servidor para quitar el fondo de las imágenes
-    const backgroundRemovalUrl = 'https://carley1234-vidspri.hf.space/remove-background/';
+    const serverBaseUrl = 'https://carley1234-vidspri.hf.space';
+    const backgroundRemovalUrl = `${serverBaseUrl}/remove-background/`;
+    const applyCodeUrl = `${serverBaseUrl}/apply-code`;
+    const statusUrlBase = `${serverBaseUrl}/status/`;
     // URL del servidor para generar audio
     const audioGenerationUrl = 'https://TU-ESPACIO-DE-MUSICA-EN-HF.hf.space/generate-audio/';
 
@@ -355,14 +362,14 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (e) => {
                 imagePreviewAnim.src = e.target.result;
                 imagePreviewContainerAnim.classList.remove('hidden');
-                dragDropArea.querySelector('p').style.display = 'none'; // Hide the text
+                dragDropArea.classList.add('hidden'); // Hide the whole drop area
             };
             reader.readAsDataURL(file);
         } else {
             showError('Por favor, selecciona un archivo de imagen válido (.png, .jpg).');
             // Reset if invalid file
             imagePreviewContainerAnim.classList.add('hidden');
-            dragDropArea.querySelector('p').style.display = 'block';
+            dragDropArea.classList.remove('hidden');
         }
     }
 
@@ -504,21 +511,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (previewSpriteBtn) {
-        previewSpriteBtn.addEventListener('click', () => {
-            if (generatedSprite.url && generatedSprite.frameCount > 0) {
-                modalAnimationState.image = new Image();
-                modalAnimationState.image.onload = () => {
-                    spritePreviewModal.classList.remove('hidden');
-                    startModalAnimation();
-                };
-                modalAnimationState.image.src = generatedSprite.url;
-            } else {
-                showError("No hay un sprite generado para previsualizar.");
-            }
-        });
-    }
-
     supportBtn.addEventListener('click', () => {
         window.open('https://www.paypal.com/donate/?hosted_button_id=SF9TB2TJLYL96', '_blank');
     });
@@ -564,13 +556,13 @@ document.addEventListener('DOMContentLoaded', () => {
             videoPreview.load();
             videoPreviewContainer.classList.remove('hidden');
             // Hide the drag-drop text and show the preview instead
-            dragDropAreaVideo.querySelector('p').style.display = 'none';
+            dragDropAreaVideo.classList.add('hidden');
             framePreviewContainer.classList.add('hidden');
             resultContainer.classList.add('hidden');
         } else {
             showError('Por favor, selecciona un archivo de video válido.');
             videoPreviewContainer.classList.add('hidden');
-            dragDropAreaVideo.querySelector('p').style.display = 'block';
+            dragDropAreaVideo.classList.remove('hidden');
         }
     }
 
@@ -677,56 +669,117 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         hideAllSections();
-        // Ensure progress container is visible for this stage if not already
         progressContainer.classList.remove('hidden');
         serverMessage.classList.remove('hidden');
         bannerAdContainer.classList.remove('hidden');
+        progressText.textContent = "Enviando fotogramas al servidor...";
+        updateProgressBar(0);
 
-        const totalFrames = extractedFrames.length;
-        const processedFrames = [];
-        const premiumCode = localStorage.getItem('vidspri_premium_code');
+        const formData = new FormData();
+        extractedFrames.forEach(frameData => {
+            formData.append('images', frameData.blob, `frame_${frameData.id}.png`);
+        });
 
         try {
-            for (let i = 0; i < totalFrames; i++) {
-                const frameData = extractedFrames[i];
-                progressText.textContent = `Procesando fotograma ${i + 1} de ${totalFrames}... (Quitando fondo)`;
-                const progressPercentage = (i / totalFrames) * 100;
-                updateProgressBar(progressPercentage);
+            // 1. Submit the job
+            const response = await fetch(backgroundRemovalUrl, {
+                method: 'POST',
+                body: formData,
+            });
 
-
-                const formData = new FormData();
-                formData.append('image', frameData.blob, `frame_${frameData.id}.png`);
-                if (premiumCode) {
-                    formData.append('premium_code', premiumCode);
-                }
-
-                const response = await fetch(backgroundRemovalUrl, {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: `Error del servidor en el fotograma ${i + 1}.` }));
-                    throw new Error(errorData.detail);
-                }
-
-                const processedBlob = await response.blob();
-                processedFrames.push(processedBlob);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ detail: 'Error al enviar el trabajo al servidor.' }));
+                throw new Error(errorData.detail);
             }
 
-            updateProgressBar(100);
-            progressText.textContent = "Creando la hoja de sprites final...";
-            await createSpriteSheet(processedFrames);
-            resultContainer.classList.remove('hidden');
-            shareModal.classList.remove('hidden');
+            const jobData = await response.json();
+            const jobId = jobData.job_id;
+
+            progressText.textContent = `En cola en la posición #${jobData.queue_position}...`;
+
+            // 2. Apply premium code if it exists
+            const premiumCode = localStorage.getItem('vidspri_premium_code');
+            if (premiumCode) {
+                progressText.textContent = "Aplicando código prioritario...";
+                const codeFormData = new FormData();
+                codeFormData.append('job_id', jobId);
+                codeFormData.append('code', premiumCode);
+
+                const codeResponse = await fetch(applyCodeUrl, {
+                    method: 'POST',
+                    body: codeFormData
+                });
+                if (codeResponse.ok) {
+                    const codeResult = await codeResponse.json();
+                    progressText.textContent = `¡Éxito! Nueva posición en la cola: #${codeResult.new_queue_position}.`;
+                } else {
+                     progressText.textContent += " (El código no fue válido, continuando con prioridad estándar)";
+                }
+            }
+
+
+            // 3. Poll for status
+            await pollStatus(jobId);
 
         } catch (error) {
             showError(error.message);
-        } finally {
-            progressContainer.classList.add('hidden');
-            serverMessage.classList.add('hidden');
-            bannerAdContainer.classList.add('hidden');
+             progressContainer.classList.add('hidden');
+             serverMessage.classList.add('hidden');
+             bannerAdContainer.classList.add('hidden');
         }
+    }
+
+    async function pollStatus(jobId) {
+        const statusUrl = `${statusUrlBase}${jobId}`;
+        const intervalId = setInterval(async () => {
+            try {
+                const response = await fetch(statusUrl);
+                 if (!response.ok) {
+                    // Stop polling on server error
+                    clearInterval(intervalId);
+                    showError(`Error al obtener el estado del trabajo.`);
+                    return;
+                }
+                const data = await response.json();
+
+                if (data.status === 'queued') {
+                    progressText.textContent = `En cola en la posición #${data.queue_position}...`;
+                    updateProgressBar(5); // Small progress for being queued
+                } else if (data.status === 'processing') {
+                    const progress = data.total_frames > 0 ? (data.completed_frames / data.total_frames) * 100 : 0;
+                    progressText.textContent = `Procesando... (${data.completed_frames}/${data.total_frames} fotogramas completados)`;
+                    updateProgressBar(progress);
+                } else if (data.status === 'completed') {
+                    clearInterval(intervalId);
+                    progressText.textContent = "Trabajo completado. Creando la hoja de sprites...";
+                    updateProgressBar(100);
+
+                    // Decode base64 frames to blobs
+                    const processedBlobs = data.frames.map(base64String => {
+                        const byteCharacters = atob(base64String);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        return new Blob([byteArray], { type: 'image/png' });
+                    });
+
+                    await createSpriteSheet(processedBlobs);
+                    resultContainer.classList.remove('hidden');
+                    shareModal.classList.remove('hidden');
+                    progressContainer.classList.add('hidden');
+                    serverMessage.classList.add('hidden');
+                    bannerAdContainer.classList.add('hidden');
+                }
+            } catch (error) {
+                 clearInterval(intervalId);
+                 showError(error.message);
+                 progressContainer.classList.add('hidden');
+                 serverMessage.classList.add('hidden');
+                 bannerAdContainer.classList.add('hidden');
+            }
+        }, 3000); // Poll every 3 seconds
     }
 
 
@@ -856,6 +909,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Sprite Previewer Logic ---
 
+    window.addEventListener('load-generated-sprite', () => {
+        const url = sessionStorage.getItem('previewSpriteURL');
+        const frameCount = sessionStorage.getItem('previewSpriteFrameCount');
+
+        if (url && frameCount) {
+            spriteImageSrc = url;
+            spriteFramesInput.value = frameCount;
+
+            // Hide the drag & drop and show the animation
+            dragDropAreaSprite.classList.add('hidden');
+            spriteCanvasContainer.classList.remove('hidden');
+
+            // Update and show the download link
+            downloadPreviewLink.href = spriteImageSrc;
+            downloadPreviewLink.download = "generated_sprite.png";
+            downloadPreviewLink.style.display = 'inline-block';
+
+            stopAnimation();
+            animationState.image = new Image();
+            animationState.image.onload = () => {
+                // Update Info Bubble
+                spriteDimensionsSpan.textContent = `${animationState.image.width}px x ${animationState.image.height}px`;
+                spriteFrameCountSpan.textContent = frameCount;
+                infoBubble.classList.remove('hidden');
+
+                drawFrame(0); // Show the first frame immediately
+                startAnimation(); // Optionally, start playing right away
+            };
+            animationState.image.src = spriteImageSrc;
+        }
+    });
+
     let spriteImageSrc = null;
     let animationState = {
         isPlaying: false,
@@ -905,10 +990,24 @@ if (spriteFileInput) {
             const reader = new FileReader();
             reader.onload = e => {
                 spriteImageSrc = e.target.result;
-                dragDropAreaSprite.querySelector('p').textContent = file.name;
+                // Hide the drag & drop area and show the canvas
+                dragDropAreaSprite.classList.add('hidden');
+                spriteCanvasContainer.classList.remove('hidden');
+
+                // Update and show the download link
+                downloadPreviewLink.href = spriteImageSrc;
+                downloadPreviewLink.download = file.name; // Set the original filename
+                downloadPreviewLink.style.display = 'inline-block';
+
                 stopAnimation();
                 animationState.image = new Image();
                 animationState.image.onload = () => {
+                    const frameCount = spriteFramesInput.value || 1;
+                    // Update Info Bubble
+                    spriteDimensionsSpan.textContent = `${animationState.image.width}px x ${animationState.image.height}px`;
+                    spriteFrameCountSpan.textContent = frameCount; // Use value from input
+                    infoBubble.classList.remove('hidden');
+
                     // Set canvas to first frame preview
                     drawFrame(0);
                 };
@@ -922,6 +1021,16 @@ if (spriteFileInput) {
         const newFps = parseInt(e.target.value, 10);
         animationState.fps = newFps;
         speedValue.textContent = newFps;
+    });
+
+    spriteFramesInput.addEventListener('input', () => {
+        // When the user changes the frame count, stop the animation and redraw the first frame
+        // to provide immediate visual feedback of the new dimensions.
+        stopAnimation();
+        animationState.frame = 0; // Reset to the first frame
+        drawFrame(0);
+        // Also update the info bubble
+        spriteFrameCountSpan.textContent = spriteFramesInput.value;
     });
 
     playPauseBtn.addEventListener('click', () => {
@@ -973,25 +1082,38 @@ if (spriteFileInput) {
 
     function drawFrame(frameIndex) {
         const img = animationState.image;
-        if (!img) return;
+        if (!img || !img.complete || img.naturalWidth === 0) {
+            // Don't draw if the image isn't loaded yet
+            return;
+        }
 
-        const frameCount = parseInt(spriteFramesInput.value, 10) || 1;
-        const frameWidth = img.width / frameCount;
-        const frameHeight = img.height;
+        const frameCount = parseInt(spriteFramesInput.value, 10);
+        if (isNaN(frameCount) || frameCount <= 0) {
+            // Don't draw if the frame count isn't a valid number
+            return;
+        }
 
-        // Resize canvas to match frame aspect ratio
+        // --- CORE FIX: Correctly calculate frame dimensions ---
+        const frameWidth = img.naturalWidth / frameCount;
+        const frameHeight = img.naturalHeight;
+
+        // --- CORE FIX: Set canvas size to the size of a SINGLE frame ---
         spriteCanvas.width = frameWidth;
         spriteCanvas.height = frameHeight;
 
         const ctx = spriteCanvas.getContext('2d');
-        ctx.clearRect(0, 0, spriteCanvas.width, spriteCanvas.height);
+        ctx.clearRect(0, 0, frameWidth, frameHeight);
 
+        // Calculate the starting X position of the desired frame in the spritesheet
         const sourceX = frameIndex * frameWidth;
 
+        // --- CORE FIX: Use the correct arguments for drawImage to clip the frame ---
         ctx.drawImage(
             img,
-            sourceX, 0, frameWidth, frameHeight, // Source rectangle
-            0, 0, spriteCanvas.width, spriteCanvas.height      // Destination rectangle
+            sourceX, 0,           // The X and Y coordinates of the top-left corner of the sub-rectangle (the frame to cut out) on the source image.
+            frameWidth, frameHeight, // The width and height of the sub-rectangle to cut out.
+            0, 0,                // The X and Y coordinates where to place the image on the canvas.
+            frameWidth, frameHeight  // The width and height to draw the image on the canvas.
         );
     }
 
@@ -1006,8 +1128,10 @@ if (spriteFileInput) {
         detectFramesBtn.disabled = true;
 
         try {
-            const frameCount = await countFramesByConnectivity(spriteImageSrc);
+            const frameCount = await countFramesByColumnScan(spriteImageSrc);
             spriteFramesInput.value = frameCount;
+            // Manually dispatch the event to trigger the feedback listener
+            spriteFramesInput.dispatchEvent(new Event('input'));
         } catch (error) {
             showError("No se pudo detectar los fotogramas. " + error.message);
         } finally {
@@ -1016,7 +1140,7 @@ if (spriteFileInput) {
         }
     });
 
-    async function countFramesByConnectivity(imageUrl) {
+    async function countFramesByColumnScan(imageUrl) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.crossOrigin = "Anonymous";
@@ -1030,38 +1154,33 @@ if (spriteFileInput) {
                 try {
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     const { data, width, height } = imageData;
-                    const visited = new Uint8Array(width * height);
-                    let count = 0;
+                    let frameCount = 0;
+                    let isInFrame = false;
 
-                    for (let y = 0; y < height; y++) {
-                        for (let x = 0; x < width; x++) {
-                            const index = (y * width + x);
-                            if (visited[index]) continue;
-
-                            // Check alpha channel (every 4th value)
-                            const alphaIndex = index * 4 + 3;
-                            if (data[alphaIndex] > 0) { // If pixel is not transparent
-                                count++;
-                                // Flood fill to mark all connected pixels as visited
-                                const stack = [[x, y]];
-                                while (stack.length > 0) {
-                                    const [px, py] = stack.pop();
-                                    const pIndex = (py * width + px);
-
-                                    if (px >= 0 && px < width && py >= 0 && py < height && !visited[pIndex] && data[pIndex * 4 + 3] > 0) {
-                                        visited[pIndex] = 1;
-                                        stack.push([px + 1, py]);
-                                        stack.push([px - 1, py]);
-                                        stack.push([px, py + 1]);
-                                        stack.push([px, py - 1]);
-                                    }
-                                }
+                    // Scan from left to right
+                    for (let x = 0; x < width; x++) {
+                        let isColumnTransparent = true;
+                        // Check every pixel in the current column
+                        for (let y = 0; y < height; y++) {
+                            const alpha = data[(y * width + x) * 4 + 3];
+                            if (alpha > 0) { // If any pixel in the column is not transparent
+                                isColumnTransparent = false;
+                                break;
                             }
                         }
+
+                        if (!isColumnTransparent && !isInFrame) {
+                            // We've entered a new frame
+                            isInFrame = true;
+                            frameCount++;
+                        } else if (isColumnTransparent && isInFrame) {
+                            // We've just left a frame
+                            isInFrame = false;
+                        }
                     }
-                    resolve(count > 0 ? count : 1);
+                    resolve(frameCount > 0 ? frameCount : 1); // Default to 1 if no frames are found
                 } catch (e) {
-                    reject(new Error("No se pudo analizar la imagen. Si es de otra web, descárgala y súbela desde tu dispositivo."));
+                     reject(new Error("No se pudo analizar la imagen. Si la imagen proviene de otra web, prueba a descargarla y subirla directamente desde tu dispositivo para evitar problemas de CORS."));
                 }
             };
             img.onerror = () => {
@@ -1072,114 +1191,36 @@ if (spriteFileInput) {
     }
 
 
-    // --- Result Preview Modal Logic ---
+    // --- Result Preview Logic ---
     const previewSpriteBtn = document.getElementById('preview-sprite-btn');
-    const spritePreviewModal = document.getElementById('sprite-preview-modal');
-    const closeSpritePreviewBtn = document.querySelector('.close-sprite-preview-btn');
-    const modalSpriteCanvas = document.getElementById('modal-sprite-canvas');
-    const modalSpriteSpeed = document.getElementById('modal-sprite-speed');
-    const modalSpeedValue = document.getElementById('modal-speed-value');
 
     let generatedSprite = {
         url: null,
         frameCount: 0
     };
 
-    let modalAnimationState = {
-        isPlaying: false,
-        frame: 0,
-        fps: 12,
-        then: 0,
-        animationFrameId: null,
-        image: null
-    };
-
-    // Add new modal to the list of closable modals
-    function updatedCloseModalOnClickOutside(event) {
-        if (event.target === spritePreviewModal) {
-            stopModalAnimation();
-            spritePreviewModal.classList.add('hidden');
-        }
-        closeModalOnClickOutside(event); // Call original function
-    }
-    window.removeEventListener('click', closeModalOnClickOutside);
-    window.addEventListener('click', updatedCloseModalOnClickOutside);
-
-    closeSpritePreviewBtn.addEventListener('click', () => {
-        stopModalAnimation();
-        spritePreviewModal.classList.add('hidden');
-    });
-
     previewSpriteBtn.addEventListener('click', () => {
         if (generatedSprite.url && generatedSprite.frameCount > 0) {
-            modalAnimationState.image = new Image();
-            modalAnimationState.image.onload = () => {
-                spritePreviewModal.classList.remove('hidden');
-                startModalAnimation();
-            };
-            modalAnimationState.image.src = generatedSprite.url;
+            // Store data for the main previewer to access
+            sessionStorage.setItem('previewSpriteURL', generatedSprite.url);
+            sessionStorage.setItem('previewSpriteFrameCount', generatedSprite.frameCount);
+
+            // Navigate or show the main previewer
+            mainMenu.classList.add('hidden');
+            videoSection.classList.add('hidden');
+            spritePreviewSection.classList.remove('hidden');
+
+            // Scroll to the preview section smoothly
+            spritePreviewSection.scrollIntoView({ behavior: 'smooth' });
+
+            // Trigger a custom event to notify the previewer to load the new sprite
+            window.dispatchEvent(new Event('load-generated-sprite'));
+
         } else {
             showError("No hay un sprite generado para previsualizar.");
         }
     });
 
-    modalSpriteSpeed.addEventListener('input', e => {
-        const newFps = parseInt(e.target.value, 10);
-        modalAnimationState.fps = newFps;
-        modalSpeedValue.textContent = newFps;
-    });
-
-    function startModalAnimation() {
-        modalAnimationState.isPlaying = true;
-        modalAnimationState.then = performance.now();
-        modalAnimationState.animationFrameId = requestAnimationFrame(animateModal);
-    }
-
-    function stopModalAnimation() {
-        modalAnimationState.isPlaying = false;
-        if (modalAnimationState.animationFrameId) {
-            cancelAnimationFrame(modalAnimationState.animationFrameId);
-        }
-    }
-
-    function animateModal(now) {
-        if (!modalAnimationState.isPlaying) return;
-
-        modalAnimationState.animationFrameId = requestAnimationFrame(animateModal);
-
-        const elapsed = now - modalAnimationState.then;
-        const fpsInterval = 1000 / modalAnimationState.fps;
-
-        if (elapsed > fpsInterval) {
-            modalAnimationState.then = now - (elapsed % fpsInterval);
-
-            drawModalFrame(modalAnimationState.frame);
-
-            modalAnimationState.frame = (modalAnimationState.frame + 1) % generatedSprite.frameCount;
-        }
-    }
-
-    function drawModalFrame(frameIndex) {
-        const img = modalAnimationState.image;
-        if (!img) return;
-
-        const frameWidth = img.width / generatedSprite.frameCount;
-        const frameHeight = img.height;
-
-        modalSpriteCanvas.width = frameWidth;
-        modalSpriteCanvas.height = frameHeight;
-
-        const ctx = modalSpriteCanvas.getContext('2d');
-        ctx.clearRect(0, 0, modalSpriteCanvas.width, modalSpriteCanvas.height);
-
-        const sourceX = frameIndex * frameWidth;
-
-        ctx.drawImage(
-            img,
-            sourceX, 0, frameWidth, frameHeight,
-            0, 0, modalSpriteCanvas.width, modalSpriteCanvas.height
-        );
-    }
 
     // Override original createSpriteSheet to store generated sprite info
     const originalCreateSpriteSheet = createSpriteSheet;

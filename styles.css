@@ -810,6 +810,9 @@ footer {
 }
 
 #sprite-canvas-container {
+    width: 100%;
+    max-height: 400px; /* Constrain height */
+    overflow: hidden; /* Ensure canvas respects container bounds */
     margin-top: 1.5rem;
     margin-bottom: 1.5rem;
     border: 1px solid #333;
@@ -832,7 +835,12 @@ footer {
 
 #sprite-canvas {
     max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
+    /* --- CORE FIX: Ensure pixel art is not blurred when scaled up --- */
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
 }
 
 #sprite-preview-section button {
@@ -916,4 +924,70 @@ footer {
 
 .text-button:hover {
     color: #018786;
+}
+
+/* --- Action Button & Link Styles --- */
+.preview-actions, .modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.button-like {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background-color: #03dac6;
+    color: #121212;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.button-like:hover {
+    background-color: #018786;
+}
+
+.secondary-button {
+    background-color: #373737;
+    color: #e0e0e0;
+    border: 1px solid #444;
+}
+
+.secondary-button:hover {
+    background-color: #4f4f4f;
+}
+
+/* --- Info Bubble Styles --- */
+.info-bubble {
+    background-color: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: -1rem; /* Pull it closer to the canvas */
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.info-bubble h3 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    color: #03dac6;
+    font-size: 1rem;
+    border-bottom: 1px solid #444;
+    padding-bottom: 0.5rem;
+}
+
+.info-bubble p {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+    color: #b0b0b0;
+}
+
+.info-bubble p strong {
+    color: #e0e0e0;
 }
