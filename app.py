@@ -60,7 +60,7 @@ app.add_middleware(
 # --- Admin Security ---
 # IMPORTANT: In a real production environment, this key should be loaded from a
 # secure source like an environment variable, not hardcoded.
-SECRET_ADMIN_KEY = os.environ.get("ADMIN_API_KEY", "CHANGE_ME_IN_PRODUCTION")
+SECRET_ADMIN_KEY = os.environ.get("ADMIN_API_KEY", "vidspri-admin-2025")
 
 async def require_admin_api_key(x_api_key: str = Header(...)):
     """Dependency to protect admin routes."""
@@ -118,14 +118,14 @@ async def process_queue():
 
         for job in stuck_jobs:
             print(f"Job {job.id} timed out. Marking as failed and shifting queue.")
-            # Mark as failed
-            fail_query = db.processing_jobs.update().where(db.processing_jobs.c.id == job.id).values(status="failed")
+            # Mark as failed and remove from queue
+            fail_query = db.processing_jobs.update().where(db.processing_jobs.c.id == job.id).values(
+                status="failed",
+                queue_position=None
+            )
             await db.database.execute(fail_query)
             # This job no longer holds a queue position, so we can shift others
-            shift_query = db.processing_jobs.update().where(
-                db.processing_jobs.c.queue_position > job.queue_position
-            ).values(queue_position=db.processing_jobs.c.queue_position - 1)
-            await db.database.execute(shift_query)
+            await db.shift_queue_after_job(job.queue_position)
 
 
         # 2. Check if a new job can be processed
@@ -145,14 +145,17 @@ async def process_queue():
 
         if job_to_process:
             print(f"Moving job {job_to_process.id} to 'processing' state.")
-            # Set its status to "processing" and record the start time
+            # Set its status to "processing", record the start time, and remove from queue position
             update_query = db.processing_jobs.update().where(
                 db.processing_jobs.c.id == job_to_process.id
             ).values(
                 status="processing",
-                processing_started_at=datetime.datetime.utcnow()
+                processing_started_at=datetime.datetime.utcnow(),
+                queue_position=None
             )
             await db.database.execute(update_query)
+            # Shift the rest of the queue forward
+            await db.shift_queue_after_job(1)
 
 # --- API Endpoints ---
 @app.post("/join")
@@ -281,6 +284,7 @@ async def process_images(job_id: str, images: list[UploadFile] = File(...)):
         db.processing_jobs.c.id == job_id
     ).values(
         status="completed",
+        queue_position=None,
         result_frames=json.dumps(processed_frames) # Store all results as a JSON string
     )
     await db.database.execute(final_update_query)
