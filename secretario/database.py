@@ -21,7 +21,7 @@ processing_jobs = sqlalchemy.Table(
     sqlalchemy.Column("priority", sqlalchemy.Boolean, default=False),
     sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.datetime.utcnow),
     sqlalchemy.Column("processing_started_at", sqlalchemy.DateTime, nullable=True),
-    sqlalchemy.Column("queue_position", sqlalchemy.Integer, unique=True),
+    sqlalchemy.Column("queue_position", sqlalchemy.Integer, nullable=True),
     sqlalchemy.Column("total_frames", sqlalchemy.Integer, default=0),
     sqlalchemy.Column("completed_frames", sqlalchemy.Integer, default=0),
     sqlalchemy.Column("result_frames", sqlalchemy.Text, default="[]"), # JSON list of base64 strings
@@ -58,17 +58,25 @@ async def get_job_status(job_id: str):
 async def create_new_job():
     """Adds a new non-priority job to the end of the queue."""
     async with database.transaction():
-        count_query = sqlalchemy.select([sqlalchemy.func.count()]).select_from(processing_jobs)
-        job_count = await database.fetch_val(count_query)
+        # Get the maximum current queue position
+        max_pos_query = sqlalchemy.select(sqlalchemy.func.max(processing_jobs.c.queue_position))
+        max_pos = await database.fetch_val(max_pos_query) or 0
 
         new_job_id = str(uuid.uuid4())
         insert_query = processing_jobs.insert().values(
             id=new_job_id,
-            queue_position=job_count + 1,
+            queue_position=max_pos + 1,
             priority=False,
         )
         await database.execute(insert_query)
         return new_job_id
+
+async def shift_queue_after_job(position: int):
+    """Shifts all jobs after the given position one step forward in the queue."""
+    update_query = processing_jobs.update().where(
+        processing_jobs.c.queue_position > position
+    ).values(queue_position=processing_jobs.c.queue_position - 1)
+    await database.execute(update_query)
 
 async def validate_priority_code(code: str):
     """Checks if a priority code is valid and has uses remaining."""
@@ -131,11 +139,11 @@ async def upgrade_job_to_priority(job_id: str, code: str):
         new_position = await _find_next_priority_slot(current_priority_positions)
 
         # 5. Make space for the job by shifting subsequent jobs down
-        job_count_query = sqlalchemy.select([sqlalchemy.func.count()]).select_from(processing_jobs)
-        total_jobs = await database.fetch_val(job_count_query)
+        max_pos_query = sqlalchemy.select(sqlalchemy.func.max(processing_jobs.c.queue_position))
+        max_pos = await database.fetch_val(max_pos_query) or 0
 
-        if new_position > total_jobs:
-            new_position = total_jobs + 1 # It can't be further than the end
+        if new_position > max_pos + 1:
+            new_position = max_pos + 1 # It can't be further than the end
 
         shift_down_query = processing_jobs.update().where(
             processing_jobs.c.queue_position >= new_position

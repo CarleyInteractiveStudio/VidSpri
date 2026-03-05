@@ -8,6 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusUrlBase = `${secretarioBaseUrl}/status/`;
     const processUrlBase = `${secretarioBaseUrl}/process/`;
 
+    // Health check logic (optional but useful for debugging)
+    fetch(secretarioBaseUrl)
+        .then(res => res.json())
+        .then(data => console.log("Server health check:", data))
+        .catch(err => console.error("Server not reachable:", err));
+
     // --- Global State ---
     let extractedFrames = []; // Stores { id, blob } of frames from the video
     let currentJobId = null; // Stores the ID of the current processing job
@@ -127,7 +133,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // Step 3.1: Join the queue
             const joinResponse = await fetch(joinQueueUrl, { method: 'POST' });
-            if (!joinResponse.ok) throw new Error('No se pudo conectar con el servidor.');
+            if (!joinResponse.ok) {
+                const text = await joinResponse.text();
+                throw new Error(`Error del servidor (${joinResponse.status}): ${text || 'Sin detalle'}`);
+            }
 
             const joinData = await joinResponse.json();
             currentJobId = joinData.job_id;
@@ -173,6 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 5. Handle different statuses received from the server
     async function handleStatusUpdate(data) {
+        console.log("Status update received:", data);
         switch (data.status) {
             case 'queued':
                 progressText.textContent = `En cola... Posición: #${data.position}`;
@@ -185,6 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     stopPolling();
                     progressText.textContent = `¡Es tu turno! Enviando fotogramas para procesar...`;
                     updateProgressBar(10);
+                    console.log(`Job ${currentJobId} is now processing. Sending frames...`);
                     await sendFramesForProcessing(currentJobId);
                     // After sending, start polling again to get progress updates
                     startPollingStatus(currentJobId);
@@ -231,8 +242,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!processResponse.ok) {
-                const errorData = await processResponse.json();
-                throw new Error(errorData.detail || 'Error al enviar fotogramas al servidor.');
+                let errorMsg = 'Error al enviar fotogramas al servidor.';
+                try {
+                    const errorData = await processResponse.json();
+                    errorMsg = errorData.detail || errorMsg;
+                } catch (e) {
+                    console.error("Could not parse error response", e);
+                }
+                throw new Error(errorMsg);
             }
             // If successful, the polling will now start showing 'progress' updates
         } catch (error) {
