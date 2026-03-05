@@ -40,6 +40,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+@app.get("/")
+async def root():
+    return {"message": "VidSpri Secretario is running", "status": "ok"}
+
 # --- CORS Configuration ---
 # This allows the frontend hosted on GitHub Pages to communicate with this server.
 origins = [
@@ -169,6 +173,11 @@ async def join_queue():
         return {"job_id": job_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/remove-background/")
+async def join_queue_alias():
+    """Alias for /join to maintain compatibility with older frontend versions."""
+    return await join_queue()
 
 @app.get("/status/{job_id}")
 async def get_status(job_id: str):

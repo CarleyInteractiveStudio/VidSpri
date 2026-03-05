@@ -8,6 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusUrlBase = `${secretarioBaseUrl}/status/`;
     const processUrlBase = `${secretarioBaseUrl}/process/`;
 
+    // Health check logic (optional but useful for debugging)
+    fetch(secretarioBaseUrl)
+        .then(res => res.json())
+        .then(data => console.log("Server health check:", data))
+        .catch(err => console.error("Server not reachable:", err));
+
     // --- Global State ---
     let extractedFrames = []; // Stores { id, blob } of frames from the video
     let currentJobId = null; // Stores the ID of the current processing job
@@ -127,7 +133,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // Step 3.1: Join the queue
             const joinResponse = await fetch(joinQueueUrl, { method: 'POST' });
-            if (!joinResponse.ok) throw new Error('No se pudo conectar con el servidor.');
+            if (!joinResponse.ok) {
+                const text = await joinResponse.text();
+                throw new Error(`Error del servidor (${joinResponse.status}): ${text || 'Sin detalle'}`);
+            }
 
             const joinData = await joinResponse.json();
             currentJobId = joinData.job_id;
