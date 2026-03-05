@@ -173,6 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 5. Handle different statuses received from the server
     async function handleStatusUpdate(data) {
+        console.log("Status update received:", data);
         switch (data.status) {
             case 'queued':
                 progressText.textContent = `En cola... Posición: #${data.position}`;
@@ -185,6 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     stopPolling();
                     progressText.textContent = `¡Es tu turno! Enviando fotogramas para procesar...`;
                     updateProgressBar(10);
+                    console.log(`Job ${currentJobId} is now processing. Sending frames...`);
                     await sendFramesForProcessing(currentJobId);
                     // After sending, start polling again to get progress updates
                     startPollingStatus(currentJobId);
@@ -231,8 +233,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!processResponse.ok) {
-                const errorData = await processResponse.json();
-                throw new Error(errorData.detail || 'Error al enviar fotogramas al servidor.');
+                let errorMsg = 'Error al enviar fotogramas al servidor.';
+                try {
+                    const errorData = await processResponse.json();
+                    errorMsg = errorData.detail || errorMsg;
+                } catch (e) {
+                    console.error("Could not parse error response", e);
+                }
+                throw new Error(errorMsg);
             }
             // If successful, the polling will now start showing 'progress' updates
         } catch (error) {

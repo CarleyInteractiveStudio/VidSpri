@@ -235,6 +235,7 @@ async def process_images(job_id: str, images: list[UploadFile] = File(...)):
     Receives images from the frontend when it's their turn,
     sends them to the 'especialista' service, and stores the results.
     """
+    print(f"Received process request for job: {job_id} with {len(images)} images")
     job = await db.get_job_status(job_id)
     if not job or job.status != "processing":
         raise HTTPException(status_code=400, detail="Job is not ready for processing.")
