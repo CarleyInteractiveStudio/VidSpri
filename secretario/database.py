@@ -59,7 +59,7 @@ async def create_new_job():
     """Adds a new non-priority job to the end of the queue."""
     async with database.transaction():
         # Get the maximum current queue position
-        max_pos_query = sqlalchemy.select([sqlalchemy.func.max(processing_jobs.c.queue_position)])
+        max_pos_query = sqlalchemy.select(sqlalchemy.func.max(processing_jobs.c.queue_position))
         max_pos = await database.fetch_val(max_pos_query) or 0
 
         new_job_id = str(uuid.uuid4())
@@ -139,7 +139,7 @@ async def upgrade_job_to_priority(job_id: str, code: str):
         new_position = await _find_next_priority_slot(current_priority_positions)
 
         # 5. Make space for the job by shifting subsequent jobs down
-        max_pos_query = sqlalchemy.select([sqlalchemy.func.max(processing_jobs.c.queue_position)])
+        max_pos_query = sqlalchemy.select(sqlalchemy.func.max(processing_jobs.c.queue_position))
         max_pos = await database.fetch_val(max_pos_query) or 0
 
         if new_position > max_pos + 1:
