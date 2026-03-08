@@ -344,6 +344,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showError(message) {
+        // If the message is a full HTML document (typical HF error), extract the visible text or use a fallback
+        if (message.includes('<!DOCTYPE') || message.includes('<html')) {
+            console.error("HTML error received instead of JSON:", message);
+            message = "El servidor no respondió correctamente (Error de Hugging Face). Por favor, comprueba si el Space está 'Running' o 'Sleeping'.";
+        }
+
         errorMessageParagraph.textContent = `Lo sentimos, ha ocurrido un error: ${message}`;
         errorMessage.classList.remove('hidden');
         progressContainer.classList.add('hidden'); // Ensure progress is hidden on error

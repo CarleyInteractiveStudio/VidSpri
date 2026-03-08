@@ -114,7 +114,7 @@ async def process_queue():
         # 1. Check for and handle timed-out jobs
         timeout_threshold = datetime.datetime.utcnow() - datetime.timedelta(seconds=PROCESSING_TIMEOUT_SECONDS)
 
-        stuck_jobs_query = db.processing_jobs.select().where(
+        stuck_jobs_query = db.sqlalchemy.select(db.processing_jobs).where(
             db.processing_jobs.c.status == "processing",
             db.processing_jobs.c.processing_started_at < timeout_threshold
         )
@@ -123,7 +123,7 @@ async def process_queue():
         for job in stuck_jobs:
             print(f"Job {job.id} timed out. Marking as failed and shifting queue.")
             # Mark as failed and remove from queue
-            fail_query = db.processing_jobs.update().where(db.processing_jobs.c.id == job.id).values(
+            fail_query = db.sqlalchemy.update(db.processing_jobs).where(db.processing_jobs.c.id == job.id).values(
                 status="failed",
                 queue_position=None
             )
@@ -133,7 +133,7 @@ async def process_queue():
 
 
         # 2. Check if a new job can be processed
-        currently_processing_query = db.processing_jobs.select().where(db.processing_jobs.c.status == "processing")
+        currently_processing_query = db.sqlalchemy.select(db.processing_jobs).where(db.processing_jobs.c.status == "processing")
         is_any_job_processing = await db.database.fetch_one(currently_processing_query)
 
         if is_any_job_processing:
@@ -141,7 +141,7 @@ async def process_queue():
             return
 
         # 3. Get the next job from the queue
-        next_job_query = db.processing_jobs.select().where(
+        next_job_query = db.sqlalchemy.select(db.processing_jobs).where(
             db.processing_jobs.c.queue_position == 1,
             db.processing_jobs.c.status == "queued"
         )
@@ -150,7 +150,7 @@ async def process_queue():
         if job_to_process:
             print(f"Moving job {job_to_process.id} to 'processing' state.")
             # Set its status to "processing", record the start time, and remove from queue position
-            update_query = db.processing_jobs.update().where(
+            update_query = db.sqlalchemy.update(db.processing_jobs).where(
                 db.processing_jobs.c.id == job_to_process.id
             ).values(
                 status="processing",
@@ -251,7 +251,7 @@ async def process_images(job_id: str, images: list[UploadFile] = File(...)):
 
     # Set total frames for progress tracking
     total_frames = len(images)
-    update_total_query = db.processing_jobs.update().where(
+    update_total_query = db.sqlalchemy.update(db.processing_jobs).where(
         db.processing_jobs.c.id == job_id
     ).values(total_frames=total_frames)
     await db.database.execute(update_total_query)
@@ -269,11 +269,16 @@ async def process_images(job_id: str, images: list[UploadFile] = File(...)):
 
                 # Store the processed image as a base64 string
                 processed_image_bytes = response.content
+
+                # Basic validation: ensure the response is actually an image
+                if not response.headers.get("content-type", "").startswith("image/"):
+                     raise Exception(f"Especialista returned non-image response: {response.text[:100]}")
+
                 base64_encoded_image = base64.b64encode(processed_image_bytes).decode('utf-8')
                 processed_frames.append(base64_encoded_image)
 
                 # Update progress in the database
-                update_progress_query = db.processing_jobs.update().where(
+                update_progress_query = db.sqlalchemy.update(db.processing_jobs).where(
                     db.processing_jobs.c.id == job_id
                 ).values(completed_frames=i + 1)
                 await db.database.execute(update_progress_query)
@@ -281,16 +286,16 @@ async def process_images(job_id: str, images: list[UploadFile] = File(...)):
             except httpx.HTTPStatusError as e:
                 # Handle failure for a single frame
                 # Mark the whole job as failed to avoid incomplete spritesheets
-                fail_query = db.processing_jobs.update().where(db.processing_jobs.c.id == job_id).values(status="failed")
+                fail_query = db.sqlalchemy.update(db.processing_jobs).where(db.processing_jobs.c.id == job_id).values(status="failed")
                 await db.database.execute(fail_query)
                 raise HTTPException(status_code=502, detail=f"Failed to process image with especialista: {e.response.text}")
             except Exception as e:
-                 fail_query = db.processing_jobs.update().where(db.processing_jobs.c.id == job_id).values(status="failed")
+                 fail_query = db.sqlalchemy.update(db.processing_jobs).where(db.processing_jobs.c.id == job_id).values(status="failed")
                  await db.database.execute(fail_query)
                  raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
     # Once all frames are processed, update the job status to 'completed'
-    final_update_query = db.processing_jobs.update().where(
+    final_update_query = db.sqlalchemy.update(db.processing_jobs).where(
         db.processing_jobs.c.id == job_id
     ).values(
         status="completed",
