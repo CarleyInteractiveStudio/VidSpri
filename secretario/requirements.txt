@@ -4,3 +4,4 @@ databases[aiosqlite]
 sqlalchemy
 httpx
 python-multipart
+gunicorn

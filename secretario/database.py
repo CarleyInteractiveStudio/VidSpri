@@ -40,19 +40,21 @@ async def initialize_database():
     """Initializes the database and creates tables if they don't exist."""
     engine = sqlalchemy.create_engine(DATABASE_URL)
     metadata.create_all(engine)
-    await database.connect()
+
+    # Do NOT connect/disconnect here, as it's handled by the lifespan in app.py
+    # or should be handled by the caller who already has a connection.
+
     # Seed with a default priority code for testing
     default_code = "TEST-CODE-123"
-    query = priority_codes.select().where(priority_codes.c.code == default_code)
+    query = sqlalchemy.select(priority_codes).where(priority_codes.c.code == default_code)
     exists = await database.fetch_one(query)
     if not exists:
         insert_query = priority_codes.insert().values(code=default_code, uses_remaining=999)
         await database.execute(insert_query)
-    await database.disconnect()
 
 async def get_job_status(job_id: str):
     """Retrieves the status and queue position of a specific job."""
-    query = processing_jobs.select().where(processing_jobs.c.id == job_id)
+    query = sqlalchemy.select(processing_jobs).where(processing_jobs.c.id == job_id)
     return await database.fetch_one(query)
 
 async def create_new_job():
@@ -73,14 +75,14 @@ async def create_new_job():
 
 async def shift_queue_after_job(position: int):
     """Shifts all jobs after the given position one step forward in the queue."""
-    update_query = processing_jobs.update().where(
+    update_query = sqlalchemy.update(processing_jobs).where(
         processing_jobs.c.queue_position > position
     ).values(queue_position=processing_jobs.c.queue_position - 1)
     await database.execute(update_query)
 
 async def validate_priority_code(code: str):
     """Checks if a priority code is valid and has uses remaining."""
-    query = priority_codes.select().where(
+    query = sqlalchemy.select(priority_codes).where(
         priority_codes.c.code == code,
         priority_codes.c.is_active == True,
         priority_codes.c.uses_remaining > 0
@@ -110,7 +112,7 @@ async def upgrade_job_to_priority(job_id: str, code: str):
         if not code_record:
             return None, "Invalid or expired code."
 
-        update_code_query = priority_codes.update().where(
+        update_code_query = sqlalchemy.update(priority_codes).where(
             priority_codes.c.code == code
         ).values(uses_remaining=priority_codes.c.uses_remaining - 1)
         await database.execute(update_code_query)
@@ -123,13 +125,13 @@ async def upgrade_job_to_priority(job_id: str, code: str):
         current_position = job.queue_position
 
         # 3. Temporarily "remove" the job by shifting subsequent jobs up
-        shift_up_query = processing_jobs.update().where(
+        shift_up_query = sqlalchemy.update(processing_jobs).where(
             processing_jobs.c.queue_position > current_position
         ).values(queue_position=processing_jobs.c.queue_position - 1)
         await database.execute(shift_up_query)
 
         # 4. Find the new target position for our priority job
-        priority_jobs_query = processing_jobs.select().where(
+        priority_jobs_query = sqlalchemy.select(processing_jobs).where(
             processing_jobs.c.priority == True
         ).order_by(processing_jobs.c.queue_position)
 
@@ -145,13 +147,13 @@ async def upgrade_job_to_priority(job_id: str, code: str):
         if new_position > max_pos + 1:
             new_position = max_pos + 1 # It can't be further than the end
 
-        shift_down_query = processing_jobs.update().where(
+        shift_down_query = sqlalchemy.update(processing_jobs).where(
             processing_jobs.c.queue_position >= new_position
         ).values(queue_position=processing_jobs.c.queue_position + 1)
         await database.execute(shift_down_query)
 
         # 6. Update the job to be priority and place it in its new slot
-        update_job_query = processing_jobs.update().where(
+        update_job_query = sqlalchemy.update(processing_jobs).where(
             processing_jobs.c.id == job_id
         ).values(priority=True, queue_position=new_position)
         await database.execute(update_job_query)
@@ -160,7 +162,7 @@ async def upgrade_job_to_priority(job_id: str, code: str):
 
 async def get_current_queue():
     """Returns the entire job queue, ordered by position."""
-    query = processing_jobs.select().order_by(processing_jobs.c.queue_position)
+    query = sqlalchemy.select(processing_jobs).order_by(processing_jobs.c.queue_position)
     return await database.fetch_all(query)
 
 async def create_priority_code(uses: int = 1):
