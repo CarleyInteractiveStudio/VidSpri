@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+databases[aiosqlite]
+sqlalchemy
+httpx
+python-multipart

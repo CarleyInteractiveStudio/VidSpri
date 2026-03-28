@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 server.log
+secretario.log
+frontend.log
+*.db
