@@ -1,447 +1,125 @@
 
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Server URLs ---
-    // Make sure to replace this with your actual Hugging Face Space URL
-    const secretarioBaseUrl = 'https://carley1234-vidspri-secretario.hf.space';
-    const joinQueueUrl = `${secretarioBaseUrl}/join`;
-    const prioritizeUrl = `${secretarioBaseUrl}/prioritize`;
-    const statusUrlBase = `${secretarioBaseUrl}/status/`;
-    const processUrlBase = `${secretarioBaseUrl}/process/`;
-
-    // Health check logic (optional but useful for debugging)
-    fetch(secretarioBaseUrl)
-        .then(res => res.json())
-        .then(data => console.log("Server health check:", data))
-        .catch(err => console.error("Server not reachable:", err));
+    // --- Supabase Configuration ---
+    const SUPABASE_URL = 'https://tladrluezsmmhjbhupgb.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_zb8TGeURLnafHWDffG9DMg_PtFO_kmv';
+    // The CDN version exposes 'supabase' as a global object
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // --- Global State ---
-    let extractedFrames = []; // Stores { id, blob } of frames from the video
-    let currentJobId = null; // Stores the ID of the current processing job
-    let statusPollInterval = null; // Stores the interval ID for polling
+    let extractedFrames = [];
+    let currentJobId = null;
+    let userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
+    localStorage.setItem('vidspri_user_id', userId);
 
-    // --- DOM Element Selection ---
+    // --- DOM Elements ---
     const mainMenu = document.getElementById('main-menu');
     const videoSection = document.getElementById('video-section');
-    const videoSpriteBtn = document.getElementById('video-sprite-btn');
-    const imageSpriteBtn = document.getElementById('image-sprite-btn');
-    const soundGenerationBtn = document.getElementById('sound-generation-btn');
-    const textToSpriteBtn = document.getElementById('text-to-sprite-btn');
-    const spritePreviewBtn = document.getElementById('sprite-preview-btn');
-
-    const form = document.getElementById('sprite-form');
-    const videoFileInput = document.getElementById('video-file');
-    const dragDropAreaVideo = document.getElementById('drag-drop-area-video');
-    const videoPreviewContainer = document.getElementById('video-preview-container');
-    const videoPreview = document.getElementById('video-preview');
-    const markStartBtn = document.getElementById('mark-start-btn');
-    const markEndBtn = document.getElementById('mark-end-btn');
-    const framesInput = document.getElementById('frames');
-    const fullVideoCheckbox = document.getElementById('full-video-checkbox');
-    const timeRangeInputs = document.getElementById('time-range-inputs');
-    const startTimeInput = document.getElementById('start-time');
-    const endTimeInput = document.getElementById('end-time');
-
-    const extractFramesBtn = document.getElementById('extract-frames-btn');
-    const framePreviewContainer = document.getElementById('frame-preview-container');
-    const framesOutput = document.getElementById('frames-output');
-    const generateSpriteBtn = document.getElementById('generate-sprite-btn');
-
+    const codesList = document.getElementById('priority-codes-list');
     const progressContainer = document.getElementById('progress-container');
     const progressText = document.getElementById('progress-text');
     const progressBarInner = document.getElementById('progress-bar-inner');
-
     const resultContainer = document.getElementById('result-container');
     const spriteImage = document.getElementById('sprite-image');
     const downloadLink = document.getElementById('download-link');
-    const previewSpriteBtnResult = document.getElementById('preview-sprite-btn');
+    const toastContainer = document.getElementById('toast-container');
 
-    const errorMessage = document.getElementById('error-message');
-    const errorMessageParagraph = errorMessage.querySelector('p');
+    // Video elements
+    const videoPreview = document.getElementById('video-preview');
+    const videoFileInput = document.getElementById('video-file');
+    const startTimeInput = document.getElementById('start-time');
+    const endTimeInput = document.getElementById('end-time');
+    const fullVideoCheckbox = document.getElementById('full-video-checkbox');
+    const timeRangeInputs = document.getElementById('time-range-inputs');
 
-    // Priority Access UI
-    const premiumCodeBtn = document.getElementById('premium-code-btn');
-    const premiumModal = document.getElementById('premium-modal');
-    const closePremiumBtn = premiumModal.querySelector('.close-premium-btn');
-    const premiumCodeInput = document.getElementById('premium-code-input');
-    const savePremiumCodeBtn = document.getElementById('save-premium-code-btn');
-    const premiumStatus = document.getElementById('premium-status');
+    // --- Initialization ---
+    loadPriorityCodes();
+    subscribeToGlobalNotifications();
+    checkExistingPriorityStatus();
 
+    // --- Toast Notifications ---
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `<span>${message}</span>`;
+        toastContainer.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
+    }
 
-    // --- Core Logic ---
+    // --- Supabase Logic ---
+    async function loadPriorityCodes() {
+        try {
+            await supabaseClient.rpc('refresh_priority_codes');
+            const { data, error } = await supabaseClient
+                .from('priority_codes')
+                .select('*')
+                .eq('is_auto', true)
+                .order('created_at', { ascending: false });
 
-    // 1. User clicks "Generate Sprite from Video"
-    videoSpriteBtn.addEventListener('click', () => {
+            if (error) throw error;
+
+            codesList.innerHTML = '';
+            data.slice(0, 7).forEach(code => {
+                const codeEl = document.createElement('div');
+                codeEl.className = `code-item ${code.is_used ? 'used' : ''}`;
+                codeEl.textContent = code.code;
+                if (!code.is_used) {
+                    codeEl.title = 'Haz clic para copiar';
+                    codeEl.onclick = () => {
+                        navigator.clipboard.writeText(code.code);
+                        showToast('¡Código copiado al portapapeles!', 'success');
+                    };
+                }
+                codesList.appendChild(codeEl);
+            });
+        } catch (e) {
+            console.error('Error loading codes:', e);
+            codesList.innerHTML = '<p class="small-text">No se pudieron cargar los códigos.</p>';
+        }
+    }
+
+    function subscribeToGlobalNotifications() {
+        supabaseClient
+            .channel('global_notifications')
+            .on('postgres_changes', { event: 'INSERT', table: 'global_notifications' }, payload => {
+                showToast(payload.new.message, payload.new.type);
+            })
+            .subscribe();
+    }
+
+    function checkExistingPriorityStatus() {
+        const isPriority = localStorage.getItem('vidspri_priority_active') === 'true';
+        if (isPriority) {
+            document.getElementById('premium-status').textContent = 'Estado: PRIORITARIO 🚀';
+        }
+    }
+
+    // --- UI Interactions ---
+    document.getElementById('video-sprite-btn').addEventListener('click', () => {
         mainMenu.classList.add('hidden');
         videoSection.classList.remove('hidden');
-        resetUI(); // Reset state when entering the section
     });
 
-    // 2. User uploads a video and extracts frames
-    extractFramesBtn.addEventListener('click', async () => {
-        const videoFile = videoFileInput.files[0];
-        if (!videoFile) {
-            showError("Por favor, sube un archivo de video.");
-            return;
-        }
-
-        hideAllSections();
-        progressContainer.classList.remove('hidden');
-        progressText.textContent = "Extrayendo fotogramas del video...";
-        updateProgressBar(50);
-
-        const frameCount = parseInt(framesInput.value, 10);
-        let startTime = 0;
-        let endTime = videoPreview.duration;
-
-        if (!fullVideoCheckbox.checked) {
-            startTime = parseFloat(startTimeInput.value);
-            endTime = parseFloat(endTimeInput.value);
-        }
-
-        if (isNaN(startTime) || isNaN(endTime) || startTime >= endTime) {
-            showError("El rango de tiempo seleccionado no es válido.");
-            progressContainer.classList.add('hidden');
-            videoSection.classList.remove('hidden');
-            return;
-        }
-
-        try {
-            const frames = await extractFramesFromVideo(videoFile, frameCount, startTime, endTime);
-            extractedFrames = frames.map((blob, index) => ({ id: index, blob }));
-            displayFramePreviews();
-            framePreviewContainer.classList.remove('hidden');
-        } catch (error) {
-            showError(`Error al extraer fotogramas: ${error.message}`);
-            videoSection.classList.remove('hidden');
-        } finally {
-            progressContainer.classList.add('hidden');
-        }
-    });
-
-    // 3. User clicks "Remove Background and Generate Sprite"
-    generateSpriteBtn.addEventListener('click', async () => {
-        if (extractedFrames.length === 0) {
-            showError("No hay fotogramas para procesar.");
-            return;
-        }
-
-        hideAllSections();
-        progressContainer.classList.remove('hidden');
-        progressText.textContent = "Conectando con el servidor para unirse a la cola...";
-        updateProgressBar(0);
-
-        try {
-            // Step 3.1: Join the queue
-            const joinResponse = await fetch(joinQueueUrl, { method: 'POST' });
-            if (!joinResponse.ok) {
-                const text = await joinResponse.text();
-                throw new Error(`Error del servidor (${joinResponse.status}): ${text || 'Sin detalle'}`);
-            }
-
-            const joinData = await joinResponse.json();
-            currentJobId = joinData.job_id;
-
-            // Step 3.2: Start polling for status
-            startPollingStatus(currentJobId);
-
-        } catch (error) {
-            showError(error.message);
-            progressContainer.classList.add('hidden');
-            framePreviewContainer.classList.remove('hidden'); // Show frames again on error
-        }
-    });
-
-    // 4. Polling function to check job status
-    function startPollingStatus(jobId) {
-        if (statusPollInterval) clearInterval(statusPollInterval); // Clear any existing poll
-
-        statusPollInterval = setInterval(async () => {
-            try {
-                const statusResponse = await fetch(`${statusUrlBase}${jobId}`);
-                if (!statusResponse.ok) {
-                    // If the server returns an error (e.g., 404), stop polling
-                    throw new Error('El trabajo ya no existe o el servidor ha fallado.');
-                }
-                const statusData = await statusResponse.json();
-
-                handleStatusUpdate(statusData);
-
-            } catch (error) {
-                stopPolling();
-                showError(error.message);
-            }
-        }, 3000); // Poll every 3 seconds
-    }
-
-    function stopPolling() {
-        if (statusPollInterval) {
-            clearInterval(statusPollInterval);
-            statusPollInterval = null;
-        }
-    }
-
-    // 5. Handle different statuses received from the server
-    async function handleStatusUpdate(data) {
-        console.log("Status update received:", data);
-        switch (data.status) {
-            case 'queued':
-                progressText.textContent = `En cola... Posición: #${data.position}`;
-                updateProgressBar(5);
-                break;
-
-            case 'processing':
-                 if (data.total_frames === 0) {
-                    // This is the initial "processing" state, it's our turn.
-                    stopPolling();
-                    progressText.textContent = `¡Es tu turno! Enviando fotogramas para procesar...`;
-                    updateProgressBar(10);
-                    console.log(`Job ${currentJobId} is now processing. Sending frames...`);
-                    await sendFramesForProcessing(currentJobId);
-                    // After sending, start polling again to get progress updates
-                    startPollingStatus(currentJobId);
-                } else {
-                    // This is a progress update during processing
-                    const progress = data.total_frames > 0 ? (data.completed_frames / data.total_frames) * 100 : 15;
-                    progressText.textContent = `Procesando... (${data.completed_frames}/${data.total_frames} fotogramas)`;
-                    updateProgressBar(progress);
-                }
-                break;
-
-            case 'completed':
-                stopPolling();
-                progressText.textContent = "Procesamiento completado. Creando la hoja de sprites...";
-                updateProgressBar(100);
-
-                const processedBlobs = data.result_frames.map(base64StringToBlob);
-
-                await createSpriteSheet(processedBlobs);
-
-                progressContainer.classList.add('hidden');
-                resultContainer.classList.remove('hidden');
-                break;
-
-            case 'failed':
-                stopPolling();
-                showError("El procesamiento falló en el servidor. Por favor, inténtalo de nuevo.");
-                progressContainer.classList.add('hidden');
-                break;
-        }
-    }
-
-    // 6. Send frames to the '/process' endpoint
-    async function sendFramesForProcessing(jobId) {
-        const formData = new FormData();
-        extractedFrames.forEach(frameData => {
-            formData.append('images', frameData.blob, `frame_${frameData.id}.png`);
-        });
-
-        try {
-            const processResponse = await fetch(`${processUrlBase}${jobId}`, {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!processResponse.ok) {
-                let errorMsg = 'Error al enviar fotogramas al servidor.';
-                try {
-                    const errorData = await processResponse.json();
-                    errorMsg = errorData.detail || errorMsg;
-                } catch (e) {
-                    console.error("Could not parse error response", e);
-                }
-                throw new Error(errorMsg);
-            }
-            // If successful, the polling will now start showing 'progress' updates
-        } catch (error) {
-            stopPolling();
-            showError(error.message);
-        }
-    }
-
-    // --- Priority Code UI Logic ---
-    premiumCodeBtn.addEventListener('click', () => {
-        premiumModal.classList.remove('hidden');
-        const savedCode = localStorage.getItem('vidspri_priority_code');
-        premiumCodeInput.value = savedCode || '';
-    });
-
-    closePremiumBtn.addEventListener('click', () => {
-        premiumModal.classList.add('hidden');
-    });
-
-    savePremiumCodeBtn.addEventListener('click', async () => {
-        const code = premiumCodeInput.value.trim();
-
-        if (!currentJobId) {
-            alert("Para aplicar un código, primero debes iniciar un trabajo (subir un video y hacer clic en 'Generar Sprite').");
-            return;
-        }
-
-        if (!code) {
-             alert("Por favor, introduce un código.");
-             return;
-        }
-
-        savePremiumCodeBtn.disabled = true;
-        savePremiumCodeBtn.textContent = 'Verificando...';
-
-        try {
-            const response = await fetch(prioritizeUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ job_id: currentJobId, code: code })
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.detail || 'Código no válido.');
-            }
-
-            // On success
-            localStorage.setItem('vidspri_priority_code', code);
-            premiumStatus.textContent = 'PRIORITARIO';
-            alert(`¡Éxito! Tu nueva posición en la cola es #${result.new_position}.`);
-            progressText.textContent = `¡Prioridad aplicada! Nueva posición: #${result.new_position}`;
-            premiumModal.classList.add('hidden');
-
-        } catch (error) {
-            alert(`Error: ${error.message}`);
-        } finally {
-            savePremiumCodeBtn.disabled = false;
-            savePremiumCodeBtn.textContent = 'Guardar Código';
-        }
-    });
-
-    // --- UI Helper Functions ---
-    function resetUI() {
-        // Reset forms and previews
-        form.reset();
-        videoPreviewContainer.classList.add('hidden');
-        dragDropAreaVideo.classList.remove('hidden');
-        framePreviewContainer.classList.add('hidden');
-        framesOutput.innerHTML = '';
-        resultContainer.classList.add('hidden');
-        errorMessage.classList.add('hidden');
-        progressContainer.classList.add('hidden');
-
-        // Reset state
-        extractedFrames = [];
-        currentJobId = null;
-        stopPolling();
-
-        // Reset priority status display
-        const savedCode = localStorage.getItem('vidspri_priority_code');
-        premiumStatus.textContent = savedCode ? 'PRIORITARIO' : 'ESTÁNDAR';
-    }
-
-    function hideAllSections() {
-        // Hide all major UI sections to focus on progress or results
-        mainMenu.classList.add('hidden');
-        videoSection.classList.add('hidden');
-        framePreviewContainer.classList.add('hidden');
-        errorMessage.classList.add('hidden');
-    }
-
-    function showError(message) {
-        // If the message is a full HTML document (typical HF error), extract the visible text or use a fallback
-        if (message.includes('<!DOCTYPE') || message.includes('<html')) {
-            console.error("HTML error received instead of JSON:", message);
-            message = "El servidor no respondió correctamente (Error de Hugging Face). Por favor, comprueba si el Space está 'Running' o 'Sleeping'.";
-        }
-
-        errorMessageParagraph.textContent = `Lo sentimos, ha ocurrido un error: ${message}`;
-        errorMessage.classList.remove('hidden');
-        progressContainer.classList.add('hidden'); // Ensure progress is hidden on error
-    }
-
-    function updateProgressBar(percentage) {
-        progressBarInner.style.width = `${percentage}%`;
-    }
-
-    function displayFramePreviews() {
-        framesOutput.innerHTML = '';
-        extractedFrames.forEach(frameData => {
-            const frameContainer = document.createElement('div');
-            frameContainer.className = 'frame-container';
-
-            const img = document.createElement('img');
-            img.src = URL.createObjectURL(frameData.blob);
-            img.onload = () => URL.revokeObjectURL(img.src); // Clean up memory
-
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'delete-btn';
-            deleteBtn.innerHTML = '&times;';
-            deleteBtn.onclick = () => {
-                // Remove from state and DOM
-                extractedFrames = extractedFrames.filter(f => f.id !== frameData.id);
-                frameContainer.remove();
-            };
-
-            frameContainer.appendChild(img);
-            frameContainer.appendChild(deleteBtn);
-            framesOutput.appendChild(frameContainer);
-        });
-    }
-
-    function base64StringToBlob(base64, type = 'image/png') {
-        const byteCharacters = atob(base64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        return new Blob([byteArray], { type: type });
-    }
-
-    // --- Video File Handling and Frame Extraction (largely unchanged) ---
     videoFileInput.addEventListener('change', () => {
-        if (videoFileInput.files && videoFileInput.files[0]) {
-            handleVideoFile(videoFileInput.files[0]);
-        }
-    });
-    dragDropAreaVideo.addEventListener('click', () => videoFileInput.click());
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dragDropAreaVideo.addEventListener(eventName, e => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (['dragenter', 'dragover'].includes(eventName)) {
-                 dragDropAreaVideo.classList.add('drag-over');
-            } else {
-                 dragDropAreaVideo.classList.remove('drag-over');
-            }
-        }, false);
-    });
-    dragDropAreaVideo.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        if (files.length > 0) {
-            videoFileInput.files = files;
-            handleVideoFile(files[0]);
+        const file = videoFileInput.files[0];
+        if (file) {
+            videoPreview.src = URL.createObjectURL(file);
+            document.getElementById('video-preview-container').classList.remove('hidden');
+            document.getElementById('drag-drop-area-video').classList.add('hidden');
         }
     });
 
-    function handleVideoFile(file) {
-        if (file && file.type.startsWith('video/')) {
-            const videoURL = URL.createObjectURL(file);
-            videoPreview.src = videoURL;
-            videoPreview.load();
-            videoPreviewContainer.classList.remove('hidden');
-            dragDropAreaVideo.classList.add('hidden');
-        } else {
-            showError('Por favor, selecciona un archivo de video válido.');
-            videoPreviewContainer.classList.add('hidden');
-            dragDropAreaVideo.classList.remove('hidden');
-        }
-    }
-
-    markStartBtn.addEventListener('click', () => {
+    document.getElementById('mark-start-btn').addEventListener('click', () => {
         startTimeInput.value = videoPreview.currentTime.toFixed(2);
         fullVideoCheckbox.checked = false;
         timeRangeInputs.classList.remove('hidden');
     });
 
-    markEndBtn.addEventListener('click', () => {
+    document.getElementById('mark-end-btn').addEventListener('click', () => {
         endTimeInput.value = videoPreview.currentTime.toFixed(2);
         fullVideoCheckbox.checked = false;
         timeRangeInputs.classList.remove('hidden');
@@ -451,93 +129,309 @@ document.addEventListener('DOMContentLoaded', () => {
         timeRangeInputs.classList.toggle('hidden', fullVideoCheckbox.checked);
     });
 
+    // --- Frame Extraction ---
+    document.getElementById('extract-frames-btn').addEventListener('click', async () => {
+        const videoFile = videoFileInput.files[0];
+        if (!videoFile) {
+            showToast("Por favor, sube un archivo de video.", "error");
+            return;
+        }
+
+        const frameCount = parseInt(document.getElementById('frames').value, 10);
+        let startTime = 0;
+        let endTime = videoPreview.duration;
+
+        if (!fullVideoCheckbox.checked) {
+            startTime = parseFloat(startTimeInput.value);
+            endTime = parseFloat(endTimeInput.value);
+        }
+
+        if (isNaN(startTime) || isNaN(endTime) || startTime >= endTime) {
+            showToast("El rango de tiempo seleccionado no es válido.", "error");
+            return;
+        }
+
+        progressContainer.classList.remove('hidden');
+        progressText.textContent = "Extrayendo fotogramas del video...";
+        updateProgressBar(30);
+
+        try {
+            const frames = await extractFramesFromVideo(videoFile, frameCount, startTime, endTime);
+            extractedFrames = frames.map((blob, index) => ({ id: index, blob }));
+            displayFramePreviews();
+            document.getElementById('frame-preview-container').classList.remove('hidden');
+            videoSection.classList.add('hidden');
+        } catch (e) {
+            showToast(`Error: ${e.message}`, "error");
+        } finally {
+            progressContainer.classList.add('hidden');
+        }
+    });
+
+    function displayFramePreviews() {
+        const output = document.getElementById('frames-output');
+        output.innerHTML = '';
+        extractedFrames.forEach(frame => {
+            const container = document.createElement('div');
+            container.className = 'frame-container';
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(frame.blob);
+            const del = document.createElement('button');
+            del.className = 'delete-btn';
+            del.innerHTML = '&times;';
+            del.onclick = () => {
+                extractedFrames = extractedFrames.filter(f => f.id !== frame.id);
+                container.remove();
+            };
+            container.appendChild(img);
+            container.appendChild(del);
+            output.appendChild(container);
+        });
+    }
+
+    // --- Queue and Processing ---
+    document.getElementById('generate-sprite-btn').addEventListener('click', async () => {
+        if (extractedFrames.length === 0) return;
+
+        progressContainer.classList.remove('hidden');
+        progressText.textContent = "Uniéndose a la cola de procesamiento...";
+        updateProgressBar(10);
+
+        const isPriority = localStorage.getItem('vidspri_priority_active') === 'true';
+
+        try {
+            const { data, error } = await supabaseClient
+                .from('processing_queue')
+                .insert([{ user_id: userId, is_priority: isPriority }])
+                .select();
+
+            if (error) throw error;
+
+            currentJobId = data[0].id;
+            startQueueTracking(currentJobId);
+        } catch (e) {
+            showToast("Error al unirse a la cola: " + e.message, "error");
+            progressContainer.classList.add('hidden');
+        }
+    });
+
+    function startQueueTracking(jobId) {
+        supabaseClient
+            .channel(`job-${jobId}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                table: 'processing_queue',
+                filter: `id=eq.${jobId}`
+            }, payload => {
+                if (payload.new.status === 'completed') {
+                    showToast("¡Procesamiento terminado!", "success");
+                } else if (payload.new.status === 'failed') {
+                    showToast("El procesamiento ha fallado.", "error");
+                    progressContainer.classList.add('hidden');
+                }
+            })
+            .subscribe();
+
+        checkPosition(jobId);
+    }
+
+    async function checkPosition(jobId) {
+        const { data: jobData, error } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
+        if (error || !jobData) return;
+
+        if (jobData.status !== 'waiting') return;
+
+        // Count jobs ahead:
+        // 1. All priority jobs if I'm not priority.
+        // 2. Only priority jobs with smaller queue_number if I am priority.
+        // 3. All priority jobs + non-priority jobs with smaller queue_number if I'm not priority.
+
+        let query = supabaseClient
+            .from('processing_queue')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'waiting');
+
+        if (jobData.is_priority) {
+            query = query.eq('is_priority', true).lt('queue_number', jobData.queue_number);
+        } else {
+            // For non-priority: everyone who is priority OR (not priority and smaller queue_number)
+            // Supabase client filters are ANDed. We need an OR.
+            query = query.or(`is_priority.eq.true,and(is_priority.eq.false,queue_number.lt.${jobData.queue_number})`);
+        }
+
+        const { count, error: countError } = await query;
+        if (countError) throw countError;
+
+        progressText.textContent = `En cola... Personas delante: ${count}`;
+        updateProgressBar(15 + (count === 0 ? 10 : 0));
+
+        if (count === 0) {
+            findFreeServerAndProcess(jobId);
+        } else {
+            setTimeout(() => checkPosition(jobId), 5000);
+        }
+    }
+
+    async function findFreeServerAndProcess(jobId) {
+        progressText.textContent = "Buscando un servidor libre...";
+
+        const { data: servers } = await supabaseClient
+            .from('server_status')
+            .select('*')
+            .eq('status', 'free')
+            .gt('last_heartbeat', new Date(Date.now() - 30000).toISOString()); // Heartbeat within last 30s
+
+        if (!servers || servers.length === 0) {
+            progressText.textContent = "Todos los servidores están ocupados. Esperando...";
+            setTimeout(() => findFreeServerAndProcess(jobId), 3000);
+            return;
+        }
+
+        // Pick one (randomly or first available)
+        const server = servers[Math.floor(Math.random() * servers.length)];
+        sendToProcessingServer(server.url, jobId);
+    }
+
+    async function sendToProcessingServer(serverUrl, jobId) {
+        progressText.textContent = "¡Servidor listo! Enviando fotogramas...";
+        updateProgressBar(40);
+
+        await supabaseClient.from('processing_queue').update({ status: 'processing' }).eq('id', jobId);
+
+        const formData = new FormData();
+        extractedFrames.forEach(f => formData.append('images', f.blob, `frame_${f.id}.png`));
+
+        try {
+            const response = await fetch(`${serverUrl}/process-batch/${jobId}`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) throw new Error("El servidor de procesamiento devolvió un error.");
+
+            const result = await response.json();
+            handleProcessingSuccess(result.frames);
+        } catch (e) {
+            showToast("Error de procesamiento: " + e.message, "error");
+            await supabaseClient.from('processing_queue').update({ status: 'failed' }).eq('id', jobId);
+            progressContainer.classList.add('hidden');
+        }
+    }
+
+    async function handleProcessingSuccess(frames) {
+        progressText.textContent = "Creando tu hoja de sprites...";
+        updateProgressBar(90);
+        const blobs = frames.map(base64StringToBlob);
+        await createSpriteSheet(blobs);
+        progressContainer.classList.add('hidden');
+        resultContainer.classList.remove('hidden');
+        document.getElementById('frame-preview-container').classList.add('hidden');
+        showToast("¡Hoja de sprites generada con éxito!", "success");
+    }
+
+    // --- Priority Codes ---
+    document.getElementById('premium-code-btn').addEventListener('click', () => {
+        document.getElementById('premium-modal').classList.remove('hidden');
+    });
+
+    document.querySelector('.close-premium-btn').addEventListener('click', () => {
+        document.getElementById('premium-modal').classList.add('hidden');
+    });
+
+    document.getElementById('save-premium-code-btn').addEventListener('click', async () => {
+        const code = document.getElementById('premium-code-input').value.trim();
+        if (!code) return;
+
+        const { data, error } = await supabaseClient
+            .from('priority_codes')
+            .select('*')
+            .eq('code', code)
+            .eq('is_used', false)
+            .single();
+
+        if (error || !data) {
+            showToast("Código no válido o ya utilizado.", "error");
+        } else {
+            await supabaseClient.from('priority_codes').update({ is_used: true }).eq('code', code);
+            localStorage.setItem('vidspri_priority_active', 'true');
+            showToast("¡Acceso prioritario activado! Tus trabajos irán más rápido.", "success");
+            document.getElementById('premium-modal').classList.add('hidden');
+            document.getElementById('premium-status').textContent = 'Estado: PRIORITARIO 🚀';
+            loadPriorityCodes();
+        }
+    });
+
+    // --- Helpers ---
     async function extractFramesFromVideo(videoFile, frameCount, startTime, endTime) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const video = document.createElement('video');
-            video.preload = 'metadata';
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            const frames = [];
-
             video.src = URL.createObjectURL(videoFile);
-
             video.onloadedmetadata = () => {
+                const canvas = document.createElement('canvas');
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
-
+                const ctx = canvas.getContext('2d');
+                const frames = [];
                 const duration = endTime - startTime;
                 const interval = duration / frameCount;
-                let currentTime = startTime;
-
-                let capturedFrames = 0;
+                let current = startTime;
+                let count = 0;
 
                 video.onseeked = async () => {
-                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+                    ctx.drawImage(video, 0, 0);
+                    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
                     frames.push(blob);
-                    capturedFrames++;
-
-                    if (capturedFrames < frameCount) {
-                        currentTime += interval;
-                        video.currentTime = currentTime;
+                    count++;
+                    if (count < frameCount) {
+                        current += interval;
+                        video.currentTime = current;
                     } else {
-                        URL.revokeObjectURL(video.src); // Clean up
                         resolve(frames);
                     }
                 };
-
-                video.currentTime = currentTime; // Start the seeking process
-            };
-
-            video.onerror = () => {
-                URL.revokeObjectURL(video.src);
-                reject(new Error('Error al cargar el archivo de video.'));
+                video.currentTime = startTime;
             };
         });
+    }
+
+    function base64StringToBlob(base64) {
+        const bin = atob(base64);
+        const arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        return new Blob([arr], { type: 'image/png' });
     }
 
     async function createSpriteSheet(blobs) {
-         return new Promise(async (resolve) => {
-            const images = await Promise.all(blobs.map(blob => {
-                return new Promise(resolveImg => {
-                    const img = new Image();
-                    img.onload = () => {
-                        URL.revokeObjectURL(img.src); // Clean up memory
-                        resolveImg(img);
-                    };
-                    img.src = URL.createObjectURL(blob);
-                });
-            }));
-
-            if (images.length === 0) {
-                spriteImage.src = '';
-                downloadLink.href = '';
-                return resolve();
-            };
-
-            const maxHeight = Math.max(...images.map(img => img.height));
-            const totalWidth = images.reduce((sum, img) => sum + img.width, 0);
-
-            const canvas = document.createElement('canvas');
-            canvas.width = totalWidth;
-            canvas.height = maxHeight;
-            const context = canvas.getContext('2d');
-
-            let currentX = 0;
-            images.forEach(img => {
-                context.drawImage(img, currentX, 0);
-                currentX += img.width;
+        const images = await Promise.all(blobs.map(blob => {
+            return new Promise(res => {
+                const img = new Image();
+                img.onload = () => res(img);
+                img.src = URL.createObjectURL(blob);
             });
+        }));
 
-            canvas.toBlob(blob => {
-                const url = URL.createObjectURL(blob);
-                spriteImage.src = url;
-                downloadLink.href = url;
-                resolve();
-            }, 'image/png');
+        const totalWidth = images.reduce((sum, img) => sum + img.width, 0);
+        const maxHeight = Math.max(...images.map(img => img.height));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = totalWidth;
+        canvas.height = maxHeight;
+        const ctx = canvas.getContext('2d');
+
+        let x = 0;
+        images.forEach(img => {
+            ctx.drawImage(img, x, 0);
+            x += img.width;
         });
+
+        canvas.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+            spriteImage.src = url;
+            downloadLink.href = url;
+        }, 'image/png');
     }
 
-    // Initialize UI on load
-    resetUI();
+    function updateProgressBar(percentage) {
+        progressBarInner.style.width = `${percentage}%`;
+    }
 });

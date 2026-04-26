@@ -24,6 +24,7 @@
 
     <!-- Google Translate API -->
     <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="logo.jpeg" type="image/jpeg">
 </head>
@@ -48,6 +49,16 @@
         </div>
         <h1><img src="logo.jpeg" alt="VidSpri Logo" class="logo"> VidSpri</h1>
         <p>Convierte tus videos de animaciones en hojas de sprites listas para usar.</p>
+
+        <!-- Seccion de Codigos Prioritarios -->
+        <div id="codes-container" class="modern-card">
+            <h3>🎁 Códigos Prioritarios Gratuitos</h3>
+            <p class="small-text">Copia uno para procesar más rápido. Se regeneran cada 24h.</p>
+            <div id="priority-codes-list" class="codes-grid">
+                <!-- Los codigos se cargan aqui -->
+                <div class="loading-spinner"></div>
+            </div>
+        </div>
 
         <!-- Priority Access Modal -->
         <div id="premium-modal" class="modal hidden">
@@ -337,6 +348,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
 
     <script src="script.js"></script>
     <footer>

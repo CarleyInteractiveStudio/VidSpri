@@ -5,3 +5,5 @@ rembg
 Pillow
 gunicorn
 onnxruntime
+httpx
+supabase
