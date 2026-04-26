@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Supabase Configuration ---
     const SUPABASE_URL = 'https://tladrluezsmmhjbhupgb.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_zb8TGeURLnafHWDffG9DMg_PtFO_kmv';
-    // The CDN version exposes 'supabase' as a global object
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // --- Global State ---
@@ -11,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentJobId = null;
     let userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
     localStorage.setItem('vidspri_user_id', userId);
+    let currentLang = localStorage.getItem('vidspri_lang') || 'es';
 
     // --- DOM Elements ---
     const mainMenu = document.getElementById('main-menu');
@@ -32,20 +32,66 @@ document.addEventListener('DOMContentLoaded', () => {
     const fullVideoCheckbox = document.getElementById('full-video-checkbox');
     const timeRangeInputs = document.getElementById('time-range-inputs');
 
+    // Lang elements
+    const langBtn = document.getElementById('lang-btn');
+    const langMenu = document.getElementById('lang-menu');
+    const langOptions = document.querySelectorAll('.lang-option');
+
     // --- Initialization ---
+    applyTranslations(currentLang);
     loadPriorityCodes();
     subscribeToGlobalNotifications();
     checkExistingPriorityStatus();
 
+    // --- Translation Logic ---
+    function applyTranslations(lang) {
+        currentLang = lang;
+        localStorage.setItem('vidspri_lang', lang);
+        const dict = window.translations[lang] || window.translations['es'];
+
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (dict[key]) {
+                // If it has children (like icons), we need to handle it carefully
+                if (el.children.length > 0) {
+                    const textNode = Array.from(el.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+                    if (textNode) textNode.textContent = dict[key];
+                    else el.appendChild(document.createTextNode(dict[key]));
+                } else {
+                    el.textContent = dict[key];
+                }
+            }
+        });
+
+        document.getElementById('current-lang').textContent = document.querySelector(`.lang-option[data-lang="${lang}"]`).textContent;
+    }
+
+    langBtn.addEventListener('click', () => langMenu.classList.toggle('hidden'));
+    langOptions.forEach(opt => {
+        opt.addEventListener('click', () => {
+            applyTranslations(opt.getAttribute('data-lang'));
+            langMenu.classList.add('hidden');
+        });
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!langBtn.contains(e.target) && !langMenu.contains(e.target)) {
+            langMenu.classList.add('hidden');
+        }
+    });
+
     // --- Toast Notifications ---
-    function showToast(message, type = 'info') {
+    function showToast(messageKey, type = 'info', isLiteral = false) {
+        const dict = window.translations[currentLang] || window.translations['es'];
+        const message = isLiteral ? messageKey : (dict[messageKey] || messageKey);
+
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         toast.innerHTML = `<span>${message}</span>`;
         toastContainer.appendChild(toast);
         setTimeout(() => {
             toast.style.opacity = '0';
-            toast.style.transform = 'translateX(100%)';
             setTimeout(() => toast.remove(), 300);
         }, 5000);
     }
@@ -68,17 +114,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 codeEl.className = `code-item ${code.is_used ? 'used' : ''}`;
                 codeEl.textContent = code.code;
                 if (!code.is_used) {
-                    codeEl.title = 'Haz clic para copiar';
                     codeEl.onclick = () => {
                         navigator.clipboard.writeText(code.code);
-                        showToast('¡Código copiado al portapapeles!', 'success');
+                        showToast('copy_success', 'success');
                     };
                 }
                 codesList.appendChild(codeEl);
             });
         } catch (e) {
             console.error('Error loading codes:', e);
-            codesList.innerHTML = '<p class="small-text">No se pudieron cargar los códigos.</p>';
+            codesList.innerHTML = '';
         }
     }
 
@@ -86,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
         supabaseClient
             .channel('global_notifications')
             .on('postgres_changes', { event: 'INSERT', table: 'global_notifications' }, payload => {
-                showToast(payload.new.message, payload.new.type);
+                showToast(payload.new.message, payload.new.type, true);
             })
             .subscribe();
     }
@@ -94,7 +139,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function checkExistingPriorityStatus() {
         const isPriority = localStorage.getItem('vidspri_priority_active') === 'true';
         if (isPriority) {
-            document.getElementById('premium-status').textContent = 'Estado: PRIORITARIO 🚀';
+            const dict = window.translations[currentLang] || window.translations['es'];
+            document.getElementById('premium-status').textContent = dict['priority_active'];
         }
     }
 
@@ -133,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('extract-frames-btn').addEventListener('click', async () => {
         const videoFile = videoFileInput.files[0];
         if (!videoFile) {
-            showToast("Por favor, sube un archivo de video.", "error");
+            showToast("Selecciona un video", "error", true);
             return;
         }
 
@@ -146,13 +192,9 @@ document.addEventListener('DOMContentLoaded', () => {
             endTime = parseFloat(endTimeInput.value);
         }
 
-        if (isNaN(startTime) || isNaN(endTime) || startTime >= endTime) {
-            showToast("El rango de tiempo seleccionado no es válido.", "error");
-            return;
-        }
-
         progressContainer.classList.remove('hidden');
-        progressText.textContent = "Extrayendo fotogramas del video...";
+        const dict = window.translations[currentLang] || window.translations['es'];
+        progressText.textContent = dict['processing'];
         updateProgressBar(30);
 
         try {
@@ -162,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('frame-preview-container').classList.remove('hidden');
             videoSection.classList.add('hidden');
         } catch (e) {
-            showToast(`Error: ${e.message}`, "error");
+            showToast(e.message, "error", true);
         } finally {
             progressContainer.classList.add('hidden');
         }
@@ -194,7 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (extractedFrames.length === 0) return;
 
         progressContainer.classList.remove('hidden');
-        progressText.textContent = "Uniéndose a la cola de procesamiento...";
+        const dict = window.translations[currentLang] || window.translations['es'];
+        progressText.textContent = dict['joining'];
         updateProgressBar(10);
 
         const isPriority = localStorage.getItem('vidspri_priority_active') === 'true';
@@ -210,7 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentJobId = data[0].id;
             startQueueTracking(currentJobId);
         } catch (e) {
-            showToast("Error al unirse a la cola: " + e.message, "error");
+            showToast(e.message, "error", true);
             progressContainer.classList.add('hidden');
         }
     });
@@ -218,15 +261,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function startQueueTracking(jobId) {
         supabaseClient
             .channel(`job-${jobId}`)
-            .on('postgres_changes', {
-                event: 'UPDATE',
-                table: 'processing_queue',
-                filter: `id=eq.${jobId}`
-            }, payload => {
+            .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue', filter: `id=eq.${jobId}` }, payload => {
                 if (payload.new.status === 'completed') {
-                    showToast("¡Procesamiento terminado!", "success");
+                    showToast('done', 'success');
                 } else if (payload.new.status === 'failed') {
-                    showToast("El procesamiento ha fallado.", "error");
+                    showToast('Error', 'error', true);
                     progressContainer.classList.add('hidden');
                 }
             })
@@ -236,64 +275,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function checkPosition(jobId) {
-        const { data: jobData, error } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
-        if (error || !jobData) return;
+        const { data: jobData } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
+        if (!jobData || jobData.status !== 'waiting') return;
 
-        if (jobData.status !== 'waiting') return;
-
-        // Count jobs ahead:
-        // 1. All priority jobs if I'm not priority.
-        // 2. Only priority jobs with smaller queue_number if I am priority.
-        // 3. All priority jobs + non-priority jobs with smaller queue_number if I'm not priority.
-
-        let query = supabaseClient
-            .from('processing_queue')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'waiting');
-
+        let query = supabaseClient.from('processing_queue').select('*', { count: 'exact', head: true }).eq('status', 'waiting');
         if (jobData.is_priority) {
             query = query.eq('is_priority', true).lt('queue_number', jobData.queue_number);
         } else {
-            // For non-priority: everyone who is priority OR (not priority and smaller queue_number)
-            // Supabase client filters are ANDed. We need an OR.
             query = query.or(`is_priority.eq.true,and(is_priority.eq.false,queue_number.lt.${jobData.queue_number})`);
         }
 
-        const { count, error: countError } = await query;
-        if (countError) throw countError;
+        const { count } = await query;
+        const dict = window.translations[currentLang] || window.translations['es'];
+        progressText.textContent = dict['in_queue'] + count;
+        updateProgressBar(15);
 
-        progressText.textContent = `En cola... Personas delante: ${count}`;
-        updateProgressBar(15 + (count === 0 ? 10 : 0));
-
-        if (count === 0) {
-            findFreeServerAndProcess(jobId);
-        } else {
-            setTimeout(() => checkPosition(jobId), 5000);
-        }
+        if (count === 0) findFreeServerAndProcess(jobId);
+        else setTimeout(() => checkPosition(jobId), 5000);
     }
 
     async function findFreeServerAndProcess(jobId) {
-        progressText.textContent = "Buscando un servidor libre...";
+        const dict = window.translations[currentLang] || window.translations['es'];
+        progressText.textContent = dict['finding_server'];
 
         const { data: servers } = await supabaseClient
             .from('server_status')
             .select('*')
             .eq('status', 'free')
-            .gt('last_heartbeat', new Date(Date.now() - 30000).toISOString()); // Heartbeat within last 30s
+            .gt('last_heartbeat', new Date(Date.now() - 30000).toISOString());
 
         if (!servers || servers.length === 0) {
-            progressText.textContent = "Todos los servidores están ocupados. Esperando...";
             setTimeout(() => findFreeServerAndProcess(jobId), 3000);
             return;
         }
 
-        // Pick one (randomly or first available)
         const server = servers[Math.floor(Math.random() * servers.length)];
         sendToProcessingServer(server.url, jobId);
     }
 
     async function sendToProcessingServer(serverUrl, jobId) {
-        progressText.textContent = "¡Servidor listo! Enviando fotogramas...";
+        const dict = window.translations[currentLang] || window.translations['es'];
+        progressText.textContent = dict['sending_frames'];
         updateProgressBar(40);
 
         await supabaseClient.from('processing_queue').update({ status: 'processing' }).eq('id', jobId);
@@ -302,31 +324,25 @@ document.addEventListener('DOMContentLoaded', () => {
         extractedFrames.forEach(f => formData.append('images', f.blob, `frame_${f.id}.png`));
 
         try {
-            const response = await fetch(`${serverUrl}/process-batch/${jobId}`, {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) throw new Error("El servidor de procesamiento devolvió un error.");
-
+            const response = await fetch(`${serverUrl}/process-batch/${jobId}`, { method: 'POST', body: formData });
             const result = await response.json();
             handleProcessingSuccess(result.frames);
         } catch (e) {
-            showToast("Error de procesamiento: " + e.message, "error");
+            showToast(e.message, "error", true);
             await supabaseClient.from('processing_queue').update({ status: 'failed' }).eq('id', jobId);
             progressContainer.classList.add('hidden');
         }
     }
 
     async function handleProcessingSuccess(frames) {
-        progressText.textContent = "Creando tu hoja de sprites...";
+        const dict = window.translations[currentLang] || window.translations['es'];
+        progressText.textContent = dict['done'];
         updateProgressBar(90);
         const blobs = frames.map(base64StringToBlob);
         await createSpriteSheet(blobs);
         progressContainer.classList.add('hidden');
         resultContainer.classList.remove('hidden');
         document.getElementById('frame-preview-container').classList.add('hidden');
-        showToast("¡Hoja de sprites generada con éxito!", "success");
     }
 
     // --- Priority Codes ---
@@ -342,21 +358,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const code = document.getElementById('premium-code-input').value.trim();
         if (!code) return;
 
-        const { data, error } = await supabaseClient
-            .from('priority_codes')
-            .select('*')
-            .eq('code', code)
-            .eq('is_used', false)
-            .single();
+        const { data, error } = await supabaseClient.from('priority_codes').select('*').eq('code', code).eq('is_used', false).single();
 
         if (error || !data) {
-            showToast("Código no válido o ya utilizado.", "error");
+            showToast('invalid_code', 'error');
         } else {
             await supabaseClient.from('priority_codes').update({ is_used: true }).eq('code', code);
             localStorage.setItem('vidspri_priority_active', 'true');
-            showToast("¡Acceso prioritario activado! Tus trabajos irán más rápido.", "success");
+            showToast('priority_active', 'success');
             document.getElementById('premium-modal').classList.add('hidden');
-            document.getElementById('premium-status').textContent = 'Estado: PRIORITARIO 🚀';
+            const dict = window.translations[currentLang] || window.translations['es'];
+            document.getElementById('premium-status').textContent = dict['priority_active'];
             loadPriorityCodes();
         }
     });
@@ -374,17 +386,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const frames = [];
                 const duration = endTime - startTime;
                 const interval = duration / frameCount;
-                let current = startTime;
                 let count = 0;
-
                 video.onseeked = async () => {
                     ctx.drawImage(video, 0, 0);
                     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
                     frames.push(blob);
                     count++;
                     if (count < frameCount) {
-                        current += interval;
-                        video.currentTime = current;
+                        video.currentTime += interval;
                     } else {
                         resolve(frames);
                     }
@@ -409,21 +418,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 img.src = URL.createObjectURL(blob);
             });
         }));
-
         const totalWidth = images.reduce((sum, img) => sum + img.width, 0);
         const maxHeight = Math.max(...images.map(img => img.height));
-
         const canvas = document.createElement('canvas');
-        canvas.width = totalWidth;
-        canvas.height = maxHeight;
+        canvas.width = totalWidth; canvas.height = maxHeight;
         const ctx = canvas.getContext('2d');
-
         let x = 0;
-        images.forEach(img => {
-            ctx.drawImage(img, x, 0);
-            x += img.width;
-        });
-
+        images.forEach(img => { ctx.drawImage(img, x, 0); x += img.width; });
         canvas.toBlob(blob => {
             const url = URL.createObjectURL(blob);
             spriteImage.src = url;
