@@ -30,6 +30,7 @@ const translations = {
         copy_success: "¡Código copiado!",
         priority_active: "Estado: PRIORITARIO 🚀",
         invalid_code: "Código no válido o usado",
+        login: "Iniciar Sesión",
         premium_title: "Acceso Prioritario",
         premium_sub: "Introduce tu código para ir más rápido.",
         save_code: "Guardar Código"
@@ -64,6 +65,7 @@ const translations = {
         copy_success: "Code copied!",
         priority_active: "Status: PRIORITY 🚀",
         invalid_code: "Invalid or used code",
+        login: "Login",
         premium_title: "Priority Access",
         premium_sub: "Enter your code to go faster.",
         save_code: "Save Code"

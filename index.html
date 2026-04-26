@@ -10,7 +10,7 @@
     <script src="translations.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="styles.css">
-    <link rel="icon" href="logo.jpeg" type="image/jpeg">
+    <link rel="icon" href="logo.png" type="image/png">
 </head>
 <body>
     <div class="header-actions">
@@ -19,6 +19,13 @@
             <span data-i18n="support">Apoyar</span>
         </a>
         <div class="header-right-controls">
+            <button type="button" id="login-btn" class="pill-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span data-i18n="login">Iniciar Sesión</span>
+            </button>
+            <div id="user-info" class="pill-btn hidden">
+                <span id="user-name"></span>
+            </div>
             <div id="lang-selector-container">
                 <button type="button" id="lang-btn" class="pill-btn">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-globe"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
@@ -55,7 +62,7 @@
 
     <div class="container">
         <h1>
-            <img src="logo.jpeg" alt="VidSpri Logo" class="logo">
+            <img src="logo.png" alt="VidSpri Logo" class="logo">
             <span data-i18n="title">VidSpri</span>
         </h1>
         <p data-i18n="subtitle">Convierte tus videos de animaciones en hojas de sprites listas para usar.</p>
@@ -181,6 +188,9 @@
     </div>
 
     <div id="toast-container"></div>
+
+    <!-- SSO Bridge -->
+    <iframe id="sso-bridge" src="https://carleystudio.com/bridge.html" style="display:none;"></iframe>
 
     <script src="script.js"></script>
     <footer>

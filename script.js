@@ -37,11 +37,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const langMenu = document.getElementById('lang-menu');
     const langOptions = document.querySelectorAll('.lang-option');
 
+    // SSO elements
+    const loginBtn = document.getElementById('login-btn');
+    const userInfo = document.getElementById('user-info');
+    const userNameEl = document.getElementById('user-name');
+    const bridgeIframe = document.getElementById('sso-bridge');
+
     // --- Initialization ---
     applyTranslations(currentLang);
     loadPriorityCodes();
     subscribeToGlobalNotifications();
     checkExistingPriorityStatus();
+    initSSO();
 
     // --- Translation Logic ---
     function applyTranslations(lang) {
@@ -80,6 +87,57 @@ document.addEventListener('DOMContentLoaded', () => {
             langMenu.classList.add('hidden');
         }
     });
+
+    // --- SSO Logic ---
+    function initSSO() {
+        // 1. Handle incoming SSO token from URL hash
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const ssoToken = params.get('sso_token');
+        const ssoUserId = params.get('user_id');
+
+        if (ssoToken && ssoUserId) {
+            userId = ssoUserId;
+            localStorage.setItem('vidspri_user_id', userId);
+            localStorage.setItem('vidspri_sso_token', ssoToken);
+            window.location.hash = ""; // Clean URL
+            showToast("¡Sesión iniciada con éxito!", "success", true);
+        }
+
+        // 2. Check session via Bridge
+        window.addEventListener('message', (event) => {
+            if (event.origin !== 'https://carleystudio.com') return;
+
+            if (event.data.type === 'SESSION_RESPONSE') {
+                const user = event.data.payload;
+                if (user) {
+                    updateUserUI(user);
+                }
+            }
+        });
+
+        // Request session check after bridge loads
+        bridgeIframe.onload = () => {
+            bridgeIframe.contentWindow.postMessage({
+                type: 'CHECK_SESSION',
+                requestId: 'initial-check'
+            }, 'https://carleystudio.com');
+        };
+
+        loginBtn.addEventListener('click', () => {
+            const domain = window.location.hostname || "carleyinteractivestudio.github.io";
+            const redirectTo = window.location.href;
+            window.location.href = `https://carleystudio.com/sso.html?domain=${domain}&redirect_to=${encodeURIComponent(redirectTo)}`;
+        });
+    }
+
+    function updateUserUI(user) {
+        userId = user.id;
+        localStorage.setItem('vidspri_user_id', userId);
+        loginBtn.classList.add('hidden');
+        userInfo.classList.remove('hidden');
+        userNameEl.textContent = user.email.split('@')[0];
+    }
 
     // --- Toast Notifications ---
     function showToast(messageKey, type = 'info', isLiteral = false) {
