@@ -18,12 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const notifBadge = document.querySelector('.notif-badge');
 
     // --- Initialization ---
-    applyTranslations(currentLang);
-    subscribeToGlobalNotifications();
-    initSSO();
-    cleanupStuckJobs();
-
-    // --- Queue Management ---
+    // Moved to the end to ensure all functions are defined first
     async function cleanupStuckJobs() {
         try {
             // Cancel any previous jobs from this user that might be stuck
@@ -38,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Translation Logic ---
-    function applyTranslations(lang) {
+    window.applyTranslations = function(lang) {
         currentLang = lang;
         localStorage.setItem('vidspri_lang', lang);
         const dict = window.translations[lang] || window.translations['es'];
@@ -60,8 +55,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- SSO Logic ---
     function initSSO() {
         let sessionReceived = false;
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userInfo = document.getElementById('user-info');
+        const userEmailEl = document.getElementById('user-email');
 
-        // 1. Listen for bridge responses
+        // 1. Initial State from LocalStorage
+        const savedName = localStorage.getItem('vidspri_user_name');
+        const hasToken = localStorage.getItem('vidspri_sso_token');
+
+        if (hasToken || savedName) {
+            updateAuthUI(savedName || "...");
+        }
+
+        // 2. Listen for bridge responses
         window.addEventListener('message', (event) => {
             if (event.origin !== 'https://carleystudio.com') return;
 
@@ -80,15 +87,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const meta = user.user_metadata || {};
                     const displayName = meta.username || meta.display_name || meta.full_name || user.email || userId;
                     localStorage.setItem('vidspri_user_name', displayName);
-                    updateWelcomeMessage(displayName);
+                    updateAuthUI(displayName);
                 } else {
                     console.log("No active session on bridge.");
-                    // Only hide if we don't have a locally saved user OR a current token
-                    const savedName = localStorage.getItem('vidspri_user_name');
-                    const hasToken = localStorage.getItem('vidspri_sso_token');
-                    if (!savedName && !hasToken) {
-                        const welcomeMsg = document.getElementById('welcome-msg');
-                        if (welcomeMsg) welcomeMsg.classList.add('hidden');
+                    // Only revert if we really don't have a token
+                    if (!localStorage.getItem('vidspri_sso_token')) {
+                        updateAuthUI(null);
                     }
                 }
             }
@@ -103,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // 2. Handle incoming data from URL redirect (fast-path)
+        // 3. Handle incoming data from URL redirect (fast-path)
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
         const ssoToken = params.get('sso_token');
@@ -115,20 +119,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 userId = userIdFromHash;
                 localStorage.setItem('vidspri_user_id', userId);
             }
-            window.location.hash = "";
+            // Use replaceState to clear hash without triggering scroll or history bloat
+            history.replaceState(null, null, window.location.pathname + window.location.search);
 
-            const savedName = localStorage.getItem('vidspri_user_name');
-            updateWelcomeMessage(savedName || "...");
-
+            updateAuthUI(localStorage.getItem('vidspri_user_name') || "...");
             showToast("login_success", "success");
+            requestSessionCheck(); // Request full metadata
         }
 
-        // 3. Robust initialization
+        function updateAuthUI(name) {
+            const welcomeMsg = document.getElementById('welcome-msg');
+            const welcomeName = document.getElementById('welcome-name');
+
+            if (name) {
+                // Logged in state
+                if (welcomeMsg) welcomeMsg.classList.remove('hidden');
+                if (welcomeName) welcomeName.textContent = name;
+
+                if (loginBtn) loginBtn.classList.add('hidden');
+                if (userInfo) userInfo.classList.remove('hidden');
+                if (userEmailEl) userEmailEl.textContent = name;
+            } else {
+                // Logged out state
+                if (welcomeMsg) welcomeMsg.classList.add('hidden');
+
+                if (loginBtn) loginBtn.classList.remove('hidden');
+                if (userInfo) userInfo.classList.add('hidden');
+            }
+        }
+
+        // 4. Action Handlers
+        if (loginBtn) {
+            loginBtn.onclick = () => {
+                const domain = "carleyinteractivestudio.github.io";
+                const redirectTo = window.location.href.split('#')[0];
+                window.location.href = `https://carleystudio.com/sso.html?domain=${domain}&redirect_to=${encodeURIComponent(redirectTo)}`;
+            };
+        }
+
+        if (logoutBtn) {
+            logoutBtn.onclick = () => {
+                localStorage.removeItem('vidspri_user_id');
+                localStorage.removeItem('vidspri_user_name');
+                localStorage.removeItem('vidspri_sso_token');
+                location.reload();
+            };
+        }
+
+        // 5. Robust initialization
         if (bridgeIframe) {
             bridgeIframe.onload = requestSessionCheck;
         }
 
-        // Poll for a short time to ensure we catch the bridge readiness
         let pollCount = 0;
         const pollInterval = setInterval(() => {
             if (sessionReceived || pollCount > 5) {
@@ -138,33 +180,24 @@ document.addEventListener('DOMContentLoaded', () => {
             requestSessionCheck();
             pollCount++;
         }, 1000);
-
-        const savedName = localStorage.getItem('vidspri_user_name');
-        if (savedName) updateWelcomeMessage(savedName);
-    }
-
-    function updateWelcomeMessage(name) {
-        const welcomeMsg = document.getElementById('welcome-msg');
-        const welcomeName = document.getElementById('welcome-name');
-        if (welcomeMsg && welcomeName) {
-            welcomeName.textContent = name || "Usuario";
-            welcomeMsg.classList.remove('hidden');
-        }
     }
 
     // --- Toast Notifications ---
-    function showToast(messageKey, type = 'info', isLiteral = false) {
+    window.showToast = function(messageKey, type = 'info', isLiteral = false) {
         const dict = window.translations[currentLang] || window.translations['es'];
         const message = isLiteral ? messageKey : (dict[messageKey] || messageKey);
 
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         toast.innerHTML = `<span>${message}</span>`;
-        toastContainer.appendChild(toast);
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            setTimeout(() => toast.remove(), 300);
-        }, 5000);
+        const container = document.getElementById('toast-container');
+        if (container) {
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
     }
 
     // --- Supabase Logic ---
@@ -233,4 +266,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target === notifModal) notifModal.classList.add('hidden');
         });
     }
+
+    // --- Execute Initialization ---
+    window.applyTranslations(currentLang);
+    subscribeToGlobalNotifications();
+    initSSO();
+    cleanupStuckJobs();
 });
