@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS processing_queue (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Ensure columns exist if table was already there
+ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS processed_frames INTEGER DEFAULT 0;
+ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS total_frames INTEGER DEFAULT 0;
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_queue_status ON processing_queue(status);
 CREATE INDEX IF NOT EXISTS idx_queue_order ON processing_queue(is_priority DESC, queue_number ASC);
