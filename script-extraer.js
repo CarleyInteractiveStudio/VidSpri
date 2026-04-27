@@ -375,7 +375,12 @@ document.addEventListener('DOMContentLoaded', () => {
     async function checkPosition(jobId) {
         const { data: jobData } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
         if (!jobData || (jobData.status !== 'waiting' && jobData.status !== 'authorized')) return;
-        if (jobData.status === 'authorized') return;
+
+        if (jobData.status === 'authorized') {
+            const dict = window.translations[currentLang] || window.translations['es'];
+            progressText.textContent = dict['sending_frames'] || 'Enviando fotogramas...';
+            return;
+        }
 
         const { count } = await supabaseClient
             .from('processing_queue')
@@ -384,9 +389,15 @@ document.addEventListener('DOMContentLoaded', () => {
             .or(`is_priority.gt.${jobData.is_priority},and(is_priority.eq.${jobData.is_priority},queue_number.lt.${jobData.queue_number})`);
 
         const dict = window.translations[currentLang] || window.translations['es'];
-        progressText.textContent = (dict['in_queue'] || 'En cola: ') + count;
-        updateProgressBar(10);
+        const position = (count || 0) + 1;
 
+        if (position === 1) {
+            progressText.textContent = dict['your_turn'] || '¡Es tu turno! Preparando...';
+        } else {
+            progressText.textContent = (dict['position'] || 'Posición en cola: ') + position;
+        }
+
+        updateProgressBar(10);
         setTimeout(() => checkPosition(jobId), 3000);
     }
 

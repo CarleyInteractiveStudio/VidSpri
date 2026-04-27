@@ -32,20 +32,29 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- Model Session ---
 session = new_session("isnet-anime")
 
-async def update_status(status: str):
+async def update_status(status: str = None):
     try:
-        supabase.table("server_status").upsert({
+        data = {
             "id": SERVER_ID,
             "url": SERVER_URL,
-            "status": status,
             "last_heartbeat": datetime.datetime.utcnow().isoformat()
-        }).execute()
+        }
+        if status:
+            data["status"] = status
+
+        supabase.table("server_status").upsert(data).execute()
     except Exception as e:
         print(f"Error updating status to Supabase: {e}")
+
+async def heartbeat_loop():
+    while True:
+        await update_status()
+        await asyncio.sleep(20)
 
 @app.on_event("startup")
 async def startup_event():
     await update_status("free")
+    asyncio.create_task(heartbeat_loop())
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -73,17 +82,28 @@ async def remove_background_api(file: UploadFile = File(...)):
 
 @app.post("/process-batch/{job_id}")
 async def process_batch(job_id: str, images: list[UploadFile] = File(...)):
-    # Update status to processing in DB
-    supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
+    total = len(images)
+    # Update status to processing and set total_frames in DB
+    supabase.table("processing_queue").update({
+        "status": "processing",
+        "total_frames": total,
+        "processed_frames": 0
+    }).eq("id", job_id).execute()
+
     await update_status("busy")
 
     processed_frames = []
     try:
-        for image_file in images:
+        for i, image_file in enumerate(images):
             contents = await image_file.read()
             output_bytes = remove(contents, session=session)
             base64_encoded = base64.b64encode(output_bytes).decode('utf-8')
             processed_frames.append(base64_encoded)
+
+            # Update progress one by one
+            supabase.table("processing_queue").update({
+                "processed_frames": i + 1
+            }).eq("id", job_id).execute()
 
         supabase.table("processing_queue").update({"status": "completed"}).eq("id", job_id).execute()
         await update_status("free")

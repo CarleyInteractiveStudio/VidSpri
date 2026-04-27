@@ -32,20 +32,29 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- Model Session ---
 session = new_session("isnet-anime")
 
-async def update_status(status: str):
+async def update_status(status: str = None):
     try:
-        supabase.table("server_status").upsert({
+        data = {
             "id": SERVER_ID,
             "url": SERVER_URL,
-            "status": status,
             "last_heartbeat": datetime.datetime.utcnow().isoformat()
-        }).execute()
+        }
+        if status:
+            data["status"] = status
+
+        supabase.table("server_status").upsert(data).execute()
     except Exception as e:
         print(f"Error updating status to Supabase: {e}")
+
+async def heartbeat_loop():
+    while True:
+        await update_status()
+        await asyncio.sleep(20)
 
 @app.on_event("startup")
 async def startup_event():
     await update_status("free")
+    asyncio.create_task(heartbeat_loop())
 
 @app.on_event("shutdown")
 async def shutdown_event():

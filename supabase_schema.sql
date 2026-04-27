@@ -123,6 +123,33 @@ BEGIN
     END IF;
 END $$;
 
+-- Function to cleanup abandoned jobs and offline servers
+CREATE OR REPLACE FUNCTION cleanup_system()
+RETURNS void AS $$
+BEGIN
+    -- 1. Mark servers as offline if no heartbeat for 60 seconds
+    UPDATE server_status
+    SET status = 'offline'
+    WHERE last_heartbeat < NOW() - INTERVAL '60 seconds'
+    AND status != 'offline';
+
+    -- 2. Mark 'authorized' jobs as failed if they haven't started processing for 5 minutes (client abandoned)
+    UPDATE processing_queue
+    SET status = 'failed'
+    WHERE status = 'authorized'
+    AND created_at < NOW() - INTERVAL '5 minutes';
+
+    -- 3. Reset 'processing' jobs to 'waiting' if the assigned server is now offline
+    UPDATE processing_queue q
+    SET status = 'waiting',
+        assigned_server_url = NULL
+    FROM server_status s
+    WHERE q.status = 'processing'
+    AND q.assigned_server_url = s.url
+    AND s.status = 'offline';
+END;
+$$ LANGUAGE plpgsql;
+
 -- Function to assign the next job to a free server
 CREATE OR REPLACE FUNCTION assign_jobs()
 RETURNS TRIGGER AS $$
@@ -131,8 +158,10 @@ DECLARE
     free_server_url TEXT;
     free_server_id TEXT;
 BEGIN
-    -- Only run if a server becomes free or a new job is added
-    -- Find the first free server
+    -- Run cleanup
+    PERFORM cleanup_system();
+
+    -- Find the first free server with a recent heartbeat
     SELECT id, url INTO free_server_id, free_server_url
     FROM server_status
     WHERE status = 'free'
