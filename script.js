@@ -60,12 +60,38 @@ document.addEventListener('DOMContentLoaded', () => {
         const userInfo = document.getElementById('user-info');
         const userEmailEl = document.getElementById('user-email');
 
+        // Helper: Decode JWT to get user metadata if bridge fails
+        function parseJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                return null;
+            }
+        }
+
         // 1. Initial State from LocalStorage
         const savedName = localStorage.getItem('vidspri_user_name');
         const hasToken = localStorage.getItem('vidspri_sso_token');
 
-        if (hasToken || savedName) {
-            updateAuthUI(savedName || "...");
+        console.log("Auth Init:", { hasToken: !!hasToken, savedName });
+
+        if (hasToken) {
+            const decoded = parseJwt(hasToken);
+            if (decoded && decoded.user_metadata) {
+                const meta = decoded.user_metadata;
+                const name = meta.username || meta.display_name || meta.full_name || decoded.email || "Usuario";
+                localStorage.setItem('vidspri_user_name', name);
+                updateAuthUI(name);
+            } else {
+                updateAuthUI(savedName || "...");
+            }
+        } else if (savedName) {
+            updateAuthUI(savedName);
         }
 
         // 2. Listen for bridge responses
@@ -79,6 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (event.data.type === 'SESSION_RESPONSE') {
                 sessionReceived = true;
                 const session = event.data.payload;
+                console.log("Bridge Session Response:", session ? "Session found" : "No session");
+
                 if (session && session.user) {
                     const user = session.user;
                     userId = user.id;
@@ -89,10 +117,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     localStorage.setItem('vidspri_user_name', displayName);
                     updateAuthUI(displayName);
                 } else {
-                    console.log("No active session on bridge.");
-                    // Only revert if we really don't have a token
+                    // Only revert if we really don't have a token in localStorage
                     if (!localStorage.getItem('vidspri_sso_token')) {
+                        console.log("Cleaning auth UI due to no session and no token.");
                         updateAuthUI(null);
+                    } else {
+                        console.log("Keeping local session despite empty bridge response.");
                     }
                 }
             }
