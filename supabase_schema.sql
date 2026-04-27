@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS processing_queue (
 );
 
 -- Ensure columns exist if table was already there
+ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS assigned_server_url TEXT;
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS processed_frames INTEGER DEFAULT 0;
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS total_frames INTEGER DEFAULT 0;
 
