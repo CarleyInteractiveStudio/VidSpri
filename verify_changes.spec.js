@@ -17,7 +17,7 @@ test('Verify button alignment in extraer.html', async ({ page }) => {
 
 test('Verify progress message logic in script-extraer.js', async ({ page }) => {
   const content = await require('fs').promises.readFile('script-extraer.js', 'utf8');
-  expect(content).toContain('Procesando cuadro ${processed} de ${total}...');
+  expect(content).toContain('Procesando: ${processed} de ${total} fotogramas');
 });
 
 test('Verify previsualizacion.html features', async ({ page }) => {

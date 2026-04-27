@@ -364,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
             isSending = false;
             currentProcessingStep = 'waiting';
             startHeartbeat(currentJobId);
-            startQueueTracking(currentJobId);
+            startQueueTracking(currentJobId, data[0]);
 
             // Immediate check in case it was authorized instantly
             if (data[0].status === 'authorized') {
@@ -379,12 +379,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function startQueueTracking(jobId) {
+    function startQueueTracking(jobId, initialJob) {
+        let jobState = initialJob || { id: jobId, status: 'waiting' };
+
         const channel = supabaseClient
             .channel(`job-${jobId}`)
-            .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue', filter: `id=eq.${jobId}` }, payload => {
-                const job = payload.new;
-                const dict = window.translations[currentLang] || window.translations['es'];
+            .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue' }, payload => {
+                if (payload.new.id !== jobId) return;
+
+                // Merge new data into local state to handle partial payloads
+                jobState = { ...jobState, ...payload.new };
+
+                const job = jobState;
+                console.log("Realtime Update for Job:", job.id, "Status:", job.status, "Progress:", job.processed_frames);
 
                 if (job.status === 'authorized' && !isSending) {
                     isSending = true;
@@ -414,16 +421,17 @@ document.addEventListener('DOMContentLoaded', () => {
         currentProcessingStep = 'processing';
 
         const dict = window.translations[currentLang] || window.translations['es'];
-        const processed = job.processed_frames || 0;
-        const total = job.total_frames || extractedFrames.length;
+        const total = job.total_frames || extractedFrames.length || 1;
+        const processed = Math.min(job.processed_frames || 0, total);
         const remaining = total - processed;
         const percentage = Math.floor((processed / total) * 100);
 
-        if (currentLang === 'es') {
-            progressText.textContent = `Procesando fotograma ${processed} de ${total}... (${percentage}%)`;
-        } else {
-            progressText.textContent = `${dict['processing'] || 'Processing'} ${processed}/${total} (${percentage}%)`;
-        }
+        // Explicitly format the message
+        const label = dict['processing'] || (currentLang === 'es' ? 'Procesando' : 'Processing');
+        const unit = currentLang === 'es' ? 'fotogramas' : 'frames';
+        const ofText = currentLang === 'es' ? 'de' : 'of';
+
+        progressText.textContent = `${label}: ${processed} ${ofText} ${total} ${unit} (${percentage}%)`;
 
         updateProgressBar(percentage);
 
@@ -436,8 +444,9 @@ document.addEventListener('DOMContentLoaded', () => {
             processingStartTime = Date.now();
         }
 
-        // Ensure progress container is visible during processing
+        // Ensure progress container is visible and active
         progressContainer.classList.remove('hidden');
+        progressContainer.style.opacity = '1';
     }
 
     async function checkPosition(jobId) {
@@ -450,6 +459,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 sendToProcessingServer(jobData.assigned_server_url, jobId);
             }
             return;
+        }
+
+        if (jobData.status === 'processing') {
+            updateProcessingProgress(jobData);
         }
 
         if (jobData.status !== 'waiting') return;
@@ -510,7 +523,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Switch to processing mode/message once upload is done
                     currentProcessingStep = 'processing';
                     const dict = window.translations[currentLang] || window.translations['es'];
-                    progressText.textContent = `${dict['processing'] || 'Procesando'}...`;
+                    const totalFrames = extractedFrames.length;
+
+                    const label = dict['processing'] || (currentLang === 'es' ? 'Procesando' : 'Processing');
+                    const unit = currentLang === 'es' ? 'fotogramas' : 'frames';
+                    const ofText = currentLang === 'es' ? 'de' : 'of';
+
+                    progressText.textContent = `${label}: 0 ${ofText} ${totalFrames} ${unit} (0%)`;
                     updateProgressBar(0);
                 };
 
