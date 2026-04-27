@@ -24,6 +24,8 @@ const translations = {
         processing: "Procesando...",
         joining: "Uniéndose a la cola...",
         in_queue: "En cola... Delante: ",
+        position: "Posición en cola: ",
+        your_turn: "¡Es tu turno! Preparando...",
         finding_server: "Buscando servidor...",
         sending_frames: "Enviando fotogramas...",
         done: "¡Listo!",
@@ -31,16 +33,16 @@ const translations = {
         priority_active: "Estado: PRIORITARIO 🚀",
         invalid_code: "Código no válido o usado",
         login: "Iniciar Sesión",
-        premium_title: "Acceso Prioritario",
-        premium_sub: "Introduce tu código para ir más rápido.",
+        priority_title: "Acceso Prioritario",
+        priority_sub: "Introduce tu código para ir más rápido sin afectar a los demás.",
         save_code: "Guardar Código",
         back: "Volver",
         config_title: "Configuración",
         account: "Cuenta",
         logged_as: "Identificado como:",
         language: "Idioma",
-        premium_access: "Acceso Premium",
-        redeem_sub: "Canjea un código para obtener prioridad permanente o temporal.",
+        priority_access: "Acceso Prioritario",
+        redeem_sub: "Canjea un código para obtener una mejor posición en la fila sin afectar a los demás.",
         go_to_redeem: "Ir a Canjear",
         codes_title: "Códigos Prioritarios",
         redeem_code: "Canjear Código",
@@ -51,7 +53,7 @@ const translations = {
         claims_title: "Reclamaciones",
         claims_desc: "Si tienes problemas con el procesamiento de tus videos o con un código prioritario, por favor contáctanos a través de nuestras redes sociales o comunidad oficial.",
         tutorial_title: "Tutorial: Extraer Sprites",
-        tutorial_desc: "1. Sube un video corto de tu animación. 2. Selecciona el rango de tiempo (inicio y fin). 3. Elige el número de cuadros que deseas extraer. 4. Haz clic en 'Extraer Fotogramas'. 5. Revisa los cuadros y haz clic en 'Quitar fondo y generar'.",
+        tutorial_desc: "1. Ve a 'Extraer Sprite desde Video' en el menú principal. 2. Sube un video corto de tu animación. 3. Ajusta el rango de tiempo y elige cuántos cuadros quieres. 4. Haz clic en 'Extraer Fotogramas'. 5. Elimina los cuadros que no necesites y pulsa 'Quitar fondo y generar'.",
         about_title: "Acerca de VidSpri",
         about_desc: "VidSpri es una herramienta diseñada para desarrolladores de videojuegos indie, que utiliza IA para automatizar la creación de hojas de sprites a partir de video.",
         help: "Ayuda",
@@ -59,7 +61,19 @@ const translations = {
         choose_file: "Seleccionar Archivo",
         file_selected: "Archivo seleccionado: ",
         community: "Comunidad",
-        credits: "Créditos"
+        credits: "Créditos",
+        privacy: "Privacidad",
+        privacy_policy: "Política de Privacidad",
+        privacy_text: "No usamos ninguno de tus datos ni almacenamos nada en servidores. Solo usamos datos de tu inicio de sesión y código prioritario otorgado.",
+        step_upload: "Subir",
+        step_edit: "Editar",
+        step_process: "Procesar",
+        close: "Cerrar",
+        manual_adjust: "Ajuste Manual",
+        cols: "Columnas",
+        rows: "Filas",
+        auto_detect: "Detección Automática",
+        apply: "Aplicar"
     },
     en: {
         title: "VidSpri",
@@ -85,6 +99,8 @@ const translations = {
         processing: "Processing...",
         joining: "Joining queue...",
         in_queue: "In queue... Ahead: ",
+        position: "Queue position: ",
+        your_turn: "It's your turn! Preparing...",
         finding_server: "Finding server...",
         sending_frames: "Sending frames...",
         done: "Done!",
@@ -92,9 +108,21 @@ const translations = {
         priority_active: "Status: PRIORITY 🚀",
         invalid_code: "Invalid or used code",
         login: "Login",
-        premium_title: "Priority Access",
-        premium_sub: "Enter your code to go faster.",
-        save_code: "Save Code"
+        priority_title: "Priority Access",
+        priority_sub: "Enter your code to get a better position in the queue without affecting others.",
+        save_code: "Save Code",
+        privacy: "Privacy",
+        privacy_policy: "Privacy Policy",
+        privacy_text: "We do not use any of your data nor store anything on servers. We only use your login data and granted priority code.",
+        step_upload: "Upload",
+        step_edit: "Edit",
+        step_process: "Process",
+        close: "Close",
+        manual_adjust: "Manual Adjust",
+        cols: "Columns",
+        rows: "Rows",
+        auto_detect: "Auto Detect",
+        apply: "Apply"
     },
     fr: {
         title: "VidSpri",
@@ -126,8 +154,8 @@ const translations = {
         copy_success: "Code copié !",
         priority_active: "Statut : PRIORITAIRE 🚀",
         invalid_code: "Code invalide ou utilisé",
-        premium_title: "Accès Prioritaire",
-        premium_sub: "Entrez votre code pour aller plus vite.",
+        priority_title: "Accès Prioritaire",
+        priority_sub: "Entrez votre code pour aller plus vite.",
         save_code: "Enregistrer le Code"
     },
     pt: {
@@ -160,8 +188,8 @@ const translations = {
         copy_success: "Código copiado!",
         priority_active: "Estado: PRIORITÁRIO 🚀",
         invalid_code: "Código inválido ou usado",
-        premium_title: "Acesso Prioritário",
-        premium_sub: "Insira seu código para ir mais rápido.",
+        priority_title: "Acesso Prioritário",
+        priority_sub: "Insira seu código para ir mais rápido.",
         save_code: "Salvar Código"
     },
     it: {
@@ -194,8 +222,8 @@ const translations = {
         copy_success: "Codice copiato!",
         priority_active: "Stato: PRIORITARIO 🚀",
         invalid_code: "Codice non valido o usato",
-        premium_title: "Accesso Prioritario",
-        premium_sub: "Inserisci il tuo codice per andare più veloce.",
+        priority_title: "Accesso Prioritario",
+        priority_sub: "Inserisci il tuo codice per andare più veloce.",
         save_code: "Salva Codice"
     },
     jp: {
@@ -228,8 +256,8 @@ const translations = {
         copy_success: "コードをコピーしました！",
         priority_active: "ステータス：優先 🚀",
         invalid_code: "無効または使用済みのコード",
-        premium_title: "優先アクセス",
-        premium_sub: "コードを入力してスピードアップ。",
+        priority_title: "優先アクセス",
+        priority_sub: "コードを入力してスピードアップ。",
         save_code: "コードを保存"
     },
     ru: {
@@ -262,8 +290,8 @@ const translations = {
         copy_success: "Код скопирован!",
         priority_active: "Статус: ПРИОРИТЕТ 🚀",
         invalid_code: "Неверный или исп. код",
-        premium_title: "Приоритетный доступ",
-        premium_sub: "Введите код для ускорения.",
+        priority_title: "Приоритетный доступ",
+        priority_sub: "Введите код для ускорения.",
         save_code: "Сохранить код"
     },
     zh: {
@@ -296,8 +324,8 @@ const translations = {
         copy_success: "代码已复制！",
         priority_active: "状态：优先 🚀",
         invalid_code: "代码无效或已使用",
-        premium_title: "优先访问",
-        premium_sub: "输入代码以提速。",
+        priority_title: "优先访问",
+        priority_sub: "输入代码以提速。",
         save_code: "保存代码"
     },
     ko: {
@@ -330,8 +358,8 @@ const translations = {
         copy_success: "코드 복사 완료!",
         priority_active: "상태: 우선 🚀",
         invalid_code: "잘못되거나 사용된 코드",
-        premium_title: "우선 액세스",
-        premium_sub: "속도를 높이려면 코드를 입력하세요.",
+        priority_title: "우선 액세스",
+        priority_sub: "속도를 높이려면 코드를 입력하세요.",
         save_code: "코드 저장"
     },
     de: {
@@ -364,8 +392,8 @@ const translations = {
         copy_success: "Code kopiert!",
         priority_active: "Status: PRIORITÄT 🚀",
         invalid_code: "Ungültiger/genutzter Code",
-        premium_title: "Prioritätszugang",
-        premium_sub: "Code eingeben für mehr Speed.",
+        priority_title: "Prioritätszugang",
+        priority_sub: "Code eingeben für mehr Speed.",
         save_code: "Code speichern"
     },
     ar: {
@@ -398,8 +426,8 @@ const translations = {
         copy_success: "تم نسخ الكود!",
         priority_active: "الحالة: أولوية 🚀",
         invalid_code: "كود غير صالح أو مستخدم",
-        premium_title: "وصول ذو أولوية",
-        premium_sub: "أدخل الكود الخاص بك للتسريع.",
+        priority_title: "وصول ذو أولوية",
+        priority_sub: "أدخل الكود الخاص بك للتسريع.",
         save_code: "حفظ الكود"
     },
     hi: {
@@ -432,8 +460,8 @@ const translations = {
         copy_success: "कोड कॉपी किया गया!",
         priority_active: "स्थिति: प्राथमिकता 🚀",
         invalid_code: "अमान्य या उपयोग किया गया कोड",
-        premium_title: "प्राथमिकता एक्सेस",
-        premium_sub: "गति बढ़ाने के लिए अपना कोड दर्ज करें।",
+        priority_title: "प्राथमिकता एक्सेस",
+        priority_sub: "गति बढ़ाने के लिए अपना कोड दर्ज करें।",
         save_code: "कोड सुरक्षित करें"
     },
     tr: {
@@ -466,8 +494,8 @@ const translations = {
         copy_success: "Kod kopyalandı!",
         priority_active: "Durum: ÖNCELİKLİ 🚀",
         invalid_code: "Geçersiz veya kullanılmış kod",
-        premium_title: "Öncelikli Erişim",
-        premium_sub: "Hızlanmak için kodunuzu girin.",
+        priority_title: "Öncelikli Erişim",
+        priority_sub: "Hızlanmak için kodunuzu girin.",
         save_code: "Kodu Kaydet"
     },
     nl: {
@@ -500,8 +528,8 @@ const translations = {
         copy_success: "Code gekopieerd!",
         priority_active: "Status: VOORRANG 🚀",
         invalid_code: "Ongeldige/gebruikte code",
-        premium_title: "Priority Toegang",
-        premium_sub: "Voer code in voor meer snelheid.",
+        priority_title: "Priority Toegang",
+        priority_sub: "Voer code in voor meer snelheid.",
         save_code: "Code Opslaan"
     },
     pl: {
@@ -534,8 +562,8 @@ const translations = {
         copy_success: "Kod skopiowany!",
         priority_active: "Status: PRIORYTET 🚀",
         invalid_code: "Błędny lub użyty kod",
-        premium_title: "Dostęp Priorytetowy",
-        premium_sub: "Wpisz kod, aby przyspieszyć.",
+        priority_title: "Dostęp Priorytetowy",
+        priority_sub: "Wpisz kod, aby przyspieszyć.",
         save_code: "Zapisz Kod"
     },
     vi: {
@@ -568,8 +596,8 @@ const translations = {
         copy_success: "Đã sao chép mã!",
         priority_active: "Trạng thái: ƯU TIÊN 🚀",
         invalid_code: "Mã không hợp lệ hoặc đã dùng",
-        premium_title: "Truy cập Ưu tiên",
-        premium_sub: "Nhập mã để tăng tốc.",
+        priority_title: "Truy cập Ưu tiên",
+        priority_sub: "Nhập mã để tăng tốc.",
         save_code: "Lưu mã"
     },
     th: {
@@ -602,8 +630,8 @@ const translations = {
         copy_success: "คัดลอกโค้ดแล้ว!",
         priority_active: "สถานะ: ลำดับความสำคัญ 🚀",
         invalid_code: "โค้ดไม่ถูกต้องหรือถูกใช้แล้ว",
-        premium_title: "การเข้าถึงลำดับความสำคัญ",
-        premium_sub: "ใส่โค้ดเพื่อความเร็วที่มากขึ้น",
+        priority_title: "การเข้าถึงลำดับความสำคัญ",
+        priority_sub: "ใส่โค้ดเพื่อความเร็วที่มากขึ้น",
         save_code: "บันทึกโค้ด"
     },
     id: {
@@ -636,8 +664,8 @@ const translations = {
         copy_success: "Kode disalin!",
         priority_active: "Status: PRIORITAS 🚀",
         invalid_code: "Kode tidak valid atau terpakai",
-        premium_title: "Akses Prioritas",
-        premium_sub: "Masukkan kode untuk lebih cepat.",
+        priority_title: "Akses Prioritas",
+        priority_sub: "Masukkan kode untuk lebih cepat.",
         save_code: "Simpan Kode"
     },
     ms: {
@@ -670,8 +698,8 @@ const translations = {
         copy_success: "Kod disalin!",
         priority_active: "Status: KEUTAMAAN 🚀",
         invalid_code: "Kod tidak sah atau diguna",
-        premium_title: "Akses Keutamaan",
-        premium_sub: "Masukkan kod untuk lebih laju.",
+        priority_title: "Akses Keutamaan",
+        priority_sub: "Masukkan kod untuk lebih laju.",
         save_code: "Simpan Kod"
     },
     pt_BR: {
@@ -686,7 +714,7 @@ const translations = {
         gen_sound: "Geração de Som IA",
         gen_text: "Sprite de Texto",
         preview_anim: "Visualizar Animação",
-        step1_video: "1. Envie seu arquivo de vídeo:",
+        step1_video: "1. Envie seu arquivo de video:",
         drag_drop: "Arraste seu vídeo aqui ou clique",
         mark_start: "Marcar Início",
         mark_end: "Marcar Fim",
@@ -704,8 +732,8 @@ const translations = {
         copy_success: "Código copiado!",
         priority_active: "Estado: PRIORITÁRIO 🚀",
         invalid_code: "Código inválido ou usado",
-        premium_title: "Acesso Prioritário",
-        premium_sub: "Insira seu código para ir mais rápido.",
+        priority_title: "Acesso Prioritário",
+        priority_sub: "Insira seu código para ir mais rápido.",
         save_code: "Salvar Código"
     }
 };

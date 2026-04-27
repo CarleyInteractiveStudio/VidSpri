@@ -29,14 +29,14 @@
             </div>
         </div>
 
-        <div class="modern-card">
+        <div class="modern-card redeem-card">
             <h3 data-i18n="redeem_code">Canjear Código</h3>
-            <p data-i18n="premium_sub">Introduce tu código de acceso para obtener un procesamiento prioritario.</p>
+            <p data-i18n="priority_sub">Introduce tu código de acceso para obtener un procesamiento prioritario.</p>
             <div class="form-group">
-                <input type="text" id="premium-code-input" placeholder="...">
+                <input type="text" id="priority-code-input" placeholder="..." maxlength="12">
             </div>
-            <button type="button" id="save-premium-code-btn" class="action-btn" data-i18n="activate">Activar Prioridad</button>
-            <p id="premium-status" style="margin-top: 1rem; font-weight: bold;"></p>
+            <button type="button" id="save-priority-code-btn" class="action-btn" data-i18n="activate">Activar Prioridad</button>
+            <p id="priority-status" style="margin-top: 1rem; font-weight: bold; min-height: 1.5rem;"></p>
         </div>
     </div>
 
@@ -51,9 +51,13 @@
             loadPriorityCodes();
             checkStatus();
 
-            document.getElementById('save-premium-code-btn').onclick = async () => {
-                const code = document.getElementById('premium-code-input').value.trim();
+            document.getElementById('save-priority-code-btn').onclick = async () => {
+                const btn = document.getElementById('save-priority-code-btn');
+                const code = document.getElementById('priority-code-input').value.trim();
                 if (!code) return;
+
+                btn.disabled = true;
+                btn.textContent = '...';
 
                 const { data, error } = await supabaseClient
                     .from('priority_codes')
@@ -71,6 +75,9 @@
                     checkStatus();
                     loadPriorityCodes();
                 }
+
+                btn.disabled = false;
+                applyTranslations(localStorage.getItem('vidspri_lang') || 'es');
             };
         });
 
@@ -92,7 +99,7 @@
                     codeEl.className = 'code-item';
                     codeEl.textContent = code.code;
                     codeEl.onclick = () => {
-                        document.getElementById('premium-code-input').value = code.code;
+                        document.getElementById('priority-code-input').value = code.code;
                         navigator.clipboard.writeText(code.code);
                         showToast('copy_success', 'success');
                     };
@@ -105,7 +112,7 @@
 
         function checkStatus() {
             const isPriority = localStorage.getItem('vidspri_priority_active') === 'true';
-            const statusEl = document.getElementById('premium-status');
+            const statusEl = document.getElementById('priority-status');
             if (isPriority) {
                 const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
                 statusEl.textContent = dict['priority_active'];

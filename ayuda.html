@@ -32,7 +32,13 @@
 
         <section class="help-section">
             <h2 data-i18n="tutorial_title">🎬 Tutorial: Extraer Sprites</h2>
-            <p data-i18n="tutorial_desc">1. Sube un video corto de tu animación.<br>2. Selecciona el rango de tiempo (inicio y fin).<br>3. Elige el número de cuadros que deseas extraer.<br>4. Haz clic en "Extraer Fotogramas".<br>5. Revisa los cuadros y haz clic en "Quitar fondo y generar".</p>
+            <p data-i18n="tutorial_desc">1. Ve a "Extraer Sprite desde Video" en el menú principal.<br>2. Sube un video corto de tu animación.<br>3. Ajusta el rango de tiempo y elige cuántos cuadros quieres.<br>4. Haz clic en "Extraer Fotogramas".<br>5. Elimina los cuadros que no necesites y pulsa "Quitar fondo y generar".</p>
+        </section>
+
+        <section class="help-section">
+            <h2 data-i18n="privacy_policy">🔒 Privacidad</h2>
+            <p data-i18n="privacy_text">No usamos ninguno de tus datos ni almacenamos nada en servidores. Solo usamos datos de tu inicio de sesión y código prioritario otorgado.</p>
+            <a href="privacidad.html" class="pill-btn" style="display:inline-flex;" data-i18n="privacy">Leer más</a>
         </section>
 
         <section class="help-section">
@@ -44,12 +50,19 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const currentLang = localStorage.getItem('vidspri_lang') || 'es';
-            const dict = window.translations[currentLang] || window.translations['es'];
+            applyTranslations(currentLang);
+        });
+
+        function applyTranslations(lang) {
+            const dict = window.translations[lang] || window.translations['es'];
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
-                if (dict[key]) el.textContent = dict[key];
+                if (dict[key]) {
+                    if (el.tagName === 'INPUT') el.placeholder = dict[key];
+                    else el.textContent = dict[key];
+                }
             });
-        });
+        }
     </script>
 </body>
 </html>

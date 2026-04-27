@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Créditos - VidSpri</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="logo.png" type="image/png">
     <style>
         .credits-content {
             text-align: left;
@@ -12,34 +13,42 @@
         }
         .credits-section {
             margin-bottom: 2rem;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
         .credits-section h2 {
-            border-bottom: 2px solid #eee;
+            border-bottom: 1px solid rgba(0, 242, 255, 0.3);
             padding-bottom: 0.5rem;
             margin-bottom: 1rem;
+            color: #00f2ff;
         }
         .credits-section ul {
             list-style-type: none;
             padding-left: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
         }
         .credits-section li {
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.8);
         }
         .credits-section strong {
-            color: #2c3e50;
-        }
-        .back-link {
-            display: inline-block;
-            margin-top: 1rem;
-            padding: 10px 15px;
-            background-color: #007bff;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
+            color: #fff;
         }
     </style>
 </head>
 <body>
+    <div class="header-actions">
+        <button type="button" onclick="window.location.href='index.html'" class="pill-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span>Volver</span>
+        </button>
+    </div>
+
     <div class="container">
         <h1>Créditos</h1>
         <div class="credits-content">
@@ -51,28 +60,24 @@
 
             <div class="credits-section">
                 <h2>Agradecimientos Especiales</h2>
-                <p>Queremos extender un agradecimiento especial a <strong>Hugging Face</strong> por proporcionar el alojamiento gratuito para nuestros servidores a través de su plataforma Spaces. Su apoyo a la comunidad de código abierto es lo que permite que herramientas como VidSpri estén disponibles para todos de forma gratuita.</p>
+                <p>Queremos extender un agradecimiento especial a <strong>Hugging Face</strong> por proporcionar el alojamiento para nuestros servidores a través de su plataforma Spaces. Su apoyo a la comunidad de código abierto es lo que permite que herramientas como VidSpri estén disponibles para todos.</p>
             </div>
 
             <div class="credits-section">
-                <h2>Tecnologías y Librerías de Código Abierto</h2>
-                <p>Esta aplicación no sería posible sin el increíble trabajo de la comunidad de código abierto. Agradecemos a los desarrolladores y mantenedores de las siguientes tecnologías y librerías:</p>
+                <h2>Tecnologías y Librerías</h2>
+                <p style="margin-bottom: 1rem;">Esta aplicación utiliza las siguientes tecnologías de código abierto:</p>
                 <ul>
-                    <li><strong>Python:</strong> El lenguaje de programación que impulsa todo nuestro backend.</li>
-                    <li><strong>Docker:</strong> La plataforma de contenedores que nos permite desplegar el servidor de forma fiable.</li>
-                    <li><strong>FastAPI:</strong> Un moderno y rápido framework web para construir nuestras APIs.</li>
-                    <li><strong>Uvicorn:</strong> Un servidor ASGI ultrarrápido, utilizado para ejecutar la aplicación de backend.</li>
-                    <li><strong>rembg:</strong> La potente librería utilizada para eliminar el fondo de las imágenes de forma inteligente.</li>
-                    <li><strong>Pillow:</strong> Una librería fundamental para la manipulación de imágenes en Python.</li>
-                    <li><strong>ONNX Runtime:</strong> El motor de inferencia de alto rendimiento que potencia el modelo de `rembg`.</li>
-                    <li><strong>Python-Multipart:</strong> Librería esencial para la gestión de subida de archivos en el servidor.</li>
-                    <li><strong>SQLite:</strong> El motor de base de datos utilizado para gestionar la cola de procesamiento y los códigos de prioridad.</li>
-                    <li><strong>Google Translate:</strong> El servicio que potencia la funcionalidad de traducción en la aplicación.</li>
-                    <li><strong>Feather Icons:</strong> La librería de iconos de código abierto que proporciona los iconos de la interfaz de usuario.</li>
-                    <li><strong>ImageCrop:</strong> Una librería de JavaScript para la funcionalidad de recorte de imágenes en el frontend.</li>
+                    <li><strong>Python & FastAPI</strong></li>
+                    <li><strong>Supabase</strong> (Database & Realtime)</li>
+                    <li><strong>Docker & Gunicorn</strong></li>
+                    <li><strong>rembg (U2-Net / ISNet)</strong></li>
+                    <li><strong>Pillow (PIL)</strong></li>
+                    <li><strong>ONNX Runtime</strong></li>
+                    <li><strong>FFmpeg</strong></li>
+                    <li><strong>Feather Icons</strong></li>
+                    <li><strong>Supabase JS SDK</strong></li>
                 </ul>
             </div>
-             <a href="index.html" class="back-link">Volver al inicio</a>
         </div>
     </div>
 </body>
