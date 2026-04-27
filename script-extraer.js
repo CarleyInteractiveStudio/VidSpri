@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentJobId = null;
     let heartbeatInterval = null;
     let isSending = false;
+    let currentProcessingStep = 'idle'; // 'idle', 'waiting', 'uploading', 'processing'
     let userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
     localStorage.setItem('vidspri_user_id', userId);
     let currentLang = localStorage.getItem('vidspri_lang') || 'es';
@@ -361,6 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             currentJobId = data[0].id;
             isSending = false;
+            currentProcessingStep = 'waiting';
             startHeartbeat(currentJobId);
             startQueueTracking(currentJobId);
 
@@ -408,6 +410,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateProcessingProgress(job) {
+        // Once we get a 'processing' update from the server, we switch to processing mode
+        currentProcessingStep = 'processing';
+
         const dict = window.translations[currentLang] || window.translations['es'];
         const processed = job.processed_frames || 0;
         const total = job.total_frames || extractedFrames.length;
@@ -415,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const percentage = Math.floor((processed / total) * 100);
 
         if (currentLang === 'es') {
-            progressText.textContent = `Procesando cuadro ${processed} de ${total}... (${percentage}%)`;
+            progressText.textContent = `Procesando fotograma ${processed} de ${total}... (${percentage}%)`;
         } else {
             progressText.textContent = `${dict['processing'] || 'Processing'} ${processed}/${total} (${percentage}%)`;
         }
@@ -430,6 +435,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (!processingStartTime) {
             processingStartTime = Date.now();
         }
+
+        // Ensure progress container is visible during processing
+        progressContainer.classList.remove('hidden');
     }
 
     async function checkPosition(jobId) {
@@ -471,6 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function sendToProcessingServer(serverUrl, jobId) {
+        currentProcessingStep = 'uploading';
         const dict = window.translations[currentLang] || window.translations['es'];
         progressText.textContent = (dict['sending_frames'] || 'Enviando fotogramas...') + ' (0%)';
         updateProgressBar(0);
@@ -488,13 +497,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 xhr.open('POST', `${serverUrl}/process-batch/${jobId}`);
 
                 xhr.upload.onprogress = (e) => {
-                    if (e.lengthComputable) {
+                    if (currentProcessingStep === 'uploading' && e.lengthComputable) {
                         const percent = Math.floor((e.loaded / e.total) * 100);
                         const totalFrames = extractedFrames.length;
                         const currentSent = Math.floor((e.loaded / e.total) * totalFrames);
                         progressText.textContent = `${dict['sending_frames'] || 'Enviando'}... ${currentSent}/${totalFrames} (${percent}%)`;
                         updateProgressBar(percent);
                     }
+                };
+
+                xhr.upload.onload = () => {
+                    // Switch to processing mode/message once upload is done
+                    currentProcessingStep = 'processing';
+                    const dict = window.translations[currentLang] || window.translations['es'];
+                    progressText.textContent = `${dict['processing'] || 'Procesando'}...`;
+                    updateProgressBar(0);
                 };
 
                 xhr.onload = () => {
@@ -534,6 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleProcessingSuccess(frames) {
+        currentProcessingStep = 'idle';
         const dict = window.translations[currentLang] || window.translations['es'];
         progressText.textContent = dict['done'] || '¡Listo!';
         updateProgressBar(100);
