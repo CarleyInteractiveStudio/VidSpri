@@ -108,14 +108,17 @@
         // Minimal logic for the config page
         document.addEventListener('DOMContentLoaded', () => {
             const bridgeIframe = document.getElementById('sso-bridge');
-            if (bridgeIframe) {
-                bridgeIframe.onload = () => {
-                    const token = localStorage.getItem('vidspri_sso_token');
+
+            function requestSessionCheck() {
+                if (bridgeIframe && bridgeIframe.contentWindow) {
                     bridgeIframe.contentWindow.postMessage({
-                        type: 'CHECK_SESSION',
-                        token: token
+                        type: 'CHECK_SESSION'
                     }, 'https://carleystudio.com');
-                };
+                }
+            }
+
+            if (bridgeIframe) {
+                bridgeIframe.onload = requestSessionCheck;
             }
 
             const currentLang = localStorage.getItem('vidspri_lang') || 'es';
@@ -138,12 +141,21 @@
 
             window.addEventListener('message', (event) => {
                 if (event.origin !== 'https://carleystudio.com') return;
+
+                if (event.data.type === 'BRIDGE_READY') {
+                    requestSessionCheck();
+                }
+
                 if (event.data.type === 'SESSION_RESPONSE') {
-                    const user = event.data.payload;
-                    if (user) {
+                    const session = event.data.payload;
+                    if (session && session.user) {
+                        const user = session.user;
                         loginBtn.classList.add('hidden');
                         userInfo.classList.remove('hidden');
-                        const displayName = user.display_name || user.username || user.email;
+
+                        const meta = user.user_metadata || {};
+                        const displayName = meta.display_name || meta.full_name || user.email;
+
                         userEmailEl.textContent = displayName;
                         document.getElementById('welcome-name').textContent = displayName;
                         localStorage.setItem('vidspri_user_id', user.id);
@@ -165,20 +177,8 @@
             if (token) {
                 console.log("¡Sesión iniciada con éxito!");
                 localStorage.setItem('vidspri_sso_token', token);
-
-                // Trigger a bridge check to get user details
-                if (bridgeIframe && bridgeIframe.contentWindow) {
-                    bridgeIframe.contentWindow.postMessage({
-                        type: 'CHECK_SESSION',
-                        token: token
-                    }, 'https://carleystudio.com');
-                }
-
-                // Optional: show a success message immediately
-                loginBtn.classList.add('hidden');
-                userInfo.classList.remove('hidden');
-
                 window.location.hash = ""; // Clean URL
+                requestSessionCheck();
             }
 
             loginBtn.onclick = () => {

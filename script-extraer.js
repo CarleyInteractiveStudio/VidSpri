@@ -87,20 +87,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- SSO Logic (Basic) ---
     function initSSO() {
+        function requestSessionCheck() {
+            if (bridgeIframe && bridgeIframe.contentWindow) {
+                bridgeIframe.contentWindow.postMessage({ type: 'CHECK_SESSION' }, 'https://carleystudio.com');
+            }
+        }
+
         window.addEventListener('message', (event) => {
             if (event.origin !== 'https://carleystudio.com') return;
+
+            if (event.data.type === 'BRIDGE_READY') {
+                requestSessionCheck();
+            }
+
             if (event.data.type === 'SESSION_RESPONSE') {
-                const user = event.data.payload;
-                if (user) {
-                    userId = user.id;
+                const session = event.data.payload;
+                if (session && session.user) {
+                    userId = session.user.id;
                     localStorage.setItem('vidspri_user_id', userId);
                 }
             }
         });
+
         if (bridgeIframe) {
-            bridgeIframe.onload = () => {
-                bridgeIframe.contentWindow.postMessage({ type: 'CHECK_SESSION' }, 'https://carleystudio.com');
-            };
+            bridgeIframe.onload = requestSessionCheck;
+        }
+
+        // Fallback
+        if (bridgeIframe && bridgeIframe.contentWindow) {
+            requestSessionCheck();
         }
     }
 
