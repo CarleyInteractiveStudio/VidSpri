@@ -457,6 +457,11 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => checkPosition(jobId), 3000);
     }
 
+    // Add window unload listener to cleanup on close
+    window.addEventListener('beforeunload', () => {
+        stopHeartbeat();
+    });
+
     async function sendToProcessingServer(serverUrl, jobId) {
         const dict = window.translations[currentLang] || window.translations['es'];
         progressText.textContent = (dict['sending_frames'] || 'Enviando fotogramas...') + ' (0%)';

@@ -45,7 +45,7 @@ async def update_status(status: str = None):
             "id": SERVER_ID,
             "url": SERVER_URL,
             "status": current_status,
-            "last_heartbeat": datetime.datetime.utcnow().isoformat()
+            "last_heartbeat": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
 
         supabase.table("server_status").upsert(data).execute()

@@ -167,41 +167,41 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION assign_jobs()
 RETURNS TRIGGER AS $$
 DECLARE
-    next_job_id UUID;
-    free_server_url TEXT;
-    free_server_id TEXT;
+    waiting_job RECORD;
+    free_server RECORD;
 BEGIN
     -- Run cleanup
     PERFORM cleanup_system();
 
-    -- Find the first free server with a recent heartbeat
-    SELECT id, url INTO free_server_id, free_server_url
-    FROM server_status
-    WHERE status = 'free'
-    AND last_heartbeat > NOW() - INTERVAL '60 seconds'
-    LIMIT 1;
-
-    IF free_server_id IS NOT NULL THEN
-        -- Find the next waiting job
-        SELECT id INTO next_job_id
-        FROM processing_queue
+    -- Loop through all available waiting jobs in priority order
+    FOR waiting_job IN (
+        SELECT id FROM processing_queue
         WHERE status = 'waiting'
         ORDER BY is_priority DESC, queue_number ASC
+    ) LOOP
+        -- For each job, find a free server
+        SELECT id, url INTO free_server
+        FROM server_status
+        WHERE status = 'free'
+        AND last_heartbeat > NOW() - INTERVAL '60 seconds'
         LIMIT 1;
 
-        IF next_job_id IS NOT NULL THEN
-            -- Assign server to job and mark as authorized
+        -- If a server is found, assign it
+        IF free_server.id IS NOT NULL THEN
             UPDATE processing_queue
             SET status = 'authorized',
-                assigned_server_url = free_server_url
-            WHERE id = next_job_id;
+                assigned_server_url = free_server.url
+            WHERE id = waiting_job.id;
 
-            -- Mark server as busy
             UPDATE server_status
             SET status = 'busy'
-            WHERE id = free_server_id;
+            WHERE id = free_server.id;
+        ELSE
+            -- No more free servers, stop trying to assign for now
+            EXIT;
         END IF;
-    END IF;
+    END LOOP;
+
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
@@ -226,11 +226,10 @@ FOR EACH ROW
 EXECUTE FUNCTION free_server_on_job_end();
 
 -- Triggers to trigger assignment
-DROP TRIGGER IF EXISTS trigger_assign_on_server_free ON server_status;
-CREATE TRIGGER trigger_assign_on_server_free
-AFTER UPDATE OF status ON server_status
+DROP TRIGGER IF EXISTS trigger_assign_on_server_update ON server_status;
+CREATE TRIGGER trigger_assign_on_server_update
+AFTER UPDATE ON server_status
 FOR EACH ROW
-WHEN (NEW.status = 'free')
 EXECUTE FUNCTION assign_jobs();
 
 DROP TRIGGER IF EXISTS trigger_assign_on_new_job ON processing_queue;
