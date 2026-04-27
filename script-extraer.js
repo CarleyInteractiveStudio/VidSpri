@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Global State ---
     let extractedFrames = [];
     let currentJobId = null;
+    let heartbeatInterval = null;
+    let isSending = false;
     let userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
     localStorage.setItem('vidspri_user_id', userId);
     let currentLang = localStorage.getItem('vidspri_lang') || 'es';
@@ -27,6 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultContainer = document.getElementById('result-container');
     const spriteImage = document.getElementById('sprite-image');
     const downloadLink = document.getElementById('download-link');
+    const previewAnimBtn = document.getElementById('preview-anim-btn');
+    const reprocessBtn = document.getElementById('reprocess-btn');
+    const resultFramesOutput = document.getElementById('result-frames-output');
     const toastContainer = document.getElementById('toast-container');
 
     const generateBtn = document.getElementById('generate-sprite-btn');
@@ -53,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Initialization ---
     applyTranslations(currentLang);
     initSSO();
+    cleanupPreviousJobs();
 
     // --- Translation Logic ---
     function applyTranslations(lang) {
@@ -243,7 +249,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const videoFile = videoFileInput.files[0];
         if (!videoFile) return;
 
-        const frameCount = parseInt(document.getElementById('frames').value, 10);
+        let frameCount = parseInt(document.getElementById('frames').value, 10);
+        if (frameCount > 12) frameCount = 12; // Enforce limit
+
         const startTime = parseFloat(startTimeInput.value);
         const endTime = parseFloat(endTimeInput.value);
 
@@ -292,6 +300,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Queue and Processing ---
+    async function cleanupPreviousJobs() {
+        try {
+            await supabaseClient
+                .from('processing_queue')
+                .update({ status: 'failed' })
+                .eq('user_id', userId)
+                .in('status', ['waiting', 'authorized', 'processing']);
+        } catch (e) {
+            console.error("Error cleaning up previous jobs:", e);
+        }
+    }
+
+    function startHeartbeat(jobId) {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        heartbeatInterval = setInterval(async () => {
+            const { error } = await supabaseClient.rpc('heartbeat_job', { job_id_param: jobId });
+
+            if (error) {
+                console.error("Heartbeat error:", error);
+                stopHeartbeat();
+            }
+        }, 15000);
+    }
+
+    function stopHeartbeat() {
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+        }
+    }
+
     generateBtn.addEventListener('click', async () => {
         if (extractedFrames.length === 0) return;
 
@@ -304,47 +343,63 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPriority = localStorage.getItem('vidspri_priority_active') === 'true';
 
         try {
+            // First, cancel any previous jobs from this user
+            await cleanupPreviousJobs();
+
             const { data, error } = await supabaseClient
                 .from('processing_queue')
                 .insert([{
                     user_id: userId,
                     is_priority: isPriority,
                     total_frames: extractedFrames.length,
-                    processed_frames: 0
+                    processed_frames: 0,
+                    last_heartbeat: new Date().toISOString()
                 }])
                 .select();
 
             if (error) throw error;
 
             currentJobId = data[0].id;
+            isSending = false;
+            startHeartbeat(currentJobId);
             startQueueTracking(currentJobId);
+
+            // Immediate check in case it was authorized instantly
+            if (data[0].status === 'authorized') {
+                isSending = true;
+                sendToProcessingServer(data[0].assigned_server_url, currentJobId);
+            }
         } catch (e) {
             showToast(e.message, "error", true);
             progressContainer.classList.add('hidden');
             generateBtn.disabled = false;
+            stopHeartbeat();
         }
     });
 
     function startQueueTracking(jobId) {
-        supabaseClient
+        const channel = supabaseClient
             .channel(`job-${jobId}`)
             .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue', filter: `id=eq.${jobId}` }, payload => {
                 const job = payload.new;
                 const dict = window.translations[currentLang] || window.translations['es'];
 
-                if (job.status === 'authorized') {
+                if (job.status === 'authorized' && !isSending) {
+                    isSending = true;
                     sendToProcessingServer(job.assigned_server_url, jobId);
                 } else if (job.status === 'processing') {
                     updateProcessingProgress(job);
                 } else if (job.status === 'completed') {
-                    // Final frames should be handled by the server response,
-                    // but we ensure the UI reflects completion
                     updateProgressBar(100);
                     etaText.textContent = '';
+                    stopHeartbeat();
+                    supabaseClient.removeChannel(channel);
                 } else if (job.status === 'failed') {
                     showToast('Error en el servidor', 'error', true);
                     progressContainer.classList.add('hidden');
                     generateBtn.disabled = false;
+                    stopHeartbeat();
+                    supabaseClient.removeChannel(channel);
                 }
             })
             .subscribe();
@@ -356,15 +411,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const dict = window.translations[currentLang] || window.translations['es'];
         const processed = job.processed_frames || 0;
         const total = job.total_frames || extractedFrames.length;
+        const remaining = total - processed;
         const percentage = Math.floor((processed / total) * 100);
 
-        progressText.textContent = `${dict['processing'] || 'Procesando'}... (${processed}/${total})`;
+        progressText.textContent = `${dict['processing'] || 'Procesando'}... ${processed}/${total} (${percentage}%) - Faltan: ${remaining}`;
         updateProgressBar(percentage);
 
         if (processingStartTime && processed > 0) {
             const elapsed = (Date.now() - processingStartTime) / 1000;
             const rate = processed / elapsed;
-            const remaining = total - processed;
             const eta = Math.ceil(remaining / rate);
             etaText.textContent = `ETA: ${eta}s`;
         } else if (!processingStartTime) {
@@ -374,13 +429,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function checkPosition(jobId) {
         const { data: jobData } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
-        if (!jobData || (jobData.status !== 'waiting' && jobData.status !== 'authorized')) return;
+        if (!jobData) return;
 
         if (jobData.status === 'authorized') {
-            const dict = window.translations[currentLang] || window.translations['es'];
-            progressText.textContent = dict['sending_frames'] || 'Enviando fotogramas...';
+            if (!isSending) {
+                isSending = true;
+                sendToProcessingServer(jobData.assigned_server_url, jobId);
+            }
             return;
         }
+
+        if (jobData.status !== 'waiting') return;
 
         const { count } = await supabaseClient
             .from('processing_queue')
@@ -401,36 +460,68 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => checkPosition(jobId), 3000);
     }
 
+    // Add window unload listener to cleanup on close
+    window.addEventListener('beforeunload', () => {
+        stopHeartbeat();
+    });
+
     async function sendToProcessingServer(serverUrl, jobId) {
         const dict = window.translations[currentLang] || window.translations['es'];
-        progressText.textContent = dict['sending_frames'] || 'Enviando fotogramas...';
-        updateProgressBar(20);
+        progressText.textContent = (dict['sending_frames'] || 'Enviando fotogramas...') + ' (0%)';
+        updateProgressBar(0);
         processingStartTime = null; // Reset for processing phase
 
         const formData = new FormData();
         extractedFrames.forEach(f => formData.append('images', f.blob, `frame_${f.id}.png`));
 
         try {
-            const response = await fetch(`${serverUrl}/process-batch/${jobId}`, { method: 'POST', body: formData });
+            const result = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `${serverUrl}/process-batch/${jobId}`);
 
-            // Check if response is JSON
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.indexOf("application/json") !== -1) {
-                const result = await response.json();
-                if (result.frames) {
-                    handleProcessingSuccess(result.frames);
-                } else {
-                    throw new Error(result.error || "Error desconocido");
-                }
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.floor((e.loaded / e.total) * 100);
+                        const totalFrames = extractedFrames.length;
+                        const currentSent = Math.floor((e.loaded / e.total) * totalFrames);
+                        progressText.textContent = `${dict['sending_frames'] || 'Enviando'}... ${currentSent}/${totalFrames} (${percent}%)`;
+                        updateProgressBar(percent);
+                    }
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            resolve(response);
+                        } catch (e) {
+                            reject(new Error("Error al procesar respuesta del servidor"));
+                        }
+                    } else {
+                        reject(new Error("Error en el servidor: " + xhr.status));
+                    }
+                };
+
+                xhr.onerror = () => reject(new Error("Error de conexión con el servidor"));
+                xhr.send(formData);
+            });
+
+            if (result.frames) {
+                handleProcessingSuccess(result.frames);
             } else {
-                const text = await response.text();
-                console.error("Server error response:", text);
-                throw new Error("El servidor devolvió un error inesperado.");
+                throw new Error(result.error || "Error desconocido");
             }
         } catch (e) {
+            console.error("Error sending to server:", e);
+            await supabaseClient
+                .from('processing_queue')
+                .update({ status: 'failed' })
+                .eq('id', jobId);
+
             showToast(e.message, "error", true);
             progressContainer.classList.add('hidden');
             generateBtn.disabled = false;
+            stopHeartbeat();
         }
     }
 
@@ -441,12 +532,57 @@ document.addEventListener('DOMContentLoaded', () => {
         etaText.textContent = '';
 
         const blobs = frames.map(base64StringToBlob);
+        displayResultFrames(blobs);
         await createSpriteSheet(blobs);
 
         progressContainer.classList.add('hidden');
         resultContainer.classList.remove('hidden');
         framePreviewContainer.classList.add('hidden');
     }
+
+    function displayResultFrames(blobs) {
+        resultFramesOutput.innerHTML = '';
+        blobs.forEach((blob, index) => {
+            const container = document.createElement('div');
+            container.className = 'result-frame';
+            container.innerHTML = `
+                <img src="${URL.createObjectURL(blob)}" alt="Result Frame ${index}">
+                <div class="check-badge">✓</div>
+            `;
+            container.onclick = () => {
+                container.classList.toggle('selected');
+                updateReprocessButtonState();
+            };
+            resultFramesOutput.appendChild(container);
+        });
+    }
+
+    function updateReprocessButtonState() {
+        const selected = document.querySelectorAll('.result-frame.selected');
+        reprocessBtn.classList.toggle('hidden', selected.length === 0);
+    }
+
+    reprocessBtn.addEventListener('click', async () => {
+        const selectedElements = document.querySelectorAll('.result-frame.selected');
+        const selectedBlobs = Array.from(selectedElements).map(el => {
+            const imgSrc = el.querySelector('img').src;
+            // Note: In a real app we might want to store the original blobs instead of fetching from URL
+            return fetch(imgSrc).then(r => r.blob());
+        });
+
+        extractedFrames = (await Promise.all(selectedBlobs)).map((blob, index) => ({ id: index, blob }));
+
+        resultContainer.classList.add('hidden');
+        reprocessBtn.classList.add('hidden');
+        // Trigger queue processing with these new frames
+        generateBtn.click();
+    });
+
+    previewAnimBtn.addEventListener('click', () => {
+        // We can pass the sprite sheet to the preview page via localStorage or similar
+        // For now, let's just go there. In a real scenario we'd use a more robust state management.
+        window.location.href = 'previsualizacion.html';
+    });
 
     // --- Helpers ---
     async function extractFramesFromVideo(videoFile, frameCount, startTime, endTime, onProgress) {

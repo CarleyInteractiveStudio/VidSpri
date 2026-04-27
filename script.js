@@ -16,6 +16,21 @@ document.addEventListener('DOMContentLoaded', () => {
     applyTranslations(currentLang);
     subscribeToGlobalNotifications();
     initSSO();
+    cleanupStuckJobs();
+
+    // --- Queue Management ---
+    async function cleanupStuckJobs() {
+        try {
+            // Cancel any previous jobs from this user that might be stuck
+            await supabaseClient
+                .from('processing_queue')
+                .update({ status: 'failed' })
+                .eq('user_id', userId)
+                .in('status', ['waiting', 'authorized', 'processing']);
+        } catch (e) {
+            console.error("Error cleaning up stuck jobs:", e);
+        }
+    }
 
     // --- Translation Logic ---
     function applyTranslations(lang) {

@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS processing_queue (
     assigned_server_url TEXT,
     processed_frames INTEGER DEFAULT 0,
     total_frames INTEGER DEFAULT 0,
+    last_heartbeat TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS processing_queue (
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS assigned_server_url TEXT;
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS processed_frames INTEGER DEFAULT 0;
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS total_frames INTEGER DEFAULT 0;
+ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_queue_status ON processing_queue(status);
@@ -134,13 +136,23 @@ BEGIN
     WHERE last_heartbeat < NOW() - INTERVAL '60 seconds'
     AND status != 'offline';
 
-    -- 2. Mark 'authorized' jobs as failed if they haven't started processing for 5 minutes (client abandoned)
+    -- 2. Free servers assigned to abandoned jobs (no client heartbeat for 40s)
+    UPDATE server_status s
+    SET status = 'free'
+    FROM processing_queue q
+    WHERE q.assigned_server_url = s.url
+    AND q.status IN ('authorized', 'processing')
+    AND q.last_heartbeat < NOW() - INTERVAL '40 seconds';
+
+    -- 3. Mark jobs as failed if client heartbeat is missing for > 40 seconds
+    -- We add a check on created_at to avoid killing very new jobs due to clock drift
     UPDATE processing_queue
     SET status = 'failed'
-    WHERE status = 'authorized'
-    AND created_at < NOW() - INTERVAL '5 minutes';
+    WHERE status IN ('waiting', 'authorized', 'processing')
+    AND last_heartbeat < NOW() - INTERVAL '40 seconds'
+    AND created_at < NOW() - INTERVAL '1 minute';
 
-    -- 3. Reset 'processing' jobs to 'waiting' if the assigned server is now offline
+    -- 4. Reset 'processing' jobs to 'waiting' if the assigned server is now offline
     UPDATE processing_queue q
     SET status = 'waiting',
         assigned_server_url = NULL
@@ -155,51 +167,70 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION assign_jobs()
 RETURNS TRIGGER AS $$
 DECLARE
-    next_job_id UUID;
-    free_server_url TEXT;
-    free_server_id TEXT;
+    waiting_job RECORD;
+    free_server_id_found TEXT;
+    free_server_url_found TEXT;
 BEGIN
     -- Run cleanup
     PERFORM cleanup_system();
 
-    -- Find the first free server with a recent heartbeat
-    SELECT id, url INTO free_server_id, free_server_url
-    FROM server_status
-    WHERE status = 'free'
-    AND last_heartbeat > NOW() - INTERVAL '30 seconds'
-    LIMIT 1;
-
-    IF free_server_id IS NOT NULL THEN
-        -- Find the next waiting job
-        SELECT id INTO next_job_id
-        FROM processing_queue
+    -- Loop through all available waiting jobs in priority order
+    FOR waiting_job IN (
+        SELECT id FROM processing_queue
         WHERE status = 'waiting'
         ORDER BY is_priority DESC, queue_number ASC
+    ) LOOP
+        -- For each job, find a free server
+        SELECT id, url INTO free_server_id_found, free_server_url_found
+        FROM server_status
+        WHERE status = 'free'
+        AND last_heartbeat > NOW() - INTERVAL '60 seconds'
         LIMIT 1;
 
-        IF next_job_id IS NOT NULL THEN
-            -- Assign server to job and mark as authorized
+        -- If a server is found, assign it
+        IF free_server_id_found IS NOT NULL THEN
             UPDATE processing_queue
             SET status = 'authorized',
-                assigned_server_url = free_server_url
-            WHERE id = next_job_id;
+                assigned_server_url = free_server_url_found
+            WHERE id = waiting_job.id;
 
-            -- Mark server as busy
             UPDATE server_status
             SET status = 'busy'
-            WHERE id = free_server_id;
+            WHERE id = free_server_id_found;
+        ELSE
+            -- No more free servers, stop trying to assign for now
+            EXIT;
         END IF;
-    END IF;
+    END LOOP;
+
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
 
--- Triggers to trigger assignment
-DROP TRIGGER IF EXISTS trigger_assign_on_server_free ON server_status;
-CREATE TRIGGER trigger_assign_on_server_free
-AFTER UPDATE OF status ON server_status
+-- Function to free server when job ends
+CREATE OR REPLACE FUNCTION free_server_on_job_end()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (NEW.status = 'completed' OR NEW.status = 'failed') AND OLD.assigned_server_url IS NOT NULL THEN
+        UPDATE server_status
+        SET status = 'free'
+        WHERE url = OLD.assigned_server_url;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_free_server_on_job_end ON processing_queue;
+CREATE TRIGGER trigger_free_server_on_job_end
+AFTER UPDATE OF status ON processing_queue
 FOR EACH ROW
-WHEN (NEW.status = 'free')
+EXECUTE FUNCTION free_server_on_job_end();
+
+-- Triggers to trigger assignment
+DROP TRIGGER IF EXISTS trigger_assign_on_server_update ON server_status;
+CREATE TRIGGER trigger_assign_on_server_update
+AFTER UPDATE ON server_status
+FOR EACH ROW
 EXECUTE FUNCTION assign_jobs();
 
 DROP TRIGGER IF EXISTS trigger_assign_on_new_job ON processing_queue;
@@ -277,3 +308,15 @@ GRANT ALL ON TABLE public.server_status TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.global_notifications TO anon, authenticated, service_role;
 GRANT ALL ON SEQUENCE public.processing_queue_queue_number_seq TO anon, authenticated, service_role;
 GRANT ALL ON SEQUENCE public.global_notifications_id_seq TO anon, authenticated, service_role;
+
+-- RPC for heartbeat to avoid clock drift issues
+CREATE OR REPLACE FUNCTION heartbeat_job(job_id_param UUID)
+RETURNS void AS $$
+BEGIN
+    UPDATE processing_queue
+    SET last_heartbeat = NOW()
+    WHERE id = job_id_param;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION heartbeat_job(UUID) TO anon, authenticated, service_role;
