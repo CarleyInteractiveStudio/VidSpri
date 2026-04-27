@@ -70,8 +70,11 @@
                 <button class="lang-opt-large" data-lang="nl">Nederlands</button>
                 <button class="lang-opt-large" data-lang="pl">Polski</button>
                 <button class="lang-opt-large" data-lang="vi">Tiếng Việt</button>
+                <button class="lang-opt-large" data-lang="th">ไทย</button>
+                <button class="lang-opt-large" data-lang="id">Bahasa Indonesia</button>
+                <button class="lang-opt-large" data-lang="ms">Bahasa Melayu</button>
             </div>
-            <button type="button" id="close-lang-modal" class="pill-btn" style="margin: 20px auto 0;">Cerrar</button>
+            <button type="button" id="close-lang-modal" class="pill-btn" style="margin: 20px auto 0;" data-i18n="close">Cerrar</button>
         </div>
     </div>
 
@@ -86,7 +89,8 @@
                 es: "Español", en: "English", fr: "Français", pt: "Português",
                 it: "Italiano", de: "Deutsch", jp: "日本語", zh: "中文",
                 ru: "Русский", ko: "한국어", ar: "العربية", hi: "हिन्दी",
-                tr: "Türkçe", nl: "Nederlands", pl: "Polski", vi: "Tiếng Việt"
+                tr: "Türkçe", nl: "Nederlands", pl: "Polski", vi: "Tiếng Việt",
+                th: "ไทย", id: "Bahasa Indonesia", ms: "Bahasa Melayu"
             };
 
             document.getElementById('current-lang-name').textContent = langNames[currentLang] || "Español";

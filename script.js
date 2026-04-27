@@ -292,10 +292,12 @@ document.addEventListener('DOMContentLoaded', () => {
         progressContainer.classList.remove('hidden');
         const dict = window.translations[currentLang] || window.translations['es'];
         progressText.textContent = dict['processing'];
-        updateProgressBar(30);
+        updateProgressBar(0);
 
         try {
-            const frames = await extractFramesFromVideo(videoFile, frameCount, startTime, endTime);
+            const frames = await extractFramesFromVideo(videoFile, frameCount, startTime, endTime, (p) => {
+                updateProgressBar(p * 100);
+            });
             extractedFrames = frames.map((blob, index) => ({ id: index, blob }));
             displayFramePreviews();
             goToStep(3);
@@ -424,7 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Helpers ---
-    async function extractFramesFromVideo(videoFile, frameCount, startTime, endTime) {
+    async function extractFramesFromVideo(videoFile, frameCount, startTime, endTime, onProgress) {
         return new Promise((resolve) => {
             const video = document.createElement('video');
             video.src = URL.createObjectURL(videoFile);
@@ -442,6 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
                     frames.push(blob);
                     count++;
+                    if (onProgress) onProgress(count / frameCount);
                     if (count < frameCount) {
                         video.currentTime += interval;
                     } else {
