@@ -226,7 +226,7 @@ CREATE POLICY "Public can read free codes" ON priority_codes
 -- Users can update a code to mark it as used if they know the code
 DROP POLICY IF EXISTS "Public can redeem codes" ON priority_codes;
 CREATE POLICY "Public can redeem codes" ON priority_codes
-    FOR UPDATE WITH CHECK (TRUE);
+    FOR UPDATE USING (TRUE) WITH CHECK (TRUE);
 
 -- 2. Processing Queue Policies
 -- Anyone can insert into the queue
@@ -239,11 +239,10 @@ DROP POLICY IF EXISTS "Public can view queue status" ON processing_queue;
 CREATE POLICY "Public can view queue status" ON processing_queue
     FOR SELECT USING (TRUE);
 
--- Only internal logic (or service role) should update the queue,
--- but for the "turn" system to work with standard client-side updates if needed:
+-- Only internal logic (or service role) should update the queue
 DROP POLICY IF EXISTS "Public can update status if they own it" ON processing_queue;
 CREATE POLICY "Public can update status if they own it" ON processing_queue
-    FOR UPDATE USING (TRUE);
+    FOR UPDATE USING (TRUE) WITH CHECK (TRUE);
 
 -- 3. Server Status Policies
 -- Public can view which servers are online
@@ -251,14 +250,29 @@ DROP POLICY IF EXISTS "Public can view server status" ON server_status;
 CREATE POLICY "Public can view server status" ON server_status
     FOR SELECT USING (TRUE);
 
--- Servers themselves update this (ideally restricted by an API key or service role,
--- but for this migration we'll allow public update to keep the servers working as is)
+-- Servers themselves update this
 DROP POLICY IF EXISTS "Servers can update their status" ON server_status;
 CREATE POLICY "Servers can update their status" ON server_status
-    FOR UPDATE USING (TRUE);
+    FOR UPDATE USING (TRUE) WITH CHECK (TRUE);
+
+-- Allow servers to register themselves (Upsert support)
+DROP POLICY IF EXISTS "Servers can register" ON server_status;
+CREATE POLICY "Servers can register" ON server_status
+    FOR INSERT WITH CHECK (TRUE);
 
 -- 4. Global Notifications Policies
 -- Public can read notifications
 DROP POLICY IF EXISTS "Public can read notifications" ON global_notifications;
 CREATE POLICY "Public can read notifications" ON global_notifications
     FOR SELECT USING (TRUE);
+
+-- ==========================================
+-- GRANT PERMISSIONS
+-- ==========================================
+
+GRANT ALL ON TABLE public.priority_codes TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.processing_queue TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.server_status TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.global_notifications TO anon, authenticated, service_role;
+GRANT ALL ON SEQUENCE public.processing_queue_queue_number_seq TO anon, authenticated, service_role;
+GRANT ALL ON SEQUENCE public.global_notifications_id_seq TO anon, authenticated, service_role;
