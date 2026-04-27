@@ -145,10 +145,12 @@ BEGIN
     AND q.last_heartbeat < NOW() - INTERVAL '40 seconds';
 
     -- 3. Mark jobs as failed if client heartbeat is missing for > 40 seconds
+    -- We add a check on created_at to avoid killing very new jobs due to clock drift
     UPDATE processing_queue
     SET status = 'failed'
     WHERE status IN ('waiting', 'authorized', 'processing')
-    AND last_heartbeat < NOW() - INTERVAL '40 seconds';
+    AND last_heartbeat < NOW() - INTERVAL '40 seconds'
+    AND created_at < NOW() - INTERVAL '1 minute';
 
     -- 4. Reset 'processing' jobs to 'waiting' if the assigned server is now offline
     UPDATE processing_queue q
@@ -176,7 +178,7 @@ BEGIN
     SELECT id, url INTO free_server_id, free_server_url
     FROM server_status
     WHERE status = 'free'
-    AND last_heartbeat > NOW() - INTERVAL '30 seconds'
+    AND last_heartbeat > NOW() - INTERVAL '60 seconds'
     LIMIT 1;
 
     IF free_server_id IS NOT NULL THEN
@@ -203,6 +205,25 @@ BEGIN
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Function to free server when job ends
+CREATE OR REPLACE FUNCTION free_server_on_job_end()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (NEW.status = 'completed' OR NEW.status = 'failed') AND OLD.assigned_server_url IS NOT NULL THEN
+        UPDATE server_status
+        SET status = 'free'
+        WHERE url = OLD.assigned_server_url;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_free_server_on_job_end ON processing_queue;
+CREATE TRIGGER trigger_free_server_on_job_end
+AFTER UPDATE OF status ON processing_queue
+FOR EACH ROW
+EXECUTE FUNCTION free_server_on_job_end();
 
 -- Triggers to trigger assignment
 DROP TRIGGER IF EXISTS trigger_assign_on_server_free ON server_status;
@@ -287,3 +308,15 @@ GRANT ALL ON TABLE public.server_status TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.global_notifications TO anon, authenticated, service_role;
 GRANT ALL ON SEQUENCE public.processing_queue_queue_number_seq TO anon, authenticated, service_role;
 GRANT ALL ON SEQUENCE public.global_notifications_id_seq TO anon, authenticated, service_role;
+
+-- RPC for heartbeat to avoid clock drift issues
+CREATE OR REPLACE FUNCTION heartbeat_job(job_id_param UUID)
+RETURNS void AS $$
+BEGIN
+    UPDATE processing_queue
+    SET last_heartbeat = NOW()
+    WHERE id = job_id_param;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION heartbeat_job(UUID) TO anon, authenticated, service_role;

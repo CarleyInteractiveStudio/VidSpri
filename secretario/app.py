@@ -31,16 +31,22 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Model Session ---
 session = new_session("isnet-anime")
+is_processing = False
 
 async def update_status(status: str = None):
+    global is_processing
     try:
+        if status:
+            is_processing = (status == "busy")
+
+        current_status = "busy" if is_processing else "free"
+
         data = {
             "id": SERVER_ID,
             "url": SERVER_URL,
+            "status": current_status,
             "last_heartbeat": datetime.datetime.utcnow().isoformat()
         }
-        if status:
-            data["status"] = status
 
         supabase.table("server_status").upsert(data).execute()
     except Exception as e:
@@ -53,6 +59,8 @@ async def heartbeat_loop():
 
 @app.on_event("startup")
 async def startup_event():
+    global is_processing
+    is_processing = False
     await update_status("free")
     asyncio.create_task(heartbeat_loop())
 

@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let extractedFrames = [];
     let currentJobId = null;
     let heartbeatInterval = null;
+    let isSending = false;
     let userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
     localStorage.setItem('vidspri_user_id', userId);
     let currentLang = localStorage.getItem('vidspri_lang') || 'es';
@@ -311,10 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function startHeartbeat(jobId) {
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         heartbeatInterval = setInterval(async () => {
-            const { error } = await supabaseClient
-                .from('processing_queue')
-                .update({ last_heartbeat: new Date().toISOString() })
-                .eq('id', jobId);
+            const { error } = await supabaseClient.rpc('heartbeat_job', { job_id_param: jobId });
 
             if (error) {
                 console.error("Heartbeat error:", error);
@@ -359,8 +357,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (error) throw error;
 
             currentJobId = data[0].id;
+            isSending = false;
             startHeartbeat(currentJobId);
             startQueueTracking(currentJobId);
+
+            // Immediate check in case it was authorized instantly
+            if (data[0].status === 'authorized') {
+                isSending = true;
+                sendToProcessingServer(data[0].assigned_server_url, currentJobId);
+            }
         } catch (e) {
             showToast(e.message, "error", true);
             progressContainer.classList.add('hidden');
@@ -376,7 +381,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const job = payload.new;
                 const dict = window.translations[currentLang] || window.translations['es'];
 
-                if (job.status === 'authorized') {
+                if (job.status === 'authorized' && !isSending) {
+                    isSending = true;
                     sendToProcessingServer(job.assigned_server_url, jobId);
                 } else if (job.status === 'processing') {
                     updateProcessingProgress(job);
@@ -420,13 +426,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function checkPosition(jobId) {
         const { data: jobData } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
-        if (!jobData || (jobData.status !== 'waiting' && jobData.status !== 'authorized')) return;
+        if (!jobData) return;
 
         if (jobData.status === 'authorized') {
-            const dict = window.translations[currentLang] || window.translations['es'];
-            progressText.textContent = dict['sending_frames'] || 'Enviando fotogramas...';
+            if (!isSending) {
+                isSending = true;
+                sendToProcessingServer(jobData.assigned_server_url, jobId);
+            }
             return;
         }
+
+        if (jobData.status !== 'waiting') return;
 
         const { count } = await supabaseClient
             .from('processing_queue')
