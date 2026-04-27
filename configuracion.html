@@ -154,12 +154,19 @@
                         userInfo.classList.remove('hidden');
 
                         const meta = user.user_metadata || {};
-                        const displayName = meta.display_name || meta.full_name || user.email;
+                        const displayName = meta.username || meta.display_name || meta.full_name || user.email || user.id;
 
                         userEmailEl.textContent = displayName;
                         document.getElementById('welcome-name').textContent = displayName;
                         localStorage.setItem('vidspri_user_id', user.id);
                         localStorage.setItem('vidspri_user_name', displayName);
+                    } else {
+                        // Only show login button if we don't have a locally saved user
+                        const savedName = localStorage.getItem('vidspri_user_name');
+                        if (!savedName) {
+                            loginBtn.classList.remove('hidden');
+                            userInfo.classList.add('hidden');
+                        }
                     }
                 }
             });
@@ -174,10 +181,23 @@
             const hash = window.location.hash.substring(1);
             const params = new URLSearchParams(hash);
             const token = params.get('sso_token');
+            const userIdFromHash = params.get('user_id');
+
             if (token) {
                 console.log("¡Sesión iniciada con éxito!");
                 localStorage.setItem('vidspri_sso_token', token);
+                if (userIdFromHash) {
+                    localStorage.setItem('vidspri_user_id', userIdFromHash);
+                }
                 window.location.hash = ""; // Clean URL
+
+                // Show UI immediately if we have a name
+                const savedName = localStorage.getItem('vidspri_user_name');
+                if (savedName) {
+                    loginBtn.classList.add('hidden');
+                    userInfo.classList.remove('hidden');
+                }
+
                 requestSessionCheck();
             }
 

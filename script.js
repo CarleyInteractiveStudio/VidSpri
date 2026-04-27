@@ -59,6 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- SSO Logic ---
     function initSSO() {
+        let sessionReceived = false;
+
         // 1. Listen for bridge responses
         window.addEventListener('message', (event) => {
             if (event.origin !== 'https://carleystudio.com') return;
@@ -68,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (event.data.type === 'SESSION_RESPONSE') {
+                sessionReceived = true;
                 const session = event.data.payload;
                 if (session && session.user) {
                     const user = session.user;
@@ -75,9 +78,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     localStorage.setItem('vidspri_user_id', userId);
 
                     const meta = user.user_metadata || {};
-                    const displayName = meta.display_name || meta.full_name || user.email;
+                    const displayName = meta.username || meta.display_name || meta.full_name || user.email || userId;
                     localStorage.setItem('vidspri_user_name', displayName);
                     updateWelcomeMessage(displayName);
+                } else {
+                    console.log("No active session on bridge.");
+                    // Only hide if we don't have a locally saved user
+                    const savedName = localStorage.getItem('vidspri_user_name');
+                    if (!savedName) {
+                        const welcomeMsg = document.getElementById('welcome-msg');
+                        if (welcomeMsg) welcomeMsg.classList.add('hidden');
+                    }
                 }
             }
         });
@@ -86,28 +97,42 @@ document.addEventListener('DOMContentLoaded', () => {
             if (bridgeIframe && bridgeIframe.contentWindow) {
                 bridgeIframe.contentWindow.postMessage({
                     type: 'CHECK_SESSION',
-                    requestId: 'initial-check'
+                    requestId: 'poll-' + Date.now()
                 }, 'https://carleystudio.com');
             }
         }
 
-        // 2. Handle incoming token from redirect
+        // 2. Handle incoming data from URL redirect (fast-path)
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
         const ssoToken = params.get('sso_token');
+        const userIdFromHash = params.get('user_id');
 
         if (ssoToken) {
-            console.log("¡Sesión iniciada con éxito!");
             localStorage.setItem('vidspri_sso_token', ssoToken);
+            if (userIdFromHash) {
+                userId = userIdFromHash;
+                localStorage.setItem('vidspri_user_id', userId);
+            }
             window.location.hash = "";
             showToast("¡Sesión iniciada con éxito!", "success", true);
-            // The BRIDGE_READY or onload will trigger the actual data fetch
         }
 
-        // 3. Fallback check if bridge is already loaded
-        if (bridgeIframe && bridgeIframe.contentWindow) {
-            requestSessionCheck();
+        // 3. Robust initialization
+        if (bridgeIframe) {
+            bridgeIframe.onload = requestSessionCheck;
         }
+
+        // Poll for a short time to ensure we catch the bridge readiness
+        let pollCount = 0;
+        const pollInterval = setInterval(() => {
+            if (sessionReceived || pollCount > 5) {
+                clearInterval(pollInterval);
+                return;
+            }
+            requestSessionCheck();
+            pollCount++;
+        }, 1000);
 
         const savedName = localStorage.getItem('vidspri_user_name');
         if (savedName) updateWelcomeMessage(savedName);
