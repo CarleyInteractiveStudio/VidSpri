@@ -856,7 +856,7 @@ footer {
 .result-actions {
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
     gap: 12px;
     margin-top: 2rem;
@@ -866,6 +866,11 @@ footer {
 .result-actions .pill-btn {
     width: auto;
     margin: 0;
+}
+
+.action-group-right {
+    display: flex;
+    gap: 12px;
 }
 
 @media (max-width: 480px) {

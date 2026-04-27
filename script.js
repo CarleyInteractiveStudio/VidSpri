@@ -69,7 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Trigger a check via bridge to get user details
             if (bridgeIframe && bridgeIframe.contentWindow) {
-                bridgeIframe.contentWindow.postMessage({ type: 'CHECK_SESSION' }, 'https://carleystudio.com');
+                bridgeIframe.contentWindow.postMessage({
+                    type: 'CHECK_SESSION',
+                    token: ssoToken
+                }, 'https://carleystudio.com');
             }
 
             window.location.hash = "";
@@ -89,8 +92,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (bridgeIframe) {
             bridgeIframe.onload = () => {
+                const token = localStorage.getItem('vidspri_sso_token');
                 bridgeIframe.contentWindow.postMessage({
                     type: 'CHECK_SESSION',
+                    token: token,
                     requestId: 'initial-check'
                 }, 'https://carleystudio.com');
             };
