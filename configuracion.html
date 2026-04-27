@@ -35,17 +35,15 @@
         </div>
 
         <div class="modern-card">
-            <h3 data-i18n="language">Idioma</h3>
-            <button type="button" id="open-lang-modal" class="pill-btn" style="margin: 0 auto; min-width: 200px;">
-                <span id="current-lang-name">Español</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-down"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </button>
-        </div>
-
-        <div class="modern-card">
             <h3 data-i18n="priority_access">Acceso Prioritario</h3>
             <p data-i18n="redeem_sub">Canjea un código para obtener una mejor posición en la fila sin afectar a los demás.</p>
-            <button type="button" onclick="window.location.href='codigos.html'" class="action-btn" data-i18n="go_to_redeem">Ir a Canjear</button>
+            <div style="display: flex; gap: 10px; align-items: center; justify-content: center;">
+                <button type="button" onclick="window.location.href='codigos.html'" class="action-btn" data-i18n="go_to_redeem" style="flex: 1;">Ir a Canjear</button>
+                <button type="button" id="open-lang-modal" class="pill-btn" style="height: 46px; white-space: nowrap;">
+                    <span id="current-lang-name">Español</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-globe"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -84,6 +82,13 @@
     <script>
         // Minimal logic for the config page
         document.addEventListener('DOMContentLoaded', () => {
+            const bridgeIframe = document.getElementById('sso-bridge');
+            if (bridgeIframe) {
+                bridgeIframe.onload = () => {
+                    bridgeIframe.contentWindow.postMessage({ type: 'CHECK_SESSION' }, 'https://carleystudio.com');
+                };
+            }
+
             const currentLang = localStorage.getItem('vidspri_lang') || 'es';
             const langNames = {
                 es: "Español", en: "English", fr: "Français", pt: "Português",
@@ -116,9 +121,23 @@
                 }
             });
 
+            // Capture SSO token from URL hash
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const token = params.get('sso_token');
+            if (token) {
+                console.log("¡Sesión iniciada con éxito!");
+                // Here we can use the token with Supabase or wait for Bridge response
+                // For now, let's just trigger a bridge check
+                if (bridgeIframe && bridgeIframe.contentWindow) {
+                    bridgeIframe.contentWindow.postMessage({ type: 'CHECK_SESSION' }, 'https://carleystudio.com');
+                }
+                window.location.hash = ""; // Clean URL
+            }
+
             loginBtn.onclick = () => {
-                const domain = window.location.hostname || "carleyinteractivestudio.github.io";
-                const redirectTo = window.location.href;
+                const domain = "carleyinteractivestudio.github.io";
+                const redirectTo = window.location.href.split('#')[0];
                 window.location.href = `https://carleystudio.com/sso.html?domain=${domain}&redirect_to=${encodeURIComponent(redirectTo)}`;
             };
 

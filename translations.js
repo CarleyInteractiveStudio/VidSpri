@@ -74,7 +74,8 @@ const translations = {
         cols: "Columnas",
         rows: "Filas",
         auto_detect: "Detección Automática",
-        apply: "Aplicar"
+        apply: "Aplicar",
+        notifications: "Notificaciones"
     },
     en: {
         title: "VidSpri",
@@ -124,7 +125,8 @@ const translations = {
         cols: "Columns",
         rows: "Rows",
         auto_detect: "Auto Detect",
-        apply: "Apply"
+        apply: "Apply",
+        notifications: "Notifications"
     },
     fr: {
         title: "VidSpri",
