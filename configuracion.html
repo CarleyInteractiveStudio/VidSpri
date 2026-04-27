@@ -113,7 +113,7 @@
                 if (bridgeIframe && bridgeIframe.contentWindow) {
                     bridgeIframe.contentWindow.postMessage({
                         type: 'CHECK_SESSION'
-                    }, 'https://carleystudio.com');
+                    }, '*');
                 }
             }
 
@@ -173,6 +173,8 @@
 
             const savedName = localStorage.getItem('vidspri_user_name');
             if (savedName) {
+                loginBtn.classList.add('hidden');
+                userInfo.classList.remove('hidden');
                 userEmailEl.textContent = savedName;
                 document.getElementById('welcome-name').textContent = savedName;
             }

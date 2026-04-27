@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initSSO() {
         function requestSessionCheck() {
             if (bridgeIframe && bridgeIframe.contentWindow) {
-                bridgeIframe.contentWindow.postMessage({ type: 'CHECK_SESSION' }, 'https://carleystudio.com');
+                bridgeIframe.contentWindow.postMessage({ type: 'CHECK_SESSION' }, '*');
             }
         }
 

@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 bridgeIframe.contentWindow.postMessage({
                     type: 'CHECK_SESSION',
                     requestId: 'poll-' + Date.now()
-                }, 'https://carleystudio.com');
+                }, '*');
             }
         }
 
@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const welcomeMsg = document.getElementById('welcome-msg');
         const welcomeName = document.getElementById('welcome-name');
         if (welcomeMsg && welcomeName) {
-            welcomeName.textContent = name;
+            welcomeName.textContent = name || "Usuario";
             welcomeMsg.classList.remove('hidden');
         }
     }
