@@ -70,6 +70,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to refresh codes automatically when one is used
+DROP TRIGGER IF EXISTS trigger_refresh_codes_on_use ON priority_codes;
 CREATE TRIGGER trigger_refresh_codes_on_use
 AFTER UPDATE OF is_used ON priority_codes
 FOR EACH ROW
@@ -160,12 +161,14 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Triggers to trigger assignment
+DROP TRIGGER IF EXISTS trigger_assign_on_server_free ON server_status;
 CREATE TRIGGER trigger_assign_on_server_free
 AFTER UPDATE OF status ON server_status
 FOR EACH ROW
 WHEN (NEW.status = 'free')
 EXECUTE FUNCTION assign_jobs();
 
+DROP TRIGGER IF EXISTS trigger_assign_on_new_job ON processing_queue;
 CREATE TRIGGER trigger_assign_on_new_job
 AFTER INSERT ON processing_queue
 FOR EACH ROW
@@ -183,38 +186,46 @@ ALTER TABLE global_notifications ENABLE ROW LEVEL SECURITY;
 
 -- 1. Priority Codes Policies
 -- Everyone can read unused auto-generated codes
+DROP POLICY IF EXISTS "Public can read free codes" ON priority_codes;
 CREATE POLICY "Public can read free codes" ON priority_codes
     FOR SELECT USING (is_used = FALSE AND is_auto = TRUE);
 
 -- Users can update a code to mark it as used if they know the code
+DROP POLICY IF EXISTS "Public can redeem codes" ON priority_codes;
 CREATE POLICY "Public can redeem codes" ON priority_codes
     FOR UPDATE WITH CHECK (TRUE);
 
 -- 2. Processing Queue Policies
 -- Anyone can insert into the queue
+DROP POLICY IF EXISTS "Public can join queue" ON processing_queue;
 CREATE POLICY "Public can join queue" ON processing_queue
     FOR INSERT WITH CHECK (TRUE);
 
 -- Anyone can read their own status (or any status for simplicity in this demo)
+DROP POLICY IF EXISTS "Public can view queue status" ON processing_queue;
 CREATE POLICY "Public can view queue status" ON processing_queue
     FOR SELECT USING (TRUE);
 
 -- Only internal logic (or service role) should update the queue,
 -- but for the "turn" system to work with standard client-side updates if needed:
+DROP POLICY IF EXISTS "Public can update status if they own it" ON processing_queue;
 CREATE POLICY "Public can update status if they own it" ON processing_queue
     FOR UPDATE USING (TRUE);
 
 -- 3. Server Status Policies
 -- Public can view which servers are online
+DROP POLICY IF EXISTS "Public can view server status" ON server_status;
 CREATE POLICY "Public can view server status" ON server_status
     FOR SELECT USING (TRUE);
 
 -- Servers themselves update this (ideally restricted by an API key or service role,
 -- but for this migration we'll allow public update to keep the servers working as is)
+DROP POLICY IF EXISTS "Servers can update their status" ON server_status;
 CREATE POLICY "Servers can update their status" ON server_status
     FOR UPDATE USING (TRUE);
 
 -- 4. Global Notifications Policies
 -- Public can read notifications
+DROP POLICY IF EXISTS "Public can read notifications" ON global_notifications;
 CREATE POLICY "Public can read notifications" ON global_notifications
     FOR SELECT USING (TRUE);
