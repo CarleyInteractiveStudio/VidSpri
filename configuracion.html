@@ -193,9 +193,10 @@
                         localStorage.setItem('vidspri_user_id', user.id);
                         localStorage.setItem('vidspri_user_name', displayName);
                     } else {
-                        // Only show login button if we don't have a locally saved user
+                        // Only show login button if we don't have a locally saved user OR a current token
                         const savedName = localStorage.getItem('vidspri_user_name');
-                        if (!savedName) {
+                        const hasToken = localStorage.getItem('vidspri_sso_token');
+                        if (!savedName && !hasToken) {
                             loginBtn.classList.remove('hidden');
                             userInfo.classList.add('hidden');
                         }
@@ -232,6 +233,9 @@
                 if (savedName) {
                     userEmailEl.textContent = savedName;
                     document.getElementById('welcome-name').textContent = savedName;
+                } else {
+                    userEmailEl.textContent = "...";
+                    document.getElementById('welcome-name').textContent = "...";
                 }
 
                 showToast("login_success", "success");

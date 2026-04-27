@@ -83,9 +83,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateWelcomeMessage(displayName);
                 } else {
                     console.log("No active session on bridge.");
-                    // Only hide if we don't have a locally saved user
+                    // Only hide if we don't have a locally saved user OR a current token
                     const savedName = localStorage.getItem('vidspri_user_name');
-                    if (!savedName) {
+                    const hasToken = localStorage.getItem('vidspri_sso_token');
+                    if (!savedName && !hasToken) {
                         const welcomeMsg = document.getElementById('welcome-msg');
                         if (welcomeMsg) welcomeMsg.classList.add('hidden');
                     }
@@ -115,7 +116,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('vidspri_user_id', userId);
             }
             window.location.hash = "";
-            showToast("¡Sesión iniciada con éxito!", "success", true);
+
+            const savedName = localStorage.getItem('vidspri_user_name');
+            updateWelcomeMessage(savedName || "...");
+
+            showToast("login_success", "success");
         }
 
         // 3. Robust initialization
