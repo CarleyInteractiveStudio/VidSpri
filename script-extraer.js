@@ -245,7 +245,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const videoFile = videoFileInput.files[0];
         if (!videoFile) return;
 
-        const frameCount = parseInt(document.getElementById('frames').value, 10);
+        let frameCount = parseInt(document.getElementById('frames').value, 10);
+        if (frameCount > 12) frameCount = 12; // Enforce limit
+
         const startTime = parseFloat(startTimeInput.value);
         const endTime = parseFloat(endTimeInput.value);
 
@@ -400,15 +402,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const dict = window.translations[currentLang] || window.translations['es'];
         const processed = job.processed_frames || 0;
         const total = job.total_frames || extractedFrames.length;
+        const remaining = total - processed;
         const percentage = Math.floor((processed / total) * 100);
 
-        progressText.textContent = `${dict['processing'] || 'Procesando'}... (${processed}/${total})`;
+        progressText.textContent = `${dict['processing'] || 'Procesando'}... ${processed}/${total} (${percentage}%) - Faltan: ${remaining}`;
         updateProgressBar(percentage);
 
         if (processingStartTime && processed > 0) {
             const elapsed = (Date.now() - processingStartTime) / 1000;
             const rate = processed / elapsed;
-            const remaining = total - processed;
             const eta = Math.ceil(remaining / rate);
             etaText.textContent = `ETA: ${eta}s`;
         } else if (!processingStartTime) {
@@ -447,33 +449,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function sendToProcessingServer(serverUrl, jobId) {
         const dict = window.translations[currentLang] || window.translations['es'];
-        progressText.textContent = dict['sending_frames'] || 'Enviando fotogramas...';
-        updateProgressBar(20);
+        progressText.textContent = (dict['sending_frames'] || 'Enviando fotogramas...') + ' (0%)';
+        updateProgressBar(0);
         processingStartTime = null; // Reset for processing phase
 
         const formData = new FormData();
         extractedFrames.forEach(f => formData.append('images', f.blob, `frame_${f.id}.png`));
 
         try {
-            const response = await fetch(`${serverUrl}/process-batch/${jobId}`, { method: 'POST', body: formData });
+            const result = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `${serverUrl}/process-batch/${jobId}`);
 
-            // Check if response is JSON
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.indexOf("application/json") !== -1) {
-                const result = await response.json();
-                if (result.frames) {
-                    handleProcessingSuccess(result.frames);
-                } else {
-                    throw new Error(result.error || "Error desconocido");
-                }
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.floor((e.loaded / e.total) * 100);
+                        const totalFrames = extractedFrames.length;
+                        const currentSent = Math.floor((e.loaded / e.total) * totalFrames);
+                        progressText.textContent = `${dict['sending_frames'] || 'Enviando'}... ${currentSent}/${totalFrames} (${percent}%)`;
+                        updateProgressBar(percent);
+                    }
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            resolve(response);
+                        } catch (e) {
+                            reject(new Error("Error al procesar respuesta del servidor"));
+                        }
+                    } else {
+                        reject(new Error("Error en el servidor: " + xhr.status));
+                    }
+                };
+
+                xhr.onerror = () => reject(new Error("Error de conexión con el servidor"));
+                xhr.send(formData);
+            });
+
+            if (result.frames) {
+                handleProcessingSuccess(result.frames);
             } else {
-                const text = await response.text();
-                console.error("Server error response:", text);
-                throw new Error("El servidor devolvió un error inesperado.");
+                throw new Error(result.error || "Error desconocido");
             }
         } catch (e) {
             console.error("Error sending to server:", e);
-            // Explicitly mark job as failed in Supabase if fetch fails
             await supabaseClient
                 .from('processing_queue')
                 .update({ status: 'failed' })
