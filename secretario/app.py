@@ -3,7 +3,7 @@ import io
 import asyncio
 import base64
 import datetime
-from fastapi import FastAPI, File, UploadFile, HTTPException, Header
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from rembg import remove, new_session
@@ -23,6 +23,7 @@ app.add_middleware(
 # --- Supabase Configuration ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://tladrluezsmmhjbhupgb.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_zb8TGeURLnafHWDffG9DMg_PtFO_kmv")
+# SERVER_ID and SERVER_URL should be set in the environment of each node
 SERVER_ID = os.environ.get("SERVER_ID", "secretario")
 SERVER_URL = os.environ.get("SERVER_URL", "https://carley1234-vidspri-secretario.hf.space")
 
@@ -52,7 +53,7 @@ async def shutdown_event():
 
 @app.get("/")
 async def root():
-    return {"message": f"VidSpri {SERVER_ID.capitalize()} is running", "status": "ok"}
+    return {"message": f"VidSpri Node ({SERVER_ID}) is running", "status": "ok"}
 
 @app.post("/remove-background/")
 async def remove_background_api(file: UploadFile = File(...)):
@@ -72,9 +73,11 @@ async def remove_background_api(file: UploadFile = File(...)):
 
 @app.post("/process-batch/{job_id}")
 async def process_batch(job_id: str, images: list[UploadFile] = File(...)):
+    # Update status to processing in DB
+    supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
     await update_status("busy")
-    processed_frames = []
 
+    processed_frames = []
     try:
         for image_file in images:
             contents = await image_file.read()

@@ -7,6 +7,7 @@
     <meta name="description" content="VidSpri: Crea hojas de sprites y animaciones para tus videojuegos en segundos">
 
     <!-- Translation Dictionary -->
+    <script src="config.js"></script>
     <script src="translations.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="styles.css">
@@ -14,48 +15,14 @@
 </head>
 <body>
     <div class="header-actions">
-        <a href="https://www.paypal.com/donate/?hosted_button_id=SF9TB2TJLYL96" target="_blank" id="support-btn" class="pill-btn" style="text-decoration: none;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-heart"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-            <span data-i18n="support">Apoyar</span>
-        </a>
+        <button type="button" onclick="window.location.href='ayuda.html'" class="pill-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span data-i18n="help">Ayuda</span>
+        </button>
         <div class="header-right-controls">
-            <button type="button" id="login-btn" class="pill-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                <span data-i18n="login">Iniciar Sesión</span>
-            </button>
-            <div id="user-info" class="pill-btn hidden">
-                <span id="user-name"></span>
-            </div>
-            <div id="lang-selector-container">
-                <button type="button" id="lang-btn" class="pill-btn">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-globe"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                    <span id="current-lang">Español</span>
-                </button>
-                <div id="lang-menu" class="hidden">
-                    <div class="lang-option" data-lang="es">Español</div>
-                    <div class="lang-option" data-lang="en">English</div>
-                    <div class="lang-option" data-lang="fr">Français</div>
-                    <div class="lang-option" data-lang="pt">Português</div>
-                    <div class="lang-option" data-lang="it">Italiano</div>
-                    <div class="lang-option" data-lang="de">Deutsch</div>
-                    <div class="lang-option" data-lang="jp">日本語</div>
-                    <div class="lang-option" data-lang="ru">Русский</div>
-                    <div class="lang-option" data-lang="zh">中文</div>
-                    <div class="lang-option" data-lang="ko">한국어</div>
-                    <div class="lang-option" data-lang="ar">العربية</div>
-                    <div class="lang-option" data-lang="hi">हिन्दी</div>
-                    <div class="lang-option" data-lang="tr">Türkçe</div>
-                    <div class="lang-option" data-lang="nl">Nederlands</div>
-                    <div class="lang-option" data-lang="pl">Polski</div>
-                    <div class="lang-option" data-lang="vi">Tiếng Việt</div>
-                    <div class="lang-option" data-lang="th">ไทย</div>
-                    <div class="lang-option" data-lang="id">Bahasa Indonesia</div>
-                    <div class="lang-option" data-lang="ms">Bahasa Melayu</div>
-                </div>
-            </div>
-            <button type="button" id="premium-code-btn" class="pill-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tag"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
-                <span data-i18n="redeem">Canjear</span>
+            <button type="button" onclick="window.location.href='configuracion.html'" class="pill-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-settings"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                <span data-i18n="config">Configuración</span>
             </button>
         </div>
     </div>
@@ -66,27 +33,6 @@
             <span data-i18n="title">VidSpri</span>
         </h1>
         <p data-i18n="subtitle">Convierte tus videos de animaciones en hojas de sprites listas para usar.</p>
-
-        <!-- Seccion de Codigos Prioritarios -->
-        <div id="codes-container" class="modern-card">
-            <h3 data-i18n="priority_codes">🎁 Códigos Prioritarios Gratuitos</h3>
-            <p class="small-text" data-i18n="codes_sub">Copia uno para procesar más rápido. Se regeneran cada 24h.</p>
-            <div id="priority-codes-list" class="codes-grid">
-                <div class="loading-spinner"></div>
-            </div>
-        </div>
-
-        <!-- Priority Access Modal -->
-        <div id="premium-modal" class="modal hidden">
-            <div class="modal-content">
-                <span class="close-premium-btn">&times;</span>
-                <h2 data-i18n="premium_title">Acceso Prioritario</h2>
-                <p data-i18n="premium_sub">Introduce tu código de acceso para obtener un procesamiento más rápido.</p>
-                <input type="text" id="premium-code-input" placeholder="...">
-                <button type="button" id="save-premium-code-btn" class="action-btn" data-i18n="save_code">Guardar Código</button>
-                <p id="premium-status"></p>
-            </div>
-        </div>
 
         <!-- Main Menu -->
         <section id="main-menu">
@@ -118,11 +64,12 @@
              <h2 data-i18n="gen_video">Generar Sprite a partir de Video</h2>
             <form id="sprite-form">
                 <div class="form-group">
-                    <label for="video-file" data-i18n="step1_video">1. Sube tu archivo de video:</label>
+                    <label data-i18n="step1_video">1. Sube tu archivo de video:</label>
                     <div id="drag-drop-area-video" class="drag-drop-area">
                         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-upload-cloud"><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path></svg>
-                        <p data-i18n="drag_drop">Arrastra y suelta tu video aquí o haz clic</p>
-                        <input type="file" id="video-file" name="video_file" accept="video/*" required>
+                        <p id="file-status" data-i18n="drag_drop">Arrastra y suelta tu video aquí o haz clic</p>
+                        <button type="button" id="custom-file-btn" class="pill-btn" data-i18n="choose_file">Seleccionar Archivo</button>
+                        <input type="file" id="video-file" name="video_file" accept="video/*" class="hidden" required>
                     </div>
                 </div>
 
@@ -195,10 +142,9 @@
     <script src="script.js"></script>
     <footer>
         <div class="footer-links">
-            <a href="#">Política</a>
-            <a href="#">Comunidad</a>
-            <a href="#">Redes Sociales</a>
-            <a href="creditos.html">Créditos</a>
+            <a href="https://www.facebook.com/profile.php?id=61575555791348" target="_blank" data-i18n="community">Comunidad</a>
+            <a href="https://www.paypal.com/donate/?hosted_button_id=SF9TB2TJLYL96" target="_blank" data-i18n="support">Apoyar</a>
+            <a href="creditos.html" data-i18n="credits">Créditos</a>
         </div>
         <div class="copyright">
             © 2025 VidSpri.

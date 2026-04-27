@@ -1,9 +1,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- Supabase Configuration ---
-    const SUPABASE_URL = 'https://tladrluezsmmhjbhupgb.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_zb8TGeURLnafHWDffG9DMg_PtFO_kmv';
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 
     // --- Global State ---
     let extractedFrames = [];
@@ -15,7 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DOM Elements ---
     const mainMenu = document.getElementById('main-menu');
     const videoSection = document.getElementById('video-section');
-    const codesList = document.getElementById('priority-codes-list');
     const progressContainer = document.getElementById('progress-container');
     const progressText = document.getElementById('progress-text');
     const progressBarInner = document.getElementById('progress-bar-inner');
@@ -45,9 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initialization ---
     applyTranslations(currentLang);
-    loadPriorityCodes();
     subscribeToGlobalNotifications();
-    checkExistingPriorityStatus();
     initSSO();
 
     // --- Translation Logic ---
@@ -59,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('[data-i18n]').forEach(el => {
             const key = el.getAttribute('data-i18n');
             if (dict[key]) {
-                // If it has children (like icons), we need to handle it carefully
                 if (el.children.length > 0) {
                     const textNode = Array.from(el.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
                     if (textNode) textNode.textContent = dict[key];
@@ -69,28 +63,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-
-        document.getElementById('current-lang').textContent = document.querySelector(`.lang-option[data-lang="${lang}"]`).textContent;
     }
-
-    langBtn.addEventListener('click', () => langMenu.classList.toggle('hidden'));
-    langOptions.forEach(opt => {
-        opt.addEventListener('click', () => {
-            applyTranslations(opt.getAttribute('data-lang'));
-            langMenu.classList.add('hidden');
-        });
-    });
-
-    // Close menu when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!langBtn.contains(e.target) && !langMenu.contains(e.target)) {
-            langMenu.classList.add('hidden');
-        }
-    });
 
     // --- SSO Logic ---
     function initSSO() {
-        // 1. Handle incoming SSO token from URL hash
+        // Handle incoming SSO token from URL hash
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
         const ssoToken = params.get('sso_token');
@@ -104,39 +81,25 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast("¡Sesión iniciada con éxito!", "success", true);
         }
 
-        // 2. Check session via Bridge
+        // Check session via Bridge
         window.addEventListener('message', (event) => {
             if (event.origin !== 'https://carleystudio.com') return;
-
             if (event.data.type === 'SESSION_RESPONSE') {
                 const user = event.data.payload;
                 if (user) {
-                    updateUserUI(user);
+                    userId = user.id;
+                    localStorage.setItem('vidspri_user_id', userId);
                 }
             }
         });
 
-        // Request session check after bridge loads
+        // Request session check
         bridgeIframe.onload = () => {
             bridgeIframe.contentWindow.postMessage({
                 type: 'CHECK_SESSION',
                 requestId: 'initial-check'
             }, 'https://carleystudio.com');
         };
-
-        loginBtn.addEventListener('click', () => {
-            const domain = window.location.hostname || "carleyinteractivestudio.github.io";
-            const redirectTo = window.location.href;
-            window.location.href = `https://carleystudio.com/sso.html?domain=${domain}&redirect_to=${encodeURIComponent(redirectTo)}`;
-        });
-    }
-
-    function updateUserUI(user) {
-        userId = user.id;
-        localStorage.setItem('vidspri_user_id', userId);
-        loginBtn.classList.add('hidden');
-        userInfo.classList.remove('hidden');
-        userNameEl.textContent = user.email.split('@')[0];
     }
 
     // --- Toast Notifications ---
@@ -155,36 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Supabase Logic ---
-    async function loadPriorityCodes() {
-        try {
-            await supabaseClient.rpc('refresh_priority_codes');
-            const { data, error } = await supabaseClient
-                .from('priority_codes')
-                .select('*')
-                .eq('is_auto', true)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-
-            codesList.innerHTML = '';
-            data.slice(0, 7).forEach(code => {
-                const codeEl = document.createElement('div');
-                codeEl.className = `code-item ${code.is_used ? 'used' : ''}`;
-                codeEl.textContent = code.code;
-                if (!code.is_used) {
-                    codeEl.onclick = () => {
-                        navigator.clipboard.writeText(code.code);
-                        showToast('copy_success', 'success');
-                    };
-                }
-                codesList.appendChild(codeEl);
-            });
-        } catch (e) {
-            console.error('Error loading codes:', e);
-            codesList.innerHTML = '';
-        }
-    }
-
     function subscribeToGlobalNotifications() {
         supabaseClient
             .channel('global_notifications')
@@ -194,26 +127,25 @@ document.addEventListener('DOMContentLoaded', () => {
             .subscribe();
     }
 
-    function checkExistingPriorityStatus() {
-        const isPriority = localStorage.getItem('vidspri_priority_active') === 'true';
-        if (isPriority) {
-            const dict = window.translations[currentLang] || window.translations['es'];
-            document.getElementById('premium-status').textContent = dict['priority_active'];
-        }
-    }
-
     // --- UI Interactions ---
     document.getElementById('video-sprite-btn').addEventListener('click', () => {
         mainMenu.classList.add('hidden');
         videoSection.classList.remove('hidden');
     });
 
+    const customFileBtn = document.getElementById('custom-file-btn');
+    const fileStatus = document.getElementById('file-status');
+
+    customFileBtn.addEventListener('click', () => videoFileInput.click());
+
     videoFileInput.addEventListener('change', () => {
         const file = videoFileInput.files[0];
         if (file) {
+            const dict = window.translations[currentLang] || window.translations['es'];
+            fileStatus.textContent = (dict['file_selected'] || "Archivo seleccionado: ") + file.name;
             videoPreview.src = URL.createObjectURL(file);
             document.getElementById('video-preview-container').classList.remove('hidden');
-            document.getElementById('drag-drop-area-video').classList.add('hidden');
+            // document.getElementById('drag-drop-area-video').classList.add('hidden'); // Keep it visible but updated
         }
     });
 
@@ -320,9 +252,14 @@ document.addEventListener('DOMContentLoaded', () => {
         supabaseClient
             .channel(`job-${jobId}`)
             .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue', filter: `id=eq.${jobId}` }, payload => {
-                if (payload.new.status === 'completed') {
+                const job = payload.new;
+                const dict = window.translations[currentLang] || window.translations['es'];
+
+                if (job.status === 'authorized') {
+                    sendToProcessingServer(job.assigned_server_url, jobId);
+                } else if (job.status === 'completed') {
                     showToast('done', 'success');
-                } else if (payload.new.status === 'failed') {
+                } else if (job.status === 'failed') {
                     showToast('Error', 'error', true);
                     progressContainer.classList.add('hidden');
                 }
@@ -334,49 +271,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function checkPosition(jobId) {
         const { data: jobData } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
-        if (!jobData || jobData.status !== 'waiting') return;
+        if (!jobData || (jobData.status !== 'waiting' && jobData.status !== 'authorized')) return;
+        if (jobData.status === 'authorized') return; // Assignment handled by trigger
 
-        let query = supabaseClient.from('processing_queue').select('*', { count: 'exact', head: true }).eq('status', 'waiting');
-        if (jobData.is_priority) {
-            query = query.eq('is_priority', true).lt('queue_number', jobData.queue_number);
-        } else {
-            query = query.or(`is_priority.eq.true,and(is_priority.eq.false,queue_number.lt.${jobData.queue_number})`);
-        }
+        const { count } = await supabaseClient
+            .from('processing_queue')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'waiting')
+            .or(`is_priority.gt.${jobData.is_priority},and(is_priority.eq.${jobData.is_priority},queue_number.lt.${jobData.queue_number})`);
 
-        const { count } = await query;
         const dict = window.translations[currentLang] || window.translations['es'];
         progressText.textContent = dict['in_queue'] + count;
         updateProgressBar(15);
 
-        if (count === 0) findFreeServerAndProcess(jobId);
-        else setTimeout(() => checkPosition(jobId), 5000);
-    }
-
-    async function findFreeServerAndProcess(jobId) {
-        const dict = window.translations[currentLang] || window.translations['es'];
-        progressText.textContent = dict['finding_server'];
-
-        const { data: servers } = await supabaseClient
-            .from('server_status')
-            .select('*')
-            .eq('status', 'free')
-            .gt('last_heartbeat', new Date(Date.now() - 30000).toISOString());
-
-        if (!servers || servers.length === 0) {
-            setTimeout(() => findFreeServerAndProcess(jobId), 3000);
-            return;
-        }
-
-        const server = servers[Math.floor(Math.random() * servers.length)];
-        sendToProcessingServer(server.url, jobId);
+        setTimeout(() => checkPosition(jobId), 5000);
     }
 
     async function sendToProcessingServer(serverUrl, jobId) {
         const dict = window.translations[currentLang] || window.translations['es'];
         progressText.textContent = dict['sending_frames'];
         updateProgressBar(40);
-
-        await supabaseClient.from('processing_queue').update({ status: 'processing' }).eq('id', jobId);
 
         const formData = new FormData();
         extractedFrames.forEach(f => formData.append('images', f.blob, `frame_${f.id}.png`));
@@ -387,7 +301,6 @@ document.addEventListener('DOMContentLoaded', () => {
             handleProcessingSuccess(result.frames);
         } catch (e) {
             showToast(e.message, "error", true);
-            await supabaseClient.from('processing_queue').update({ status: 'failed' }).eq('id', jobId);
             progressContainer.classList.add('hidden');
         }
     }
@@ -403,33 +316,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('frame-preview-container').classList.add('hidden');
     }
 
-    // --- Priority Codes ---
-    document.getElementById('premium-code-btn').addEventListener('click', () => {
-        document.getElementById('premium-modal').classList.remove('hidden');
-    });
-
-    document.querySelector('.close-premium-btn').addEventListener('click', () => {
-        document.getElementById('premium-modal').classList.add('hidden');
-    });
-
-    document.getElementById('save-premium-code-btn').addEventListener('click', async () => {
-        const code = document.getElementById('premium-code-input').value.trim();
-        if (!code) return;
-
-        const { data, error } = await supabaseClient.from('priority_codes').select('*').eq('code', code).eq('is_used', false).single();
-
-        if (error || !data) {
-            showToast('invalid_code', 'error');
-        } else {
-            await supabaseClient.from('priority_codes').update({ is_used: true }).eq('code', code);
-            localStorage.setItem('vidspri_priority_active', 'true');
-            showToast('priority_active', 'success');
-            document.getElementById('premium-modal').classList.add('hidden');
-            const dict = window.translations[currentLang] || window.translations['es'];
-            document.getElementById('premium-status').textContent = dict['priority_active'];
-            loadPriorityCodes();
-        }
-    });
 
     // --- Helpers ---
     async function extractFramesFromVideo(videoFile, frameCount, startTime, endTime) {

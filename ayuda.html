@@ -3,33 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ayuda y Soporte</title>
+    <title>Ayuda - VidSpri</title>
+    <script src="translations.js"></script>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="logo.png" type="image/png">
 </head>
 <body>
-    <div class="container">
-        <h1><img src="logo.png" alt="VidSpri Logo" class="logo"> Ayuda y Soporte</h1>
-
-        <h2>¿Por qué tu ayuda es importante?</h2>
-        <p>VidSpri es un proyecto que busca facilitar la creación de animaciones para desarrolladores de videojuegos y artistas. Mantener y mejorar esta herramienta requiere recursos, especialmente para el servidor que procesa las imágenes.</p>
-
-        <h2>¿Cómo puedes ayudar?</h2>
-
-        <h3>1. Comparte la aplicación</h3>
-        <p>La forma más sencilla de ayudar es corriendo la voz. Comparte VidSpri con tus amigos, colegas y en tus redes sociales. ¡Mientras más gente la use, más crecerá la comunidad!</p>
-
-        <h3>2. Haz una donación</h3>
-        <p>Las donaciones nos ayudan a cubrir los costos del servidor y a dedicar más tiempo al desarrollo de nuevas funciones. Cualquier cantidad es de gran ayuda.</p>
-        <a href="https://www.paypal.com/donate/?hosted_button_id=SF9TB2TJLYL96" target="_blank" class="donate-link">Donar con PayPal</a>
-
-        <h3>3. Aporta un servidor</h3>
-        <p>Si tienes acceso a recursos de servidor y te gustaría apoyar el proyecto de una forma más directa, esta es una opción increíblemente valiosa. Un servidor más potente nos permitiría procesar los sprites más rápido y con mayor calidad para todos.</p>
-        <p>Si estás interesado en esta opción, por favor, contáctanos para que podamos coordinarlo.</p>
-        <a href="mailto:empresariacarley16@gmail.com" class="button">Aportar un servidor</a>
-
-        <br>
-        <a href="index.html" class="button">Volver a la aplicación</a>
+    <div class="header-actions">
+        <button type="button" onclick="window.location.href='index.html'" class="pill-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span data-i18n="back">Volver</span>
+        </button>
     </div>
+
+    <div class="container" style="text-align: left;">
+        <h1 style="justify-content: flex-start;" data-i18n="help_title">Ayuda y Soporte</h1>
+
+        <section class="help-section">
+            <h2 data-i18n="how_to_lang">🌐 Cómo cambiar el idioma</h2>
+            <p data-i18n="lang_help_desc">Puedes cambiar el idioma de la aplicación desde la página de <strong>Configuración</strong>. Selecciona tu idioma preferido y la interfaz se actualizará automáticamente.</p>
+        </section>
+
+        <section class="help-section">
+            <h2 data-i18n="claims_title">⚖️ Reclamaciones</h2>
+            <p data-i18n="claims_desc">Si tienes problemas con el procesamiento de tus videos o con un código prioritario, por favor contáctanos a través de nuestras redes sociales o comunidad oficial.</p>
+            <a href="https://www.facebook.com/profile.php?id=61575555791348" target="_blank" class="pill-btn" style="display:inline-flex;">Facebook</a>
+        </section>
+
+        <section class="help-section">
+            <h2 data-i18n="tutorial_title">🎬 Tutorial: Extraer Sprites</h2>
+            <p data-i18n="tutorial_desc">1. Sube un video corto de tu animación.<br>2. Selecciona el rango de tiempo (inicio y fin).<br>3. Elige el número de cuadros que deseas extraer.<br>4. Haz clic en "Extraer Fotogramas".<br>5. Revisa los cuadros y haz clic en "Quitar fondo y generar".</p>
+        </section>
+
+        <section class="help-section">
+            <h2 data-i18n="about_title">📖 Acerca de VidSpri</h2>
+            <p data-i18n="about_desc">VidSpri es una herramienta diseñada para desarrolladores de videojuegos indie, que utiliza IA para automatizar la creación de hojas de sprites a partir de video.</p>
+        </section>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentLang = localStorage.getItem('vidspri_lang') || 'es';
+            const dict = window.translations[currentLang] || window.translations['es'];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) el.textContent = dict[key];
+            });
+        });
+    </script>
 </body>
 </html>

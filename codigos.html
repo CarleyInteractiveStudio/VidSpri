@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Códigos - VidSpri</title>
+    <script src="config.js"></script>
+    <script src="translations.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="logo.png" type="image/png">
+</head>
+<body>
+    <div class="header-actions">
+        <button type="button" onclick="window.location.href='index.html'" class="pill-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span data-i18n="back">Volver</span>
+        </button>
+    </div>
+
+    <div class="container">
+        <h1 data-i18n="codes_title">Códigos Prioritarios</h1>
+
+        <div id="codes-container" class="modern-card">
+            <h3 data-i18n="priority_codes">🎁 Códigos Gratuitos</h3>
+            <p class="small-text" data-i18n="codes_sub">Copia uno para procesar más rápido. Se regeneran cada 24h.</p>
+            <div id="priority-codes-list" class="codes-grid">
+                <div class="loading-spinner"></div>
+            </div>
+        </div>
+
+        <div class="modern-card">
+            <h3 data-i18n="redeem_code">Canjear Código</h3>
+            <p data-i18n="premium_sub">Introduce tu código de acceso para obtener un procesamiento prioritario.</p>
+            <div class="form-group">
+                <input type="text" id="premium-code-input" placeholder="...">
+            </div>
+            <button type="button" id="save-premium-code-btn" class="action-btn" data-i18n="activate">Activar Prioridad</button>
+            <p id="premium-status" style="margin-top: 1rem; font-weight: bold;"></p>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+        const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentLang = localStorage.getItem('vidspri_lang') || 'es';
+            applyTranslations(currentLang);
+            loadPriorityCodes();
+            checkStatus();
+
+            document.getElementById('save-premium-code-btn').onclick = async () => {
+                const code = document.getElementById('premium-code-input').value.trim();
+                if (!code) return;
+
+                const { data, error } = await supabaseClient
+                    .from('priority_codes')
+                    .select('*')
+                    .eq('code', code)
+                    .eq('is_used', false)
+                    .single();
+
+                if (error || !data) {
+                    showToast('invalid_code', 'error');
+                } else {
+                    await supabaseClient.from('priority_codes').update({ is_used: true }).eq('code', code);
+                    localStorage.setItem('vidspri_priority_active', 'true');
+                    showToast('priority_active', 'success');
+                    checkStatus();
+                    loadPriorityCodes();
+                }
+            };
+        });
+
+        async function loadPriorityCodes() {
+            const codesList = document.getElementById('priority-codes-list');
+            try {
+                const { data, error } = await supabaseClient
+                    .from('priority_codes')
+                    .select('*')
+                    .eq('is_auto', true)
+                    .eq('is_used', false)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                codesList.innerHTML = '';
+                data.slice(0, 10).forEach(code => {
+                    const codeEl = document.createElement('div');
+                    codeEl.className = 'code-item';
+                    codeEl.textContent = code.code;
+                    codeEl.onclick = () => {
+                        document.getElementById('premium-code-input').value = code.code;
+                        navigator.clipboard.writeText(code.code);
+                        showToast('copy_success', 'success');
+                    };
+                    codesList.appendChild(codeEl);
+                });
+            } catch (e) {
+                codesList.innerHTML = 'Error al cargar códigos';
+            }
+        }
+
+        function checkStatus() {
+            const isPriority = localStorage.getItem('vidspri_priority_active') === 'true';
+            const statusEl = document.getElementById('premium-status');
+            if (isPriority) {
+                const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
+                statusEl.textContent = dict['priority_active'];
+                statusEl.style.color = '#00f2ff';
+            }
+        }
+
+        function applyTranslations(lang) {
+            const dict = window.translations[lang] || window.translations['es'];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) el.textContent = dict[key];
+            });
+        }
+
+        function showToast(messageKey, type = 'info') {
+            const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
+            const message = dict[messageKey] || messageKey;
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.getElementById('toast-container').appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+    </script>
+</body>
+</html>
