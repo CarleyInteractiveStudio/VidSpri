@@ -168,7 +168,8 @@ CREATE OR REPLACE FUNCTION assign_jobs()
 RETURNS TRIGGER AS $$
 DECLARE
     waiting_job RECORD;
-    free_server RECORD;
+    free_server_id_found TEXT;
+    free_server_url_found TEXT;
 BEGIN
     -- Run cleanup
     PERFORM cleanup_system();
@@ -180,22 +181,22 @@ BEGIN
         ORDER BY is_priority DESC, queue_number ASC
     ) LOOP
         -- For each job, find a free server
-        SELECT id, url INTO free_server
+        SELECT id, url INTO free_server_id_found, free_server_url_found
         FROM server_status
         WHERE status = 'free'
         AND last_heartbeat > NOW() - INTERVAL '60 seconds'
         LIMIT 1;
 
         -- If a server is found, assign it
-        IF free_server.id IS NOT NULL THEN
+        IF free_server_id_found IS NOT NULL THEN
             UPDATE processing_queue
             SET status = 'authorized',
-                assigned_server_url = free_server.url
+                assigned_server_url = free_server_url_found
             WHERE id = waiting_job.id;
 
             UPDATE server_status
             SET status = 'busy'
-            WHERE id = free_server.id;
+            WHERE id = free_server_id_found;
         ELSE
             -- No more free servers, stop trying to assign for now
             EXIT;

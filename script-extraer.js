@@ -29,6 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultContainer = document.getElementById('result-container');
     const spriteImage = document.getElementById('sprite-image');
     const downloadLink = document.getElementById('download-link');
+    const previewAnimBtn = document.getElementById('preview-anim-btn');
+    const reprocessBtn = document.getElementById('reprocess-btn');
+    const resultFramesOutput = document.getElementById('result-frames-output');
     const toastContainer = document.getElementById('toast-container');
 
     const generateBtn = document.getElementById('generate-sprite-btn');
@@ -529,12 +532,57 @@ document.addEventListener('DOMContentLoaded', () => {
         etaText.textContent = '';
 
         const blobs = frames.map(base64StringToBlob);
+        displayResultFrames(blobs);
         await createSpriteSheet(blobs);
 
         progressContainer.classList.add('hidden');
         resultContainer.classList.remove('hidden');
         framePreviewContainer.classList.add('hidden');
     }
+
+    function displayResultFrames(blobs) {
+        resultFramesOutput.innerHTML = '';
+        blobs.forEach((blob, index) => {
+            const container = document.createElement('div');
+            container.className = 'result-frame';
+            container.innerHTML = `
+                <img src="${URL.createObjectURL(blob)}" alt="Result Frame ${index}">
+                <div class="check-badge">✓</div>
+            `;
+            container.onclick = () => {
+                container.classList.toggle('selected');
+                updateReprocessButtonState();
+            };
+            resultFramesOutput.appendChild(container);
+        });
+    }
+
+    function updateReprocessButtonState() {
+        const selected = document.querySelectorAll('.result-frame.selected');
+        reprocessBtn.classList.toggle('hidden', selected.length === 0);
+    }
+
+    reprocessBtn.addEventListener('click', async () => {
+        const selectedElements = document.querySelectorAll('.result-frame.selected');
+        const selectedBlobs = Array.from(selectedElements).map(el => {
+            const imgSrc = el.querySelector('img').src;
+            // Note: In a real app we might want to store the original blobs instead of fetching from URL
+            return fetch(imgSrc).then(r => r.blob());
+        });
+
+        extractedFrames = (await Promise.all(selectedBlobs)).map((blob, index) => ({ id: index, blob }));
+
+        resultContainer.classList.add('hidden');
+        reprocessBtn.classList.add('hidden');
+        // Trigger queue processing with these new frames
+        generateBtn.click();
+    });
+
+    previewAnimBtn.addEventListener('click', () => {
+        // We can pass the sprite sheet to the preview page via localStorage or similar
+        // For now, let's just go there. In a real scenario we'd use a more robust state management.
+        window.location.href = 'previsualizacion.html';
+    });
 
     // --- Helpers ---
     async function extractFramesFromVideo(videoFile, frameCount, startTime, endTime, onProgress) {
