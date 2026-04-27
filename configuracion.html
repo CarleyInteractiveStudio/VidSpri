@@ -36,6 +36,23 @@
 
         <div class="modern-card">
             <h3 data-i18n="language">Idioma</h3>
+            <button type="button" id="open-lang-modal" class="pill-btn" style="margin: 0 auto; min-width: 200px;">
+                <span id="current-lang-name">Español</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-down"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+        </div>
+
+        <div class="modern-card">
+            <h3 data-i18n="priority_access">Acceso Prioritario</h3>
+            <p data-i18n="redeem_sub">Canjea un código para obtener una mejor posición en la fila sin afectar a los demás.</p>
+            <button type="button" onclick="window.location.href='codigos.html'" class="action-btn" data-i18n="go_to_redeem">Ir a Canjear</button>
+        </div>
+    </div>
+
+    <!-- Language Modal -->
+    <div id="lang-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 data-i18n="language">Idioma</h2>
             <div class="lang-grid-large">
                 <button class="lang-opt-large" data-lang="es">Español</button>
                 <button class="lang-opt-large" data-lang="en">English</button>
@@ -45,13 +62,16 @@
                 <button class="lang-opt-large" data-lang="de">Deutsch</button>
                 <button class="lang-opt-large" data-lang="jp">日本語</button>
                 <button class="lang-opt-large" data-lang="zh">中文</button>
+                <button class="lang-opt-large" data-lang="ru">Русский</button>
+                <button class="lang-opt-large" data-lang="ko">한국어</button>
+                <button class="lang-opt-large" data-lang="ar">العربية</button>
+                <button class="lang-opt-large" data-lang="hi">हिन्दी</button>
+                <button class="lang-opt-large" data-lang="tr">Türkçe</button>
+                <button class="lang-opt-large" data-lang="nl">Nederlands</button>
+                <button class="lang-opt-large" data-lang="pl">Polski</button>
+                <button class="lang-opt-large" data-lang="vi">Tiếng Việt</button>
             </div>
-        </div>
-
-        <div class="modern-card">
-            <h3 data-i18n="premium_access">Acceso Premium</h3>
-            <p data-i18n="redeem_sub">Canjea un código para obtener prioridad permanente o temporal.</p>
-            <button type="button" onclick="window.location.href='codigos.html'" class="action-btn" data-i18n="go_to_redeem">Ir a Canjear</button>
+            <button type="button" id="close-lang-modal" class="pill-btn" style="margin: 20px auto 0;">Cerrar</button>
         </div>
     </div>
 
@@ -62,6 +82,14 @@
         // Minimal logic for the config page
         document.addEventListener('DOMContentLoaded', () => {
             const currentLang = localStorage.getItem('vidspri_lang') || 'es';
+            const langNames = {
+                es: "Español", en: "English", fr: "Français", pt: "Português",
+                it: "Italiano", de: "Deutsch", jp: "日本語", zh: "中文",
+                ru: "Русский", ko: "한국어", ar: "العربية", hi: "हिन्दी",
+                tr: "Türkçe", nl: "Nederlands", pl: "Polski", vi: "Tiếng Việt"
+            };
+
+            document.getElementById('current-lang-name').textContent = langNames[currentLang] || "Español";
             applyTranslations(currentLang);
 
             // SSO and Auth logic
@@ -96,13 +124,24 @@
                 location.reload();
             };
 
+            // Modal Logic
+            const modal = document.getElementById('lang-modal');
+            const openBtn = document.getElementById('open-lang-modal');
+            const closeBtn = document.getElementById('close-lang-modal');
+
+            openBtn.onclick = () => modal.classList.remove('hidden');
+            closeBtn.onclick = () => modal.classList.add('hidden');
+            window.onclick = (e) => { if (e.target == modal) modal.classList.add('hidden'); };
+
             // Language Selection
             document.querySelectorAll('.lang-opt-large').forEach(btn => {
                 btn.onclick = () => {
                     const lang = btn.getAttribute('data-lang');
                     localStorage.setItem('vidspri_lang', lang);
                     applyTranslations(lang);
-                    // Add visual feedback
+                    document.getElementById('current-lang-name').textContent = langNames[lang];
+                    modal.classList.add('hidden');
+
                     document.querySelectorAll('.lang-opt-large').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                 };

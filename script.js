@@ -13,6 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DOM Elements ---
     const mainMenu = document.getElementById('main-menu');
     const videoSection = document.getElementById('video-section');
+    const editorSection = document.getElementById('editor-section');
+    const framePreviewContainer = document.getElementById('frame-preview-container');
+    const stepperContainer = document.getElementById('stepper-container');
+    const steps = document.querySelectorAll('.step');
+
     const progressContainer = document.getElementById('progress-container');
     const progressText = document.getElementById('progress-text');
     const progressBarInner = document.getElementById('progress-bar-inner');
@@ -24,13 +29,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Video elements
     const videoPreview = document.getElementById('video-preview');
     const videoFileInput = document.getElementById('video-file');
+    const dragDropArea = document.getElementById('drag-drop-area-video');
+
+    // Editor Elements
+    const thumbnailsTrack = document.getElementById('thumbnails-track');
+    const rangeHighlight = document.querySelector('.range-highlight');
+    const handleStart = document.getElementById('handle-start');
+    const handleEnd = document.getElementById('handle-end');
+    const timelineMarker = document.getElementById('timeline-marker');
+    const manualInputToggle = document.getElementById('manual-input-toggle');
+    const manualTimeInputs = document.getElementById('manual-time-inputs');
     const startTimeInput = document.getElementById('start-time');
     const endTimeInput = document.getElementById('end-time');
-    const fullVideoCheckbox = document.getElementById('full-video-checkbox');
-    const timeRangeInputs = document.getElementById('time-range-inputs');
 
     // Lang elements
-    const langBtn = document.getElementById('lang-btn');
     const langMenu = document.getElementById('lang-menu');
     const langOptions = document.querySelectorAll('.lang-option');
 
@@ -127,60 +139,155 @@ document.addEventListener('DOMContentLoaded', () => {
             .subscribe();
     }
 
+    // --- Stepper Navigation ---
+    function goToStep(stepNumber) {
+        steps.forEach(s => {
+            const sNum = parseInt(s.getAttribute('data-step'));
+            s.classList.toggle('active', sNum <= stepNumber);
+        });
+
+        mainMenu.classList.add('hidden');
+        videoSection.classList.add('hidden');
+        editorSection.classList.add('hidden');
+        framePreviewContainer.classList.add('hidden');
+        stepperContainer.classList.remove('hidden');
+
+        if (stepNumber === 1) videoSection.classList.remove('hidden');
+        else if (stepNumber === 2) editorSection.classList.remove('hidden');
+        else if (stepNumber === 3) framePreviewContainer.classList.remove('hidden');
+    }
+
     // --- UI Interactions ---
     document.getElementById('video-sprite-btn').addEventListener('click', () => {
-        mainMenu.classList.add('hidden');
-        videoSection.classList.remove('hidden');
+        goToStep(1);
+    });
+
+    // --- Drag & Drop ---
+    dragDropArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dragDropArea.classList.add('drag-over');
+    });
+
+    dragDropArea.addEventListener('dragleave', () => {
+        dragDropArea.classList.remove('drag-over');
+    });
+
+    dragDropArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragDropArea.classList.remove('drag-over');
+        if (e.dataTransfer.files.length) {
+            videoFileInput.files = e.dataTransfer.files;
+            handleVideoSelection();
+        }
     });
 
     const customFileBtn = document.getElementById('custom-file-btn');
     const fileStatus = document.getElementById('file-status');
 
     customFileBtn.addEventListener('click', () => videoFileInput.click());
+    videoFileInput.addEventListener('change', handleVideoSelection);
 
-    videoFileInput.addEventListener('change', () => {
+    async function handleVideoSelection() {
         const file = videoFileInput.files[0];
         if (file) {
-            const dict = window.translations[currentLang] || window.translations['es'];
-            fileStatus.textContent = (dict['file_selected'] || "Archivo seleccionado: ") + file.name;
-            videoPreview.src = URL.createObjectURL(file);
-            document.getElementById('video-preview-container').classList.remove('hidden');
-            // document.getElementById('drag-drop-area-video').classList.add('hidden'); // Keep it visible but updated
+            const url = URL.createObjectURL(file);
+            videoPreview.src = url;
+            videoPreview.onloadedmetadata = () => {
+                endTimeInput.value = videoPreview.duration.toFixed(2);
+                generateEditorThumbnails(file);
+                goToStep(2);
+            };
         }
-    });
+    }
 
-    document.getElementById('mark-start-btn').addEventListener('click', () => {
-        startTimeInput.value = videoPreview.currentTime.toFixed(2);
-        fullVideoCheckbox.checked = false;
-        timeRangeInputs.classList.remove('hidden');
-    });
+    // --- Video Editor Logic ---
+    async function generateEditorThumbnails(file) {
+        thumbnailsTrack.innerHTML = '';
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(file);
 
-    document.getElementById('mark-end-btn').addEventListener('click', () => {
-        endTimeInput.value = videoPreview.currentTime.toFixed(2);
-        fullVideoCheckbox.checked = false;
-        timeRangeInputs.classList.remove('hidden');
-    });
+        await new Promise(r => video.onloadedmetadata = r);
+        const duration = video.duration;
+        const thumbCount = 10;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 160;
+        canvas.height = 90;
 
-    fullVideoCheckbox.addEventListener('change', () => {
-        timeRangeInputs.classList.toggle('hidden', fullVideoCheckbox.checked);
-    });
+        for (let i = 0; i < thumbCount; i++) {
+            video.currentTime = (duration / thumbCount) * i;
+            await new Promise(r => video.onseeked = r);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const img = document.createElement('img');
+            img.src = canvas.toDataURL('image/jpeg', 0.5);
+            thumbnailsTrack.appendChild(img);
+        }
+        updateRangeUI();
+    }
+
+    // Dual-handle range slider
+    let isDraggingStart = false;
+    let isDraggingEnd = false;
+
+    function getPercentageFromX(x) {
+        const rect = thumbnailsTrack.getBoundingClientRect();
+        let p = (x - rect.left) / rect.width;
+        return Math.max(0, Math.min(1, p));
+    }
+
+    function updateRangeUI() {
+        const startP = parseFloat(startTimeInput.value) / videoPreview.duration;
+        const endP = parseFloat(endTimeInput.value) / videoPreview.duration;
+
+        handleStart.style.left = `${startP * 100}%`;
+        handleEnd.style.left = `${endP * 100}%`;
+        rangeHighlight.style.left = `${startP * 100}%`;
+        rangeHighlight.style.width = `${(endP - startP) * 100}%`;
+    }
+
+    handleStart.onmousedown = () => isDraggingStart = true;
+    handleEnd.onmousedown = () => isDraggingEnd = true;
+
+    window.onmousemove = (e) => {
+        if (!isDraggingStart && !isDraggingEnd) return;
+        const p = getPercentageFromX(e.clientX);
+        const time = p * videoPreview.duration;
+
+        if (isDraggingStart) {
+            startTimeInput.value = Math.min(time, parseFloat(endTimeInput.value) - 0.1).toFixed(2);
+            videoPreview.currentTime = parseFloat(startTimeInput.value);
+        } else if (isDraggingEnd) {
+            endTimeInput.value = Math.max(time, parseFloat(startTimeInput.value) + 0.1).toFixed(2);
+            videoPreview.currentTime = parseFloat(endTimeInput.value);
+        }
+        updateRangeUI();
+    };
+
+    window.onmouseup = () => {
+        isDraggingStart = false;
+        isDraggingEnd = false;
+    };
+
+    videoPreview.ontimeupdate = () => {
+        const p = videoPreview.currentTime / videoPreview.duration;
+        timelineMarker.style.left = `${p * 100}%`;
+    };
+
+    manualInputToggle.onchange = () => {
+        manualTimeInputs.classList.toggle('hidden', !manualInputToggle.checked);
+    };
+
+    startTimeInput.onchange = updateRangeUI;
+    endTimeInput.onchange = updateRangeUI;
 
     // --- Frame Extraction ---
     document.getElementById('extract-frames-btn').addEventListener('click', async () => {
         const videoFile = videoFileInput.files[0];
-        if (!videoFile) {
-            showToast("Selecciona un video", "error", true);
-            return;
-        }
+        if (!videoFile) return;
 
         const frameCount = parseInt(document.getElementById('frames').value, 10);
-        let startTime = 0;
-        let endTime = videoPreview.duration;
-
-        if (!fullVideoCheckbox.checked) {
-            startTime = parseFloat(startTimeInput.value);
-            endTime = parseFloat(endTimeInput.value);
-        }
+        const startTime = parseFloat(startTimeInput.value);
+        const endTime = parseFloat(endTimeInput.value);
 
         progressContainer.classList.remove('hidden');
         const dict = window.translations[currentLang] || window.translations['es'];
@@ -191,8 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const frames = await extractFramesFromVideo(videoFile, frameCount, startTime, endTime);
             extractedFrames = frames.map((blob, index) => ({ id: index, blob }));
             displayFramePreviews();
-            document.getElementById('frame-preview-container').classList.remove('hidden');
-            videoSection.classList.add('hidden');
+            goToStep(3);
         } catch (e) {
             showToast(e.message, "error", true);
         } finally {

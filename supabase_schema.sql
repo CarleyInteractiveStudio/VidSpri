@@ -78,17 +78,43 @@ EXECUTE FUNCTION trigger_refresh_codes();
 SELECT refresh_priority_codes();
 
 -- Enable Realtime
+-- Enable Realtime safely
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
-    CREATE PUBLICATION supabase_realtime;
-  END IF;
-END $$;
+    -- Create publication if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        CREATE PUBLICATION supabase_realtime;
+    END IF;
 
-ALTER PUBLICATION supabase_realtime ADD TABLE processing_queue;
-ALTER PUBLICATION supabase_realtime ADD TABLE global_notifications;
-ALTER PUBLICATION supabase_realtime ADD TABLE priority_codes;
-ALTER PUBLICATION supabase_realtime ADD TABLE server_status;
+    -- Add tables only if they are not already members
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime' AND tablename = 'processing_queue'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE processing_queue;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime' AND tablename = 'global_notifications'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE global_notifications;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime' AND tablename = 'priority_codes'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE priority_codes;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime' AND tablename = 'server_status'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE server_status;
+    END IF;
+END $$;
 
 -- Function to assign the next job to a free server
 CREATE OR REPLACE FUNCTION assign_jobs()

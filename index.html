@@ -34,15 +34,44 @@
         </h1>
         <p data-i18n="subtitle">Convierte tus videos de animaciones en hojas de sprites listas para usar.</p>
 
+        <!-- Stepper -->
+        <div id="stepper-container" class="stepper hidden">
+            <div class="step active" data-step="1">
+                <div class="step-icon">1</div>
+                <span data-i18n="step_upload">Subir</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" data-step="2">
+                <div class="step-icon">2</div>
+                <span data-i18n="step_edit">Editar</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" data-step="3">
+                <div class="step-icon">3</div>
+                <span data-i18n="step_process">Procesar</span>
+            </div>
+        </div>
+
         <!-- Main Menu -->
         <section id="main-menu">
             <div class="main-menu-grid">
                 <button id="video-sprite-btn" class="menu-card">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-camera"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="4" width="14" height="12" rx="2"></rect>
+                        <path d="M16 8l6-4v12l-6-4"></path>
+                        <path d="M10 12l4 4-4 4" transform="translate(6, 0) scale(0.6)"></path>
+                        <rect x="15" y="14" width="7" height="7" rx="1" stroke-dasharray="2 2"></rect>
+                    </svg>
                     <span data-i18n="gen_video">Generar Sprite a partir de Video</span>
                 </button>
                 <button id="image-sprite-btn" class="menu-card coming-soon" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-layers"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="12" height="12" rx="2"></rect>
+                        <circle cx="7" cy="7" r="1.5"></circle>
+                        <path d="M15 11l-3-3-4 4"></path>
+                        <path d="M12 12l4 4-4 4" transform="translate(4, 0) scale(0.6)"></path>
+                        <rect x="15" y="14" width="7" height="7" rx="1"></rect>
+                    </svg>
                     <span data-i18n="gen_imgs">Generar Sprite a partir de Imágenes</span>
                 </button>
                 <button id="sound-generation-btn" class="menu-card coming-soon" disabled>
@@ -55,61 +84,67 @@
                 </button>
             </div>
             <div style="text-align: center; margin-top: 1.5rem;">
-                <button type="button" id="sprite-preview-btn" class="text-button" data-i18n="preview_anim">Previsualizar Animación</button>
+                <button type="button" onclick="window.location.href='previsualizacion.html'" class="text-button" data-i18n="preview_anim">Previsualizar Animación</button>
             </div>
         </section>
 
-        <!-- Video Processing Section -->
+        <!-- Step 1: Upload -->
         <section id="video-section" class="hidden">
-             <h2 data-i18n="gen_video">Generar Sprite a partir de Video</h2>
-            <form id="sprite-form">
-                <div class="form-group">
-                    <label data-i18n="step1_video">1. Sube tu archivo de video:</label>
-                    <div id="drag-drop-area-video" class="drag-drop-area">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-upload-cloud"><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path></svg>
-                        <p id="file-status" data-i18n="drag_drop">Arrastra y suelta tu video aquí o haz clic</p>
-                        <button type="button" id="custom-file-btn" class="pill-btn" data-i18n="choose_file">Seleccionar Archivo</button>
-                        <input type="file" id="video-file" name="video_file" accept="video/*" class="hidden" required>
+            <h2 data-i18n="step_upload">Subir Video</h2>
+            <div id="drag-drop-area-video" class="drag-drop-area">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-upload-cloud"><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path></svg>
+                <p id="file-status" data-i18n="drag_drop">Arrastra y suelta tu video aquí o haz clic</p>
+                <button type="button" id="custom-file-btn" class="pill-btn" data-i18n="choose_file">Seleccionar Archivo</button>
+                <input type="file" id="video-file" name="video_file" accept="video/*" class="hidden" required>
+            </div>
+        </section>
+
+        <!-- Step 2: Edit (Video Editor) -->
+        <section id="editor-section" class="hidden">
+            <h2 data-i18n="step_edit">Editar Video</h2>
+            <div class="video-editor-container">
+                <div class="video-wrapper">
+                    <video id="video-preview"></video>
+                    <div id="timeline-marker" class="timeline-marker"></div>
+                </div>
+
+                <div class="timeline-container">
+                    <div id="thumbnails-track" class="thumbnails-track"></div>
+                    <div id="range-selector" class="range-selector">
+                        <div class="range-handle left" id="handle-start"></div>
+                        <div class="range-highlight"></div>
+                        <div class="range-handle right" id="handle-end"></div>
                     </div>
                 </div>
 
-                <div id="video-preview-container" class="hidden">
-                    <video id="video-preview" controls></video>
-                    <div class="time-range-controls">
-                        <button type="button" id="mark-start-btn" class="pill-btn" data-i18n="mark_start">Marcar Inicio</button>
-                        <button type="button" id="mark-end-btn" class="pill-btn" data-i18n="mark_end">Marcar Fin</button>
+                <div class="editor-controls">
+                    <div class="control-group">
+                        <input type="checkbox" id="manual-input-toggle">
+                        <label for="manual-input-toggle">Entrada manual de segundos</label>
                     </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="frames" data-i18n="step2_frames">2. Elige el número de fotogramas:</label>
-                    <input type="number" id="frames" name="frames" min="1" max="100" value="12" required>
-                </div>
-
-                <div class="form-group">
-                    <label data-i18n="step3_range">3. Rango del video (opcional):</label>
-                    <div class="time-range-selection">
-                        <input type="checkbox" id="full-video-checkbox" checked>
-                        <label for="full-video-checkbox" data-i18n="full_video">Usar video completo</label>
-                    </div>
-                    <div id="time-range-inputs" class="hidden">
-                         <div class="time-input-group">
-                            <label for="start-time">Inicio</label>
+                    <div id="manual-time-inputs" class="hidden time-range-grid">
+                        <div class="time-input-group">
+                            <label for="start-time">Inicio (s)</label>
                             <input type="number" id="start-time" step="0.1" value="0">
                         </div>
                         <div class="time-input-group">
-                            <label for="end-time">Fin</label>
+                            <label for="end-time">Fin (s)</label>
                             <input type="number" id="end-time" step="0.1">
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="frames" data-i18n="step2_frames">2. Elige el número de fotogramas:</label>
+                        <input type="number" id="frames" name="frames" min="1" max="100" value="12" required>
                     </div>
                 </div>
 
                 <button type="button" id="extract-frames-btn" class="action-btn" data-i18n="extract_btn">Extraer Fotogramas 📸</button>
-            </form>
+            </div>
         </section>
 
+        <!-- Step 3: Process (Frame Preview) -->
         <section id="frame-preview-container" class="hidden">
-            <h2 data-i18n="preview_anim">Vista Previa</h2>
+            <h2 data-i18n="step_process">Quitar Fondo</h2>
             <div id="frames-output"></div>
             <button type="button" id="generate-sprite-btn" class="action-btn" data-i18n="process_btn">Quitar Fondo y Generar Sprite ✨</button>
         </section>
@@ -143,11 +178,12 @@
     <footer>
         <div class="footer-links">
             <a href="https://www.facebook.com/profile.php?id=61575555791348" target="_blank" data-i18n="community">Comunidad</a>
-            <a href="https://www.paypal.com/donate/?hosted_button_id=SF9TB2TJLYL96" target="_blank" data-i18n="support">Apoyar</a>
+            <a href="https://carleystudio.com/vid-spri.html#donations" target="_blank" data-i18n="support">Apoyar</a>
             <a href="creditos.html" data-i18n="credits">Créditos</a>
+            <a href="privacidad.html" data-i18n="privacy">Privacidad</a>
         </div>
         <div class="copyright">
-            © 2025 VidSpri.
+            © 2026 Carley Interactive Studio.
         </div>
     </footer>
 </body>

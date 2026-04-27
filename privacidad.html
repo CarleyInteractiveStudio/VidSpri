@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacidad - VidSpri</title>
+    <script src="config.js"></script>
+    <script src="translations.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="logo.png" type="image/png">
+</head>
+<body>
+    <div class="header-actions">
+        <button type="button" onclick="window.location.href='index.html'" class="pill-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span data-i18n="back">Volver</span>
+        </button>
+    </div>
+
+    <div class="container">
+        <h1 data-i18n="privacy_policy">Política de Privacidad</h1>
+
+        <div class="modern-card" style="text-align: left;">
+            <p data-i18n="privacy_text">No usamos ninguno de tus datos ni almacenamos nada en servidores. Solo usamos datos de tu inicio de sesión y código prioritario otorgado.</p>
+            <p><strong>VidSpri</strong> se compromete a proteger la privacidad de sus usuarios. Nuestra herramienta procesa imágenes de forma volátil y los resultados son entregados directamente al usuario sin ser almacenados permanentemente en nuestros servidores.</p>
+            <p>Los únicos datos que manejamos son:</p>
+            <ul>
+                <li>Identificador de usuario (SSO) para gestionar tu sesión.</li>
+                <li>Uso de códigos prioritarios para gestionar la fila de procesamiento.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentLang = localStorage.getItem('vidspri_lang') || 'es';
+            applyTranslations(currentLang);
+        });
+
+        function applyTranslations(lang) {
+            const dict = window.translations[lang] || window.translations['es'];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) el.textContent = dict[key];
+            });
+        }
+    </script>
+</body>
+</html>
