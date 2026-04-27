@@ -62,6 +62,13 @@
                 <canvas id="anim-canvas"></canvas>
             </div>
 
+            <div style="text-align: center; margin-bottom: 20px;">
+                <a id="download-sprite-link" href="#" download="sprite.png" class="pill-btn highlight-btn" style="display: inline-flex; text-decoration: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    Descargar Sprite
+                </a>
+            </div>
+
             <div class="modern-card">
                 <h3 data-i18n="manual_adjust">Ajuste Manual</h3>
                 <div class="controls-grid">
@@ -90,6 +97,27 @@
         document.addEventListener('DOMContentLoaded', () => {
             const currentLang = localStorage.getItem('vidspri_lang') || 'es';
             applyTranslations(currentLang);
+
+            // Check for automatically passed sprite
+            const savedSprite = localStorage.getItem('vidspri_last_sprite');
+            if (savedSprite) {
+                cols = parseInt(localStorage.getItem('vidspri_last_cols')) || 1;
+                rows = parseInt(localStorage.getItem('vidspri_last_rows')) || 1;
+
+                spriteImg.onload = () => {
+                    document.getElementById('upload-stage').classList.add('hidden');
+                    document.getElementById('preview-stage').classList.remove('hidden');
+                    document.getElementById('cols-input').value = cols;
+                    document.getElementById('rows-input').value = rows;
+                    document.getElementById('download-sprite-link').href = savedSprite;
+                    startAnimation();
+                };
+                spriteImg.src = savedSprite;
+
+                // Clear after loading to avoid reusing it if user manually uploads something else later
+                // or refreshes to start over. Actually, maybe keep it until they leave?
+                // localStorage.removeItem('vidspri_last_sprite');
+            }
         });
 
         spriteInput.onchange = (e) => {
@@ -99,6 +127,7 @@
                 spriteImg.onload = () => {
                     document.getElementById('upload-stage').classList.add('hidden');
                     document.getElementById('preview-stage').classList.remove('hidden');
+                    document.getElementById('download-sprite-link').href = url;
                     autoDetectFrames();
                     startAnimation();
                 };

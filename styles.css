@@ -825,6 +825,21 @@ footer {
     opacity: 0.6;
 }
 
+.result-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-top: 2rem;
+}
+
+.result-actions .action-btn,
+.result-actions .pill-btn {
+    width: auto;
+    margin: 0;
+}
+
 @media (max-width: 480px) {
     .container {
         padding: 10px;

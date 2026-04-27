@@ -414,7 +414,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const remaining = total - processed;
         const percentage = Math.floor((processed / total) * 100);
 
-        progressText.textContent = `${dict['processing'] || 'Procesando'}... ${processed}/${total} (${percentage}%) - Faltan: ${remaining}`;
+        if (currentLang === 'es') {
+            progressText.textContent = `Procesando cuadro ${processed} de ${total}... (${percentage}%)`;
+        } else {
+            progressText.textContent = `${dict['processing'] || 'Processing'} ${processed}/${total} (${percentage}%)`;
+        }
+
         updateProgressBar(percentage);
 
         if (processingStartTime && processed > 0) {
@@ -470,6 +475,9 @@ document.addEventListener('DOMContentLoaded', () => {
         progressText.textContent = (dict['sending_frames'] || 'Enviando fotogramas...') + ' (0%)';
         updateProgressBar(0);
         processingStartTime = null; // Reset for processing phase
+
+        // Wake up the server if it's sleeping (Hugging Face Spaces)
+        fetch(serverUrl).catch(() => {});
 
         const formData = new FormData();
         extractedFrames.forEach(f => formData.append('images', f.blob, `frame_${f.id}.png`));
@@ -637,10 +645,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const ctx = canvas.getContext('2d');
         let x = 0;
         images.forEach(img => { ctx.drawImage(img, x, 0); x += img.width; });
+
+        const cols = images.length;
+        const rows = 1;
+
         canvas.toBlob(blob => {
             const url = URL.createObjectURL(blob);
             spriteImage.src = url;
             downloadLink.href = url;
+
+            // Save to localStorage for automatic loading in previsualizacion.html
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = () => {
+                try {
+                    localStorage.setItem('vidspri_last_sprite', reader.result);
+                    localStorage.setItem('vidspri_last_cols', cols);
+                    localStorage.setItem('vidspri_last_rows', rows);
+                } catch (e) {
+                    console.warn("Could not save to localStorage (quota exceeded?):", e);
+                }
+            };
         }, 'image/png');
     }
 
