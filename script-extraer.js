@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Global State ---
     let extractedFrames = [];
     let currentJobId = null;
+    let heartbeatInterval = null;
     let userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
     localStorage.setItem('vidspri_user_id', userId);
     let currentLang = localStorage.getItem('vidspri_lang') || 'es';
@@ -53,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Initialization ---
     applyTranslations(currentLang);
     initSSO();
+    cleanupPreviousJobs();
 
     // --- Translation Logic ---
     function applyTranslations(lang) {
@@ -292,6 +294,40 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Queue and Processing ---
+    async function cleanupPreviousJobs() {
+        try {
+            await supabaseClient
+                .from('processing_queue')
+                .update({ status: 'failed' })
+                .eq('user_id', userId)
+                .in('status', ['waiting', 'authorized', 'processing']);
+        } catch (e) {
+            console.error("Error cleaning up previous jobs:", e);
+        }
+    }
+
+    function startHeartbeat(jobId) {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        heartbeatInterval = setInterval(async () => {
+            const { error } = await supabaseClient
+                .from('processing_queue')
+                .update({ last_heartbeat: new Date().toISOString() })
+                .eq('id', jobId);
+
+            if (error) {
+                console.error("Heartbeat error:", error);
+                stopHeartbeat();
+            }
+        }, 15000);
+    }
+
+    function stopHeartbeat() {
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+        }
+    }
+
     generateBtn.addEventListener('click', async () => {
         if (extractedFrames.length === 0) return;
 
@@ -304,29 +340,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPriority = localStorage.getItem('vidspri_priority_active') === 'true';
 
         try {
+            // First, cancel any previous jobs from this user
+            await cleanupPreviousJobs();
+
             const { data, error } = await supabaseClient
                 .from('processing_queue')
                 .insert([{
                     user_id: userId,
                     is_priority: isPriority,
                     total_frames: extractedFrames.length,
-                    processed_frames: 0
+                    processed_frames: 0,
+                    last_heartbeat: new Date().toISOString()
                 }])
                 .select();
 
             if (error) throw error;
 
             currentJobId = data[0].id;
+            startHeartbeat(currentJobId);
             startQueueTracking(currentJobId);
         } catch (e) {
             showToast(e.message, "error", true);
             progressContainer.classList.add('hidden');
             generateBtn.disabled = false;
+            stopHeartbeat();
         }
     });
 
     function startQueueTracking(jobId) {
-        supabaseClient
+        const channel = supabaseClient
             .channel(`job-${jobId}`)
             .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue', filter: `id=eq.${jobId}` }, payload => {
                 const job = payload.new;
@@ -337,14 +379,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (job.status === 'processing') {
                     updateProcessingProgress(job);
                 } else if (job.status === 'completed') {
-                    // Final frames should be handled by the server response,
-                    // but we ensure the UI reflects completion
                     updateProgressBar(100);
                     etaText.textContent = '';
+                    stopHeartbeat();
+                    supabaseClient.removeChannel(channel);
                 } else if (job.status === 'failed') {
                     showToast('Error en el servidor', 'error', true);
                     progressContainer.classList.add('hidden');
                     generateBtn.disabled = false;
+                    stopHeartbeat();
+                    supabaseClient.removeChannel(channel);
                 }
             })
             .subscribe();
@@ -428,9 +472,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error("El servidor devolvió un error inesperado.");
             }
         } catch (e) {
+            console.error("Error sending to server:", e);
+            // Explicitly mark job as failed in Supabase if fetch fails
+            await supabaseClient
+                .from('processing_queue')
+                .update({ status: 'failed' })
+                .eq('id', jobId);
+
             showToast(e.message, "error", true);
             progressContainer.classList.add('hidden');
             generateBtn.disabled = false;
+            stopHeartbeat();
         }
     }
 

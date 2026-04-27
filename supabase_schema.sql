@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS processing_queue (
     assigned_server_url TEXT,
     processed_frames INTEGER DEFAULT 0,
     total_frames INTEGER DEFAULT 0,
+    last_heartbeat TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS processing_queue (
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS assigned_server_url TEXT;
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS processed_frames INTEGER DEFAULT 0;
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS total_frames INTEGER DEFAULT 0;
+ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_queue_status ON processing_queue(status);
@@ -134,13 +136,21 @@ BEGIN
     WHERE last_heartbeat < NOW() - INTERVAL '60 seconds'
     AND status != 'offline';
 
-    -- 2. Mark 'authorized' jobs as failed if they haven't started processing for 5 minutes (client abandoned)
+    -- 2. Free servers assigned to abandoned jobs (no client heartbeat for 40s)
+    UPDATE server_status s
+    SET status = 'free'
+    FROM processing_queue q
+    WHERE q.assigned_server_url = s.url
+    AND q.status IN ('authorized', 'processing')
+    AND q.last_heartbeat < NOW() - INTERVAL '40 seconds';
+
+    -- 3. Mark jobs as failed if client heartbeat is missing for > 40 seconds
     UPDATE processing_queue
     SET status = 'failed'
-    WHERE status = 'authorized'
-    AND created_at < NOW() - INTERVAL '5 minutes';
+    WHERE status IN ('waiting', 'authorized', 'processing')
+    AND last_heartbeat < NOW() - INTERVAL '40 seconds';
 
-    -- 3. Reset 'processing' jobs to 'waiting' if the assigned server is now offline
+    -- 4. Reset 'processing' jobs to 'waiting' if the assigned server is now offline
     UPDATE processing_queue q
     SET status = 'waiting',
         assigned_server_url = NULL
