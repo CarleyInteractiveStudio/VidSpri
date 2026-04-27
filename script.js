@@ -66,13 +66,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ssoToken) {
             console.log("¡Sesión iniciada con éxito!");
             localStorage.setItem('vidspri_sso_token', ssoToken);
-            window.location.hash = "";
-            showToast("¡Sesión iniciada con éxito!", "success", true);
 
             // Trigger a check via bridge to get user details
             if (bridgeIframe && bridgeIframe.contentWindow) {
                 bridgeIframe.contentWindow.postMessage({ type: 'CHECK_SESSION' }, 'https://carleystudio.com');
             }
+
+            window.location.hash = "";
+            showToast("¡Sesión iniciada con éxito!", "success", true);
         }
 
         window.addEventListener('message', (event) => {
