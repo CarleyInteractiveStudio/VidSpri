@@ -86,19 +86,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (user) {
                     userId = user.id;
                     localStorage.setItem('vidspri_user_id', userId);
+                    const displayName = user.display_name || user.username || user.email;
+                    localStorage.setItem('vidspri_user_name', displayName);
+                    updateWelcomeMessage(displayName);
                 }
             }
         });
 
         if (bridgeIframe) {
-            bridgeIframe.onload = () => {
+            const checkSession = () => {
                 const token = localStorage.getItem('vidspri_sso_token');
-                bridgeIframe.contentWindow.postMessage({
-                    type: 'CHECK_SESSION',
-                    token: token,
-                    requestId: 'initial-check'
-                }, 'https://carleystudio.com');
+                if (token) {
+                    bridgeIframe.contentWindow.postMessage({
+                        type: 'CHECK_SESSION',
+                        token: token,
+                        requestId: 'initial-check'
+                    }, 'https://carleystudio.com');
+                }
             };
+            if (bridgeIframe.contentWindow) checkSession();
+            bridgeIframe.onload = checkSession;
+        }
+
+        const savedName = localStorage.getItem('vidspri_user_name');
+        if (savedName) updateWelcomeMessage(savedName);
+    }
+
+    function updateWelcomeMessage(name) {
+        const welcomeMsg = document.getElementById('welcome-msg');
+        const welcomeName = document.getElementById('welcome-name');
+        if (welcomeMsg && welcomeName) {
+            welcomeName.textContent = name;
+            welcomeMsg.classList.remove('hidden');
         }
     }
 

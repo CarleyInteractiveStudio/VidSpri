@@ -309,10 +309,18 @@ CREATE POLICY "Public can read notifications" ON global_notifications
 -- GRANT PERMISSIONS
 -- ==========================================
 
-GRANT ALL ON TABLE public.priority_codes TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.processing_queue TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.server_status TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.global_notifications TO anon, authenticated, service_role;
+-- Standard table permissions (Read-only for public by default)
+GRANT SELECT ON TABLE public.priority_codes TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.processing_queue TO anon, authenticated;
+GRANT SELECT ON TABLE public.server_status TO anon, authenticated;
+GRANT SELECT ON TABLE public.global_notifications TO anon, authenticated;
+
+-- Service role keeps full access
+GRANT ALL ON TABLE public.priority_codes TO service_role;
+GRANT ALL ON TABLE public.processing_queue TO service_role;
+GRANT ALL ON TABLE public.server_status TO service_role;
+GRANT ALL ON TABLE public.global_notifications TO service_role;
+
 GRANT ALL ON SEQUENCE public.processing_queue_queue_number_seq TO anon, authenticated, service_role;
 GRANT ALL ON SEQUENCE public.global_notifications_id_seq TO anon, authenticated, service_role;
 
@@ -324,6 +332,184 @@ BEGIN
     SET last_heartbeat = NOW()
     WHERE id = job_id_param;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION heartbeat_job(UUID) TO anon, authenticated, service_role;
+-- Update Schema for Advanced Priority System
+
+-- 1. Create user_priorities table
+CREATE TABLE IF NOT EXISTS user_priorities (
+    user_id TEXT PRIMARY KEY,
+    remaining_uses INTEGER DEFAULT 0,
+    priority_until TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 2. Enhance priority_codes table
+-- We check if columns exist before adding them to avoid errors on re-run
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = 'priority_codes' AND column_name = 'code_type') THEN
+        ALTER TABLE priority_codes ADD COLUMN code_type TEXT DEFAULT 'uses'; -- 'uses', 'time'
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = 'priority_codes' AND column_name = 'benefit_value') THEN
+        ALTER TABLE priority_codes ADD COLUMN benefit_value INTEGER DEFAULT 1; -- number of uses or hours
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = 'priority_codes' AND column_name = 'is_multi_user') THEN
+        ALTER TABLE priority_codes ADD COLUMN is_multi_user BOOLEAN DEFAULT FALSE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = 'priority_codes' AND column_name = 'max_redeems') THEN
+        ALTER TABLE priority_codes ADD COLUMN max_redeems INTEGER DEFAULT 1;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = 'priority_codes' AND column_name = 'redeem_count') THEN
+        ALTER TABLE priority_codes ADD COLUMN redeem_count INTEGER DEFAULT 0;
+    END IF;
+END $$;
+
+-- 3. Table to track redemptions
+CREATE TABLE IF NOT EXISTS redeemed_codes (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    code TEXT REFERENCES priority_codes(code),
+    redeemed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, code)
+);
+
+-- 4. Function to redeem a code
+CREATE OR REPLACE FUNCTION redeem_priority_code(user_id_param TEXT, code_param TEXT)
+RETURNS JSON AS $$
+DECLARE
+    target_code RECORD;
+    already_redeemed BOOLEAN;
+BEGIN
+    -- Check if code exists and is valid
+    SELECT * INTO target_code FROM priority_codes WHERE code = code_param;
+
+    IF target_code.code IS NULL THEN
+        RETURN json_build_object('success', false, 'message', 'invalid_code');
+    END IF;
+
+    IF target_code.expires_at < NOW() THEN
+        RETURN json_build_object('success', false, 'message', 'expired_code');
+    END IF;
+
+    -- Check if user already redeemed it
+    SELECT EXISTS(SELECT 1 FROM redeemed_codes WHERE user_id = user_id_param AND code = code_param) INTO already_redeemed;
+    IF already_redeemed THEN
+        RETURN json_build_object('success', false, 'message', 'already_redeemed');
+    END IF;
+
+    -- Check if it reached max redeems
+    IF NOT target_code.is_multi_user AND target_code.is_used THEN
+        RETURN json_build_object('success', false, 'message', 'code_already_used');
+    END IF;
+
+    IF target_code.is_multi_user AND target_code.redeem_count >= target_code.max_redeems THEN
+        RETURN json_build_object('success', false, 'message', 'max_redeems_reached');
+    END IF;
+
+    -- Everything looks good, apply benefit
+    INSERT INTO user_priorities (user_id, remaining_uses, priority_until)
+    VALUES (user_id_param, 0, NULL)
+    ON CONFLICT (user_id) DO NOTHING;
+
+    IF target_code.code_type = 'uses' THEN
+        UPDATE user_priorities
+        SET remaining_uses = remaining_uses + target_code.benefit_value,
+            updated_at = NOW()
+        WHERE user_id = user_id_param;
+    ELSIF target_code.code_type = 'time' THEN
+        UPDATE user_priorities
+        SET priority_until = GREATEST(COALESCE(priority_until, NOW()), NOW()) + (target_code.benefit_value || ' hours')::INTERVAL,
+            updated_at = NOW()
+        WHERE user_id = user_id_param;
+    END IF;
+
+    -- Mark code as used
+    UPDATE priority_codes
+    SET is_used = TRUE,
+        redeem_count = redeem_count + 1
+    WHERE code = code_param;
+
+    -- Record redemption
+    INSERT INTO redeemed_codes (user_id, code) VALUES (user_id_param, code_param);
+
+    RETURN json_build_object('success', true, 'message', 'success');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 5. Function to use a priority credit for a job
+CREATE OR REPLACE FUNCTION use_priority_credit(user_id_param TEXT, job_id_param UUID)
+RETURNS JSON AS $$
+DECLARE
+    user_p RECORD;
+    job_p RECORD;
+    has_time_priority BOOLEAN;
+BEGIN
+    SELECT * INTO user_p FROM user_priorities WHERE user_id = user_id_param;
+    SELECT * INTO job_p FROM processing_queue WHERE id = job_id_param AND user_id = user_id_param;
+
+    IF job_p.id IS NULL THEN
+        RETURN json_build_object('success', false, 'message', 'job_not_found');
+    END IF;
+
+    IF job_p.is_priority THEN
+        RETURN json_build_object('success', false, 'message', 'already_priority');
+    END IF;
+
+    has_time_priority := user_p.priority_until > NOW();
+
+    IF has_time_priority THEN
+        -- Just apply it for free since they have time-based priority
+        UPDATE processing_queue SET is_priority = TRUE WHERE id = job_id_param;
+        RETURN json_build_object('success', true, 'message', 'priority_applied_time');
+    ELSIF user_p.remaining_uses > 0 THEN
+        -- Deduct a credit
+        UPDATE user_priorities SET remaining_uses = remaining_uses - 1 WHERE user_id = user_id_param;
+        UPDATE processing_queue SET is_priority = TRUE WHERE id = job_id_param;
+        RETURN json_build_object('success', true, 'message', 'priority_applied_credit');
+    ELSE
+        RETURN json_build_object('success', false, 'message', 'no_credits');
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 6. Permissions
+-- We already set up table grants above. Here we add the new tables and functions.
+GRANT SELECT ON TABLE public.user_priorities TO anon, authenticated;
+GRANT SELECT ON TABLE public.redeemed_codes TO anon, authenticated;
+GRANT ALL ON TABLE public.user_priorities TO service_role;
+GRANT ALL ON TABLE public.redeemed_codes TO service_role;
+
+GRANT EXECUTE ON FUNCTION redeem_priority_code(TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION use_priority_credit(TEXT, UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION heartbeat_job(UUID) TO anon, authenticated;
+
+-- 7. RLS
+ALTER TABLE user_priorities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE redeemed_codes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own priority" ON user_priorities;
+CREATE POLICY "Users can view their own priority" ON user_priorities
+    FOR SELECT USING (TRUE); -- Simplification: users can see all for now, but usually it would be filtered by user_id
+
+DROP POLICY IF EXISTS "Users can view their own redemptions" ON redeemed_codes;
+CREATE POLICY "Users can view their own redemptions" ON redeemed_codes
+    FOR SELECT USING (TRUE);
+
+-- 8. Add trigger to assign jobs when is_priority changes
+CREATE OR REPLACE FUNCTION trigger_assign_on_priority_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.is_priority = TRUE AND OLD.is_priority = FALSE THEN
+        PERFORM assign_jobs();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_priority_assignment ON processing_queue;
+CREATE TRIGGER trigger_priority_assignment
+AFTER UPDATE OF is_priority ON processing_queue
+FOR EACH ROW
+EXECUTE FUNCTION trigger_assign_on_priority_change();

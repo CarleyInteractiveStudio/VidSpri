@@ -45,6 +45,9 @@
     <script>
         const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 
+        let userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
+        localStorage.setItem('vidspri_user_id', userId);
+
         document.addEventListener('DOMContentLoaded', () => {
             const currentLang = localStorage.getItem('vidspri_lang') || 'es';
             applyTranslations(currentLang);
@@ -59,18 +62,16 @@
                 btn.disabled = true;
                 btn.textContent = '...';
 
-                const { data, error } = await supabaseClient
-                    .from('priority_codes')
-                    .select('*')
-                    .eq('code', code)
-                    .eq('is_used', false)
-                    .single();
+                const { data, error } = await supabaseClient.rpc('redeem_priority_code', {
+                    user_id_param: userId,
+                    code_param: code
+                });
 
-                if (error || !data) {
-                    showToast('invalid_code', 'error');
+                if (error) {
+                    showToast(error.message, 'error', true);
+                } else if (!data.success) {
+                    showToast(data.message, 'error');
                 } else {
-                    await supabaseClient.from('priority_codes').update({ is_used: true }).eq('code', code);
-                    localStorage.setItem('vidspri_priority_active', 'true');
                     showToast('priority_active', 'success');
                     checkStatus();
                     loadPriorityCodes();
@@ -110,13 +111,29 @@
             }
         }
 
-        function checkStatus() {
-            const isPriority = localStorage.getItem('vidspri_priority_active') === 'true';
+        async function checkStatus() {
+            const { data, error } = await supabaseClient
+                .from('user_priorities')
+                .select('*')
+                .eq('user_id', userId)
+                .single();
+
             const statusEl = document.getElementById('priority-status');
-            if (isPriority) {
-                const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
-                statusEl.textContent = dict['priority_active'];
-                statusEl.style.color = '#00f2ff';
+            const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
+
+            if (data) {
+                const hasTimePriority = data.priority_until && new Date(data.priority_until) > new Date();
+                if (hasTimePriority) {
+                    statusEl.textContent = dict['priority_active'];
+                    statusEl.style.color = '#00f2ff';
+                } else if (data.remaining_uses > 0) {
+                    statusEl.textContent = (dict['priority_uses'] || 'Uses: ') + data.remaining_uses;
+                    statusEl.style.color = '#00f2ff';
+                } else {
+                    statusEl.textContent = '';
+                }
+            } else {
+                statusEl.textContent = '';
             }
         }
 
@@ -128,9 +145,9 @@
             });
         }
 
-        function showToast(messageKey, type = 'info') {
+        function showToast(messageKey, type = 'info', isLiteral = false) {
             const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
-            const message = dict[messageKey] || messageKey;
+            const message = isLiteral ? messageKey : (dict[messageKey] || messageKey);
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             toast.textContent = message;
