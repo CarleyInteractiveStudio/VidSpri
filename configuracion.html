@@ -101,6 +101,8 @@
         </div>
     </div>
 
+    <div id="toast-container"></div>
+
     <!-- SSO Bridge -->
     <iframe id="sso-bridge" src="https://carleystudio.com/bridge.html" style="display:none;"></iframe>
 
@@ -108,20 +110,49 @@
         // Minimal logic for the config page
         document.addEventListener('DOMContentLoaded', () => {
             const bridgeIframe = document.getElementById('sso-bridge');
+            const toastContainer = document.getElementById('toast-container');
+            let currentLang = localStorage.getItem('vidspri_lang') || 'es';
+            let sessionReceived = false;
 
             function requestSessionCheck() {
                 if (bridgeIframe && bridgeIframe.contentWindow) {
                     bridgeIframe.contentWindow.postMessage({
-                        type: 'CHECK_SESSION'
+                        type: 'CHECK_SESSION',
+                        requestId: 'poll-' + Date.now()
                     }, '*');
                 }
+            }
+
+            // --- Toast Notifications ---
+            function showToast(messageKey, type = 'info', isLiteral = false) {
+                const dict = window.translations[currentLang] || window.translations['es'];
+                const message = isLiteral ? messageKey : (dict[messageKey] || messageKey);
+
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.innerHTML = `<span>${message}</span>`;
+                toastContainer.appendChild(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000);
             }
 
             if (bridgeIframe) {
                 bridgeIframe.onload = requestSessionCheck;
             }
 
-            const currentLang = localStorage.getItem('vidspri_lang') || 'es';
+            // Poll for a short time to ensure we catch the bridge readiness
+            let pollCount = 0;
+            const pollInterval = setInterval(() => {
+                if (sessionReceived || pollCount > 5) {
+                    clearInterval(pollInterval);
+                    return;
+                }
+                requestSessionCheck();
+                pollCount++;
+            }, 1000);
+
             const langNames = {
                 es: "Español", en: "English", fr: "Français", pt: "Português",
                 it: "Italiano", de: "Deutsch", jp: "日本語", zh: "中文",
@@ -147,6 +178,7 @@
                 }
 
                 if (event.data.type === 'SESSION_RESPONSE') {
+                    sessionReceived = true;
                     const session = event.data.payload;
                     if (session && session.user) {
                         const user = session.user;
@@ -186,20 +218,23 @@
             const userIdFromHash = params.get('user_id');
 
             if (token) {
-                console.log("¡Sesión iniciada con éxito!");
                 localStorage.setItem('vidspri_sso_token', token);
                 if (userIdFromHash) {
                     localStorage.setItem('vidspri_user_id', userIdFromHash);
                 }
                 window.location.hash = ""; // Clean URL
 
-                // Show UI immediately if we have a name
+                // Show UI immediately (feedback that something happened)
+                loginBtn.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+
                 const savedName = localStorage.getItem('vidspri_user_name');
                 if (savedName) {
-                    loginBtn.classList.add('hidden');
-                    userInfo.classList.remove('hidden');
+                    userEmailEl.textContent = savedName;
+                    document.getElementById('welcome-name').textContent = savedName;
                 }
 
+                showToast("login_success", "success");
                 requestSessionCheck();
             }
 
@@ -242,6 +277,7 @@
         });
 
         function applyTranslations(lang) {
+            currentLang = lang;
             const dict = window.translations[lang] || window.translations['es'];
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
