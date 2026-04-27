@@ -51,7 +51,7 @@ const translations = {
         claims_title: "Reclamaciones",
         claims_desc: "Si tienes problemas con el procesamiento de tus videos o con un código prioritario, por favor contáctanos a través de nuestras redes sociales o comunidad oficial.",
         tutorial_title: "Tutorial: Extraer Sprites",
-        tutorial_desc: "1. Sube un video corto de tu animación. 2. Selecciona el rango de tiempo (inicio y fin). 3. Elige el número de cuadros que deseas extraer. 4. Haz clic en 'Extraer Fotogramas'. 5. Revisa los cuadros y haz clic en 'Quitar fondo y generar'.",
+        tutorial_desc: "1. Ve a 'Extraer Sprite desde Video' en el menú principal. 2. Sube un video corto de tu animación. 3. Ajusta el rango de tiempo y elige cuántos cuadros quieres. 4. Haz clic en 'Extraer Fotogramas'. 5. Elimina los cuadros que no necesites y pulsa 'Quitar fondo y generar'.",
         about_title: "Acerca de VidSpri",
         about_desc: "VidSpri es una herramienta diseñada para desarrolladores de videojuegos indie, que utiliza IA para automatizar la creación de hojas de sprites a partir de video.",
         help: "Ayuda",

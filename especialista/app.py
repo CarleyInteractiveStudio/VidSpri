@@ -73,17 +73,28 @@ async def remove_background_api(file: UploadFile = File(...)):
 
 @app.post("/process-batch/{job_id}")
 async def process_batch(job_id: str, images: list[UploadFile] = File(...)):
-    # Update status to processing in DB
-    supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
+    total = len(images)
+    # Update status to processing and set total_frames in DB
+    supabase.table("processing_queue").update({
+        "status": "processing",
+        "total_frames": total,
+        "processed_frames": 0
+    }).eq("id", job_id).execute()
+
     await update_status("busy")
 
     processed_frames = []
     try:
-        for image_file in images:
+        for i, image_file in enumerate(images):
             contents = await image_file.read()
             output_bytes = remove(contents, session=session)
             base64_encoded = base64.b64encode(output_bytes).decode('utf-8')
             processed_frames.append(base64_encoded)
+
+            # Update progress one by one
+            supabase.table("processing_queue").update({
+                "processed_frames": i + 1
+            }).eq("id", job_id).execute()
 
         supabase.table("processing_queue").update({"status": "completed"}).eq("id", job_id).execute()
         await update_status("free")

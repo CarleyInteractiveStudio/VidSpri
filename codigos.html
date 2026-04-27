@@ -52,8 +52,12 @@
             checkStatus();
 
             document.getElementById('save-priority-code-btn').onclick = async () => {
+                const btn = document.getElementById('save-priority-code-btn');
                 const code = document.getElementById('priority-code-input').value.trim();
                 if (!code) return;
+
+                btn.disabled = true;
+                btn.textContent = '...';
 
                 const { data, error } = await supabaseClient
                     .from('priority_codes')
@@ -71,6 +75,9 @@
                     checkStatus();
                     loadPriorityCodes();
                 }
+
+                btn.disabled = false;
+                applyTranslations(localStorage.getItem('vidspri_lang') || 'es');
             };
         });
 

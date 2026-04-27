@@ -281,6 +281,16 @@ p {
     box-shadow: 0 0 10px rgba(0, 242, 255, 0.2);
 }
 
+.highlight-btn {
+    background: linear-gradient(135deg, rgba(0, 242, 255, 0.1), rgba(112, 0, 255, 0.1));
+    border-color: rgba(0, 242, 255, 0.3);
+}
+
+.highlight-btn:hover {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, rgba(0, 242, 255, 0.2), rgba(112, 0, 255, 0.2));
+}
+
 .text-button {
     background: none;
     border: 1px solid var(--glass-border);
@@ -445,6 +455,27 @@ p {
     font-size: 1rem;
 }
 
+.coming-soon {
+    opacity: 0.6;
+    cursor: not-allowed !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.coming-soon::after {
+    content: "Coming Soon";
+    position: absolute;
+    top: 10px;
+    right: -25px;
+    background: var(--secondary);
+    color: white;
+    font-size: 0.7rem;
+    padding: 2px 30px;
+    transform: rotate(45deg);
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
 /* Sections */
 .hidden { display: none !important; }
 
@@ -554,10 +585,38 @@ input:focus, textarea:focus {
     overflow-y: auto;
 }
 
+.frame-container {
+    position: relative;
+}
+
 .frame-container img {
     width: 100%;
     border-radius: 8px;
     border: 1px solid var(--glass-border);
+}
+
+.delete-btn {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #ff4b4b;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.small-text {
+    font-size: 0.85rem;
+    color: var(--text-dim);
 }
 
 /* Progress Bar */

@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS processing_queue (
     queue_number SERIAL,
     is_priority BOOLEAN DEFAULT FALSE,
     assigned_server_url TEXT,
+    processed_frames INTEGER DEFAULT 0,
+    total_frames INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
