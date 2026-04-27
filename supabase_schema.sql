@@ -51,38 +51,33 @@ CREATE TABLE IF NOT EXISTS global_notifications (
 );
 
 -- 5. Function to clean up expired codes and ensure 7 codes are available
+-- 5. Function to refresh priority codes every 24 hours
 CREATE OR REPLACE FUNCTION refresh_priority_codes()
 RETURNS void AS $$
 DECLARE
     active_count INTEGER;
     new_code TEXT;
+    last_refresh TIMESTAMP WITH TIME ZONE;
 BEGIN
-    DELETE FROM priority_codes WHERE expires_at < NOW() AND is_auto = TRUE;
-    SELECT COUNT(*) INTO active_count FROM priority_codes WHERE is_used = FALSE AND is_auto = TRUE;
-    WHILE active_count < 7 LOOP
-        new_code := 'VSP-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 8));
-        INSERT INTO priority_codes (code, is_auto) VALUES (new_code, TRUE);
-        active_count := active_count + 1;
-    END LOOP;
+    -- 1. Get the most recent creation time of an auto code
+    SELECT MAX(created_at) INTO last_refresh FROM priority_codes WHERE is_auto = TRUE;
+
+    -- 2. Only proceed if it has been more than 24 hours OR if there are NO auto codes
+    IF last_refresh IS NULL OR last_refresh < NOW() - INTERVAL '24 hours' THEN
+        -- Delete all previous auto-generated codes (used or expired) to start fresh
+        DELETE FROM priority_codes WHERE is_auto = TRUE;
+
+        -- Create exactly 7 new codes
+        FOR i IN 1..7 LOOP
+            new_code := 'VSP-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 8));
+            INSERT INTO priority_codes (code, is_auto) VALUES (new_code, TRUE);
+        END LOOP;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
--- Function wrapper for trigger
-CREATE OR REPLACE FUNCTION trigger_refresh_codes()
-RETURNS TRIGGER AS $$
-BEGIN
-    PERFORM refresh_priority_codes();
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger to refresh codes automatically when one is used
+-- Trigger for immediate refresh is REMOVED as per requirements (must wait 24h)
 DROP TRIGGER IF EXISTS trigger_refresh_codes_on_use ON priority_codes;
-CREATE TRIGGER trigger_refresh_codes_on_use
-AFTER UPDATE OF is_used ON priority_codes
-FOR EACH ROW
-WHEN (NEW.is_used = TRUE)
-EXECUTE FUNCTION trigger_refresh_codes();
 
 -- Run it once at the start
 SELECT refresh_priority_codes();
@@ -134,6 +129,9 @@ END $$;
 CREATE OR REPLACE FUNCTION cleanup_system()
 RETURNS void AS $$
 BEGIN
+    -- 0. Refresh priority codes (if 24h passed)
+    PERFORM refresh_priority_codes();
+
     -- 1. Mark servers as offline if no heartbeat for 60 seconds
     UPDATE server_status
     SET status = 'offline'
