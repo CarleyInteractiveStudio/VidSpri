@@ -161,6 +161,15 @@
                 <div class="progress-bar-container">
                     <div id="audio-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
                 </div>
+                <!-- Priority Actions in Queue -->
+                <div id="queue-priority-actions" class="hidden" style="margin-top: 20px; text-align: center; background: rgba(124, 58, 237, 0.1); padding: 15px; border-radius: 15px; border: 1px dashed #7c3aed;">
+                    <p id="priority-balance-info" style="font-size: 0.9rem; margin-bottom: 10px;"></p>
+                    <button type="button" id="use-priority-btn" class="pill-btn highlight-btn" style="margin: 0 auto; display: none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                        <span data-i18n="use_priority">Usar 1 Acceso Prioritario</span>
+                    </button>
+                    <a href="codigos.html" id="get-priority-link" style="color: #7c3aed; font-size: 0.85rem; text-decoration: none;" data-i18n="get_priority_codes">Conseguir códigos prioritarios</a>
+                </div>
             </div>
 
             <div id="audio-result" class="hidden" style="margin-top: 30px; text-align: center;">
@@ -194,6 +203,9 @@
         let mediaRecorder;
         let audioChunks = [];
         let recordedBlob;
+        let currentJobId = null;
+        let heartbeatInterval = null;
+        let isSending = false;
         const mainAudio = new Audio();
 
         function selectService(service) {
@@ -242,7 +254,6 @@
         document.getElementById('generate-audio-btn').onclick = async () => {
             const userId = localStorage.getItem('vidspri_user_id');
             const prompt = document.getElementById('audio-prompt').value;
-            const text = document.getElementById('voice-text').value;
 
             if (selectedService !== 'voice' && !prompt) {
                 showToast("empty_prompt", "error");
@@ -254,21 +265,26 @@
             updateStatusText("joining");
 
             try {
-                // 1. Create Job in Supabase
+                // Cancel previous
+                await supabaseClient.from('processing_queue').update({ status: 'failed' }).eq('user_id', userId).in('status', ['waiting', 'authorized', 'processing']);
+
                 const { data: job, error } = await supabaseClient
                     .from('processing_queue')
                     .insert({
                         user_id: userId,
                         job_type: selectedService,
-                        status: 'waiting'
+                        status: 'waiting',
+                        last_heartbeat: new Date().toISOString()
                     })
                     .select()
                     .single();
 
                 if (error) throw error;
 
-                // 2. Wait for Server Authorization
-                pollJobStatus(job.id);
+                currentJobId = job.id;
+                isSending = false;
+                startHeartbeat(currentJobId);
+                pollJobStatus(currentJobId, job);
 
             } catch (e) {
                 console.error(e);
@@ -277,25 +293,117 @@
             }
         };
 
-        async function pollJobStatus(jobId) {
+        function startHeartbeat(jobId) {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            heartbeatInterval = setInterval(async () => {
+                await supabaseClient.rpc('heartbeat_job', { job_id_param: jobId });
+            }, 15000);
+        }
+
+        function stopHeartbeat() {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+        }
+
+        async function pollJobStatus(jobId, initialJob) {
+            let jobState = initialJob;
+
             const subscription = supabaseClient
                 .channel(`audio_job_${jobId}`)
                 .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue', filter: `id=eq.${jobId}` }, payload => {
-                    const status = payload.new.status;
+                    jobState = { ...jobState, ...payload.new };
+                    const status = jobState.status;
                     updateStatusText(status);
 
-                    if (status === 'authorized') {
-                        uploadData(payload.new);
+                    if (status === 'authorized' && !isSending) {
+                        isSending = true;
+                        uploadData(jobState);
                     } else if (status === 'completed') {
+                        stopHeartbeat();
                         subscription.unsubscribe();
                     } else if (status === 'failed') {
                         showToast("process_failed", "error");
                         document.getElementById('generate-audio-btn').disabled = false;
+                        stopHeartbeat();
                         subscription.unsubscribe();
                     }
                 })
                 .subscribe();
+
+            checkPosition(jobId);
         }
+
+        async function checkPosition(jobId) {
+            const { data: job } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
+            if (!job || job.status !== 'waiting') {
+                document.getElementById('queue-priority-actions').classList.add('hidden');
+                return;
+            }
+
+            updatePriorityUI();
+
+            const { count } = await supabaseClient
+                .from('processing_queue')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'waiting')
+                .eq('job_type', selectedService)
+                .or(`is_priority.gt.${job.is_priority},and(is_priority.eq.${job.is_priority},queue_number.lt.${job.queue_number})`);
+
+            const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
+            const position = (count || 0) + 1;
+
+            if (position === 1) {
+                document.getElementById('status-text').textContent = dict['your_turn'] || '¡Es tu turno!';
+            } else {
+                document.getElementById('status-text').textContent = (dict['position'] || 'Posición en cola: ') + position;
+            }
+
+            document.getElementById('audio-progress-bar').style.width = '10%';
+            setTimeout(() => checkPosition(jobId), 3000);
+        }
+
+        async function updatePriorityUI() {
+            const userId = localStorage.getItem('vidspri_user_id');
+            const { data: userP } = await supabaseClient.from('user_priorities').select('*').eq('user_id', userId).single();
+            const { data: jobP } = await supabaseClient.from('processing_queue').select('is_priority').eq('id', currentJobId).single();
+
+            if (jobP && jobP.is_priority) {
+                document.getElementById('queue-priority-actions').classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('queue-priority-actions').classList.remove('hidden');
+            const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
+            const uses = (userP && userP.remaining_uses) || 0;
+            const hasTimePriority = userP && userP.priority_until && new Date(userP.priority_until) > new Date();
+
+            const info = document.getElementById('priority-balance-info');
+            const btn = document.getElementById('use-priority-btn');
+            const link = document.getElementById('get-priority-link');
+
+            if (hasTimePriority || uses > 0) {
+                info.textContent = hasTimePriority ? dict['priority_active'] : (dict['priority_uses'] || 'Uses: ') + uses;
+                btn.style.display = 'inline-flex';
+                link.classList.add('hidden');
+            } else {
+                info.textContent = (dict['priority_uses'] || 'Uses: ') + 0;
+                btn.style.display = 'none';
+                link.classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('use-priority-btn').onclick = async () => {
+            const userId = localStorage.getItem('vidspri_user_id');
+            const { data } = await supabaseClient.rpc('use_priority_credit', { user_id_param: userId, job_id_param: currentJobId });
+            if (data && data.success) {
+                showToast("priority_active", "success");
+                updatePriorityUI();
+            } else {
+                showToast(data ? data.message : "Error", "error");
+            }
+        };
 
         async function uploadData(job) {
             updateStatusText("sending_frames"); // Re-using translation key for "sending data"
@@ -310,10 +418,17 @@
             }
 
             try {
+                // Once upload starts, we can't easily track progress with fetch(),
+                // but since these are small requests (text or small wav), it's fast.
                 const response = await fetch(url, {
                     method: 'POST',
                     body: formData
                 });
+
+                // After upload, while waiting for the model to infer:
+                updateStatusText("processing");
+                document.getElementById('audio-progress-bar').style.width = '50%';
+
                 const result = await response.json();
                 if (result.audio) {
                     displayAudioResult(result.audio);

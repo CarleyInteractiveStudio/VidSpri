@@ -25,7 +25,7 @@ app.add_middleware(
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://tladrluezsmmhjbhupgb.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_zb8TGeURLnafHWDffG9DMg_PtFO_kmv")
 SERVER_ID = os.environ.get("SERVER_ID", "efectos-worker")
-SERVER_URL = os.environ.get("SERVER_URL", "https://carley1234-vidspri-efectos.hf.space")
+SERVER_URL = os.environ.get("SERVER_URL", "https://carley1234-efectos.hf.space")
 SERVICE_TYPE = "effect"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)

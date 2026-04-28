@@ -555,6 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .from('processing_queue')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'waiting')
+            .eq('job_type', 'video')
             .or(`is_priority.gt.${jobData.is_priority},and(is_priority.eq.${jobData.is_priority},queue_number.lt.${jobData.queue_number})`);
 
         const dict = window.translations[currentLang] || window.translations['es'];
