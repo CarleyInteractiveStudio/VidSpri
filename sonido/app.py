@@ -7,7 +7,7 @@ import torch
 import scipy.io.wavfile
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import AutoProcessor, MusicgenForConditionalGeneration
+from transformers import pipeline
 from supabase import create_client, Client
 
 app = FastAPI()
@@ -34,14 +34,12 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 device = "cpu"
 model_id = "facebook/musicgen-small"
 try:
-    print(f"Loading model {model_id}...")
-    processor = AutoProcessor.from_pretrained(model_id)
-    model = MusicgenForConditionalGeneration.from_pretrained(model_id).to(device)
+    print(f"Loading model {model_id} via pipeline...")
+    audio_pipe = pipeline("text-to-audio", model=model_id, device=device)
     print("Model loaded successfully.")
 except Exception as e:
     print(f"Error loading model: {e}")
-    model = None
-    processor = None
+    audio_pipe = None
 
 is_processing = False
 
@@ -82,18 +80,17 @@ async def generate_sound(job_id: str, prompt: str = Form(...)):
     supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
 
     try:
-        inputs = processor(
-            text=[prompt],
-            padding=True,
-            return_tensors="pt",
-        ).to(device)
+        if not audio_pipe:
+            raise Exception("Model pipeline not loaded")
 
-        audio_values = model.generate(**inputs, max_new_tokens=256) # Approx 5-6 seconds
+        result = audio_pipe(prompt, forward_params={"max_new_tokens": 256})
 
         # Convert to WAV in memory
-        sampling_rate = model.config.audio_encoder.sampling_rate
+        sampling_rate = result["sampling_rate"]
+        audio_data = result["audio"]
+
         wav_buf = io.BytesIO()
-        scipy.io.wavfile.write(wav_buf, rate=sampling_rate, data=audio_values[0, 0].cpu().numpy())
+        scipy.io.wavfile.write(wav_buf, rate=sampling_rate, data=audio_data[0])
         wav_buf.seek(0)
 
         audio_base64 = base64.b64encode(wav_buf.read()).decode('utf-8')

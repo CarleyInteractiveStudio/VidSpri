@@ -98,8 +98,8 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_ov
         # 2. Extract Text (STT) if no override provided
         if not text_override:
             import librosa
-            audio, sr = librosa.load(temp_input, sr=16000)
-            input_features = stt_processor(audio, sampling_rate=16000, return_tensors="pt").input_features
+            audio_stt, sr = librosa.load(temp_input, sr=16000)
+            input_features = stt_processor(audio_stt, sampling_rate=16000, return_tensors="pt").input_features
             predicted_ids = stt_model.generate(input_features)
             text_to_speak = stt_processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
         else:
