@@ -156,6 +156,13 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_ov
         combined_audio = np.concatenate(all_audio)
         sample_rate = tts_model.config.mimi.sample_rate
 
+        # Normalize audio
+        max_val = np.abs(combined_audio).max()
+        if max_val > 0:
+            combined_audio = combined_audio / max_val
+
+        combined_audio = (combined_audio * 32767).astype(np.int16)
+
         # Write to buffer
         out_buf = io.BytesIO()
         scipy.io.wavfile.write(out_buf, sample_rate, combined_audio)

@@ -105,6 +105,14 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Squeeze if necessary
         audio_data = np.squeeze(audio_data)
 
+        # Normalize audio to -1.0 to 1.0 range if it isn't already
+        max_val = np.abs(audio_data).max()
+        if max_val > 0:
+            audio_data = audio_data / max_val
+
+        # Convert to 16-bit PCM (standard WAV format) for better quality/compatibility
+        audio_data = (audio_data * 32767).astype(np.int16)
+
         wav_buf = io.BytesIO()
         scipy.io.wavfile.write(wav_buf, rate=sampling_rate, data=audio_data)
         wav_buf.seek(0)
