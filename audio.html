@@ -211,7 +211,7 @@
     <div id="toast-container"></div>
     <script src="script.js"></script>
     <script>
-        let selectedService = '';
+        let selectedService = 'voice';
         let mediaRecorder;
         let audioChunks = [];
         let recordedBlob;
@@ -348,12 +348,16 @@
         async function pollJobStatus(jobId, initialJob) {
             let jobState = initialJob;
 
-            const subscription = supabaseClient
+            const channel = supabaseClient
                 .channel(`audio_job_${jobId}`)
-                .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue', filter: `id=eq.${jobId}` }, payload => {
+                .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue' }, payload => {
+                    if (payload.new.id !== jobId) return;
+
                     // Update internal state
                     jobState = { ...jobState, ...payload.new };
                     const status = jobState.status;
+
+                    console.log("Audio Job Update:", status);
 
                     // Only update status text if it's NOT waiting (because checkPosition handles waiting)
                     if (status !== 'waiting') {
@@ -365,46 +369,96 @@
                         uploadData(jobState);
                     } else if (status === 'completed') {
                         stopHeartbeat();
-                        subscription.unsubscribe();
+                        channel.unsubscribe();
                     } else if (status === 'failed') {
                         showToast("process_failed", "error");
                         document.getElementById('generate-audio-btn').disabled = false;
                         stopHeartbeat();
-                        subscription.unsubscribe();
+                        channel.unsubscribe();
                     }
                 })
                 .subscribe();
 
-            checkPosition(jobId);
+            // Handle immediate authorization or start tracking position
+            if (jobState.status === 'authorized' && !isSending) {
+                isSending = true;
+                uploadData(jobState);
+            } else {
+                checkPosition(jobId, jobState);
+            }
         }
 
-        async function checkPosition(jobId) {
-            const { data: job } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
-            if (!job || job.status !== 'waiting') {
-                document.getElementById('queue-priority-actions').classList.add('hidden');
-                return;
+        async function checkPosition(jobId, jobData = null) {
+            try {
+                let job = jobData;
+                // If we don't have queue_number, we must fetch the full job record
+                if (!job || job.queue_number === undefined) {
+                    const { data, error } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
+                    if (error || !data) {
+                        console.warn("Could not fetch job for position check", error);
+                        return;
+                    }
+                    job = data;
+                }
+
+                console.log("Checking position for job:", job.id, "Status:", job.status, "Queue No:", job.queue_number);
+
+                if (job.status !== 'waiting') {
+                    document.getElementById('queue-priority-actions').classList.add('hidden');
+                    if (job.status === 'authorized' && !isSending) {
+                        isSending = true;
+                        uploadData(job);
+                    }
+                    return;
+                }
+
+                updatePriorityUI();
+
+                let query = supabaseClient
+                    .from('processing_queue')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('status', 'waiting')
+                    .eq('job_type', selectedService);
+
+                if (job.is_priority) {
+                    // Only count priority jobs with smaller queue number
+                    query = query.eq('is_priority', true).lt('queue_number', job.queue_number);
+                } else {
+                    // Count ALL priority jobs + non-priority jobs with smaller queue number
+                    query = query.or(`is_priority.eq.true,and(is_priority.eq.false,queue_number.lt.${job.queue_number})`);
+                }
+
+                const { count, error: countError } = await query;
+
+                const lang = localStorage.getItem('vidspri_lang') || 'es';
+                const dict = window.translations[lang] || window.translations['es'] || {};
+
+                if (countError) {
+                    console.error("Queue position query error:", countError);
+                    updateStatusText("waiting");
+                } else {
+                    const position = (count || 0) + 1;
+                    console.log("Position in queue:", position);
+                    const statusEl = document.getElementById('status-text');
+                    if (position === 1) {
+                        statusEl.textContent = dict['your_turn'] || '¡Es tu turno!';
+                    } else {
+                        statusEl.textContent = (dict['position'] || 'Posición en cola: ') + position;
+                    }
+                }
+
+                // Small initial progress to show something is happening
+                if (document.getElementById('audio-progress-bar').style.width === '0%' || document.getElementById('audio-progress-bar').style.width === '0px') {
+                    document.getElementById('audio-progress-bar').style.width = '5%';
+                }
+            } catch (e) {
+                console.error("checkPosition exception:", e);
+            } finally {
+                // Only reschedule if we're still in this job and still waiting
+                if (currentJobId === jobId) {
+                    setTimeout(() => checkPosition(jobId), 3000);
+                }
             }
-
-            updatePriorityUI();
-
-            const { count } = await supabaseClient
-                .from('processing_queue')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'waiting')
-                .eq('job_type', selectedService)
-                .or(`is_priority.gt.${job.is_priority},and(is_priority.eq.${job.is_priority},queue_number.lt.${job.queue_number})`);
-
-            const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
-            const position = (count || 0) + 1;
-
-            if (position === 1) {
-                document.getElementById('status-text').textContent = dict['your_turn'] || '¡Es tu turno!';
-            } else {
-                document.getElementById('status-text').textContent = (dict['position'] || 'Posición en cola: ') + position;
-            }
-
-            document.getElementById('audio-progress-bar').style.width = '10%';
-            setTimeout(() => checkPosition(jobId), 3000);
         }
 
         async function updatePriorityUI() {
@@ -449,7 +503,7 @@
         };
 
         async function uploadData(job) {
-            updateStatusText("sending_frames"); // Re-using translation key for "sending data"
+            updateStatusText("sending_data");
             const url = `${job.assigned_server_url}/${selectedService === 'voice' ? 'process-voice' : 'generate'}/${job.id}`;
 
             const formData = new FormData();
@@ -461,18 +515,19 @@
             }
 
             try {
-                // Once upload starts, we can't easily track progress with fetch(),
-                // but since these are small requests (text or small wav), it's fast.
                 const duration = document.getElementById('audio-duration').value || 10;
                 formData.append('duration', duration);
 
                 // Start progress before the fetch as it's a blocking call for generation
                 startProcessingProgress(duration);
 
+                console.log("Uploading to:", url);
                 const response = await fetch(url, {
                     method: 'POST',
                     body: formData
                 });
+
+                if (!response.ok) throw new Error("Server error: " + response.status);
 
                 const result = await response.json();
                 if (result.audio) {
@@ -537,7 +592,8 @@
         }
 
         function updateStatusText(key) {
-            const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
+            const lang = localStorage.getItem('vidspri_lang') || 'es';
+            const dict = window.translations[lang] || window.translations['es'] || {};
             const statusEl = document.getElementById('status-text');
 
             if (key === 'waiting') {
@@ -584,6 +640,9 @@
             const pos = (e.clientX - rect.left) / rect.width;
             mainAudio.currentTime = pos * mainAudio.duration;
         }
+
+        // Initialize default view
+        selectService('voice');
     </script>
 </body>
 </html>
