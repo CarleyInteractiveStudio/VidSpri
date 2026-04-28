@@ -1,6 +1,7 @@
 
 // --- Supabase Configuration ---
 const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+window.supabaseClient = supabaseClient;
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- Global State ---
