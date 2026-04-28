@@ -79,7 +79,7 @@ BEGIN
         END LOOP;
     END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger for immediate refresh is REMOVED as per requirements (must wait 24h)
 DROP TRIGGER IF EXISTS trigger_refresh_codes_on_use ON priority_codes;
@@ -168,7 +168,7 @@ BEGIN
     AND q.assigned_server_url = s.url
     AND s.status = 'offline';
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to assign the next job to a free server
 CREATE OR REPLACE FUNCTION assign_jobs()
@@ -216,7 +216,7 @@ BEGIN
 
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to free server when job ends
 CREATE OR REPLACE FUNCTION free_server_on_job_end()
