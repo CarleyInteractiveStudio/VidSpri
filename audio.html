@@ -527,7 +527,14 @@
                     body: formData
                 });
 
-                if (!response.ok) throw new Error("Server error: " + response.status);
+                if (!response.ok) {
+                    let detail = response.status;
+                    try {
+                        const errBody = await response.json();
+                        detail = errBody.detail || JSON.stringify(errBody);
+                    } catch(e) {}
+                    throw new Error("Server error: " + detail);
+                }
 
                 const result = await response.json();
                 if (result.audio) {

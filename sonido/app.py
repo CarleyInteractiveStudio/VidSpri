@@ -4,6 +4,7 @@ import asyncio
 import base64
 import datetime
 import torch
+import numpy as np
 import scipy.io.wavfile
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -97,8 +98,15 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         sampling_rate = result["sampling_rate"]
         audio_data = result["audio"]
 
+        # Ensure audio_data is a numpy array and has correct type for scipy
+        if isinstance(audio_data, torch.Tensor):
+            audio_data = audio_data.cpu().numpy()
+
+        # Squeeze if necessary
+        audio_data = np.squeeze(audio_data)
+
         wav_buf = io.BytesIO()
-        scipy.io.wavfile.write(wav_buf, rate=sampling_rate, data=audio_data[0])
+        scipy.io.wavfile.write(wav_buf, rate=sampling_rate, data=audio_data)
         wav_buf.seek(0)
 
         audio_base64 = base64.b64encode(wav_buf.read()).decode('utf-8')
