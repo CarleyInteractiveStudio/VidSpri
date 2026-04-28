@@ -90,14 +90,16 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Run inference in a separate thread to avoid blocking heartbeats
         def run_inference():
             with torch.no_grad():
-                # do_sample=True is crucial for quality and avoiding repetitive noise/artifacts
+                # Adjusted parameters for better stability in longer generations
                 return audio_pipe(
                     prompt,
                     forward_params={
                         "max_new_tokens": max_tokens,
                         "do_sample": True,
-                        "temperature": 1.0,
-                        "top_k": 250
+                        "temperature": 0.9,
+                        "top_k": 250,
+                        "top_p": 0.99,
+                        "guidance_scale": 3.0
                     }
                 )
 
@@ -123,7 +125,8 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Normalize audio to -1.0 to 1.0 range
         max_val = np.abs(audio_data).max()
         if max_val > 0:
-            audio_data = audio_data / (max_val + 1e-6) # Avoid clipping
+            # Normalize with a bit of headroom (0.95)
+            audio_data = audio_data / (max_val + 1e-6) * 0.95
 
         # Convert to 16-bit PCM (standard WAV format)
         audio_data = (audio_data * 32767).astype(np.int16)

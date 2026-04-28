@@ -162,7 +162,7 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_ov
         # Normalize audio
         max_val = np.abs(combined_audio).max()
         if max_val > 0:
-            combined_audio = combined_audio / (max_val + 1e-6)
+            combined_audio = combined_audio / (max_val + 1e-6) * 0.95
 
         combined_audio = (combined_audio * 32767).astype(np.int16)
 
