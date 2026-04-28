@@ -93,16 +93,16 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
         def run_inference():
             with torch.no_grad():
-                # Enabling sampling with stable parameters
+                # Enabling sampling with higher fidelity parameters
                 return audio_pipe(
                     prompt,
                     forward_params={
                         "max_new_tokens": max_tokens,
                         "do_sample": True,
-                        "temperature": 0.9,
-                        "top_k": 250,
-                        "top_p": 0.99,
-                        "guidance_scale": 3.0
+                        "temperature": 0.8,
+                        "top_k": 100,
+                        "top_p": 0.95,
+                        "guidance_scale": 4.5
                     }
                 )
 
@@ -115,20 +115,26 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
         if isinstance(audio_data, torch.Tensor):
             audio_data = audio_data.cpu().numpy()
 
-        # Clean data and handle dimensions
+        # Clean data and ensure CPU numpy array
         audio_data = np.nan_to_num(audio_data)
 
-        if audio_data.ndim > 1:
+        # Standardize shape
+        if audio_data.ndim == 3:
             audio_data = audio_data[0]
-        if audio_data.ndim > 1:
+
+        if audio_data.ndim == 2:
             audio_data = np.mean(audio_data, axis=0)
 
-        # Normalize audio to -1.0 to 1.0 range
+        audio_data = audio_data.flatten()
+
+        # Normalize audio with safe headroom
         max_val = np.abs(audio_data).max()
         if max_val > 0:
-            audio_data = audio_data / (max_val + 1e-6) * 0.95
+            audio_data = audio_data / (max_val + 1e-6)
 
-        # Convert to 16-bit PCM (standard WAV format)
+        audio_data = np.clip(audio_data, -0.99, 0.99)
+
+        # Convert to 16-bit PCM
         audio_data = (audio_data * 32767).astype(np.int16)
 
         wav_buf = io.BytesIO()

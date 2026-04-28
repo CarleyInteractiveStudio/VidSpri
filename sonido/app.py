@@ -94,16 +94,16 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Run inference in a separate thread to avoid blocking heartbeats
         def run_inference():
             with torch.no_grad():
-                # Adjusted parameters for better stability in longer generations
+                # Higher guidance and lower temp to reduce background "sizzle"
                 return audio_pipe(
                     prompt,
                     forward_params={
                         "max_new_tokens": max_tokens,
                         "do_sample": True,
-                        "temperature": 0.9,
-                        "top_k": 250,
-                        "top_p": 0.99,
-                        "guidance_scale": 3.0
+                        "temperature": 0.8,
+                        "top_k": 100,
+                        "top_p": 0.95,
+                        "guidance_scale": 4.5
                     }
                 )
 
@@ -117,22 +117,30 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         if isinstance(audio_data, torch.Tensor):
             audio_data = audio_data.cpu().numpy()
 
-        # Handle potential multi-channel output and clean data
-        audio_data = np.nan_to_num(audio_data) # Remove NaNs/Infs
+        # Clean data and ensure CPU numpy array
+        audio_data = np.nan_to_num(audio_data)
 
-        # MusicGen output is often [batch, channels, samples] or [channels, samples]
-        if audio_data.ndim > 1:
-            audio_data = audio_data[0] # Take first item in batch
-        if audio_data.ndim > 1:
-            audio_data = np.mean(audio_data, axis=0) # Mix to mono if multi-channel
+        # Standardize shape to (samples,) or (channels, samples)
+        # MusicGen usually returns [1, channels, samples]
+        if audio_data.ndim == 3:
+            audio_data = audio_data[0]
 
-        # Normalize audio to -1.0 to 1.0 range
+        # Mix down to mono if it's stereo/multi-channel to save bandwidth and ensure compatibility
+        if audio_data.ndim == 2:
+            audio_data = np.mean(audio_data, axis=0)
+
+        # Final safety squeeze
+        audio_data = audio_data.flatten()
+
+        # Normalize audio to -1.0 to 1.0 range with safe headroom
         max_val = np.abs(audio_data).max()
         if max_val > 0:
-            # Normalize with a bit of headroom (0.95)
-            audio_data = audio_data / (max_val + 1e-6) * 0.95
+            audio_data = audio_data / (max_val + 1e-6)
 
-        # Convert to 16-bit PCM (standard WAV format)
+        # Apply soft clipping to avoid harsh digital distortion if any values still exceed range
+        audio_data = np.clip(audio_data, -0.99, 0.99)
+
+        # Convert to 16-bit PCM
         audio_data = (audio_data * 32767).astype(np.int16)
 
         wav_buf = io.BytesIO()
