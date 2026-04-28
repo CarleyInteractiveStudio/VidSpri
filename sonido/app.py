@@ -94,16 +94,16 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Run inference in a separate thread to avoid blocking heartbeats
         def run_inference():
             with torch.no_grad():
-                # Stable parameters for long generations: lower temp and top_k, higher guidance
+                # Adjusted for less background sizzle while keeping musicality
                 return audio_pipe(
                     prompt,
                     forward_params={
                         "max_new_tokens": max_tokens,
                         "do_sample": True,
-                        "temperature": 0.7,
-                        "top_k": 50,
-                        "top_p": 0.95,
-                        "guidance_scale": 5.0
+                        "temperature": 0.8,
+                        "top_k": 250,
+                        "top_p": 0.99,
+                        "guidance_scale": 3.5
                     }
                 )
 

@@ -10,9 +10,22 @@ import tempfile
 from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
-from pocket_tts import TTSModel
-from supabase import create_client, Client
+try:
+    from transformers import WhisperProcessor, WhisperForConditionalGeneration
+    from pocket_tts import TTSModel
+    from supabase import create_client, Client
+except ImportError as e:
+    print(f"CRITICAL IMPORT ERROR: {e}")
+    # Try to re-install at runtime as a last resort
+    import subprocess
+    import sys
+    print("Attempting runtime install of pocket-tts...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "pocket-tts"])
+        from pocket_tts import TTSModel
+        from supabase import create_client, Client
+    except Exception as e2:
+        print(f"Runtime install failed: {e2}")
 
 app = FastAPI()
 

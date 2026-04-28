@@ -10,6 +10,8 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# Explicitly install pocket-tts to ensure it's available
+RUN pip install --no-cache-dir pocket-tts
 
 COPY . .
 

@@ -93,16 +93,16 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
         def run_inference():
             with torch.no_grad():
-                # Stable parameters for reliable audio quality
+                # Adjusted for stability and quality
                 return audio_pipe(
                     prompt,
                     forward_params={
                         "max_new_tokens": max_tokens,
                         "do_sample": True,
-                        "temperature": 0.7,
-                        "top_k": 50,
-                        "top_p": 0.95,
-                        "guidance_scale": 5.0
+                        "temperature": 0.8,
+                        "top_k": 250,
+                        "top_p": 0.99,
+                        "guidance_scale": 3.5
                     }
                 )
 
