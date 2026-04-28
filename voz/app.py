@@ -173,6 +173,10 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_ov
         # Clean audio data
         combined_audio = np.nan_to_num(combined_audio)
 
+        # Remove DC offset
+        if combined_audio.size > 0:
+            combined_audio = combined_audio - np.mean(combined_audio)
+
         # Normalize audio
         max_val = np.abs(combined_audio).max()
         if max_val > 0:

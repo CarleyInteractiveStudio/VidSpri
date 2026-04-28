@@ -120,6 +120,10 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Clean data and ensure CPU numpy array
         audio_data = np.nan_to_num(audio_data)
 
+        # Remove DC offset to eliminate "click" and constant hum
+        if audio_data.size > 0:
+            audio_data = audio_data - np.mean(audio_data)
+
         # Standardize shape to (samples,) or (channels, samples)
         # MusicGen usually returns [1, channels, samples]
         if audio_data.ndim == 3:

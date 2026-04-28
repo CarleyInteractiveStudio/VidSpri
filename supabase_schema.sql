@@ -85,8 +85,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_refresh_codes_on_use ON priority_codes;
 
 -- Run it once at the start
-SELECT refresh_priority_codes();
-
 -- Enable Realtime
 -- Enable REPLICA IDENTITY FULL for detailed payloads
 ALTER TABLE processing_queue REPLICA IDENTITY FULL;
@@ -380,18 +378,26 @@ CREATE TABLE IF NOT EXISTS redeemed_codes (
 );
 
 -- Migration: Ensure the foreign key constraint on redeemed_codes uses ON DELETE CASCADE
+-- This version is more robust and will find the constraint even if it has a different name
 DO $$
+DECLARE
+    const_name TEXT;
 BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.table_constraints
-        WHERE constraint_name = 'redeemed_codes_code_fkey' AND table_name = 'redeemed_codes'
-    ) THEN
-        ALTER TABLE redeemed_codes DROP CONSTRAINT redeemed_codes_code_fkey;
-    END IF;
+    FOR const_name IN (
+        SELECT conname
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+        WHERE nsp.nspname = 'public'
+          AND rel.relname = 'redeemed_codes'
+          AND con.contype = 'f'
+    ) LOOP
+        EXECUTE 'ALTER TABLE public.redeemed_codes DROP CONSTRAINT ' || quote_ident(const_name);
+    END LOOP;
 
-    ALTER TABLE redeemed_codes
+    ALTER TABLE public.redeemed_codes
     ADD CONSTRAINT redeemed_codes_code_fkey
-    FOREIGN KEY (code) REFERENCES priority_codes(code) ON DELETE CASCADE;
+    FOREIGN KEY (code) REFERENCES public.priority_codes(code) ON DELETE CASCADE;
 END $$;
 
 -- 4. Function to redeem a code
@@ -532,3 +538,6 @@ CREATE TRIGGER trigger_priority_assignment
 AFTER UPDATE OF is_priority ON processing_queue
 FOR EACH ROW
 EXECUTE FUNCTION trigger_assign_on_priority_change();
+
+-- Run it once at the start, only after all tables and constraints are ready
+SELECT refresh_priority_codes();
