@@ -229,7 +229,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_free_server_on_job_end ON processing_queue;
 CREATE TRIGGER trigger_free_server_on_job_end
@@ -379,6 +379,21 @@ CREATE TABLE IF NOT EXISTS redeemed_codes (
     UNIQUE(user_id, code)
 );
 
+-- Migration: Ensure the foreign key constraint on redeemed_codes uses ON DELETE CASCADE
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'redeemed_codes_code_fkey' AND table_name = 'redeemed_codes'
+    ) THEN
+        ALTER TABLE redeemed_codes DROP CONSTRAINT redeemed_codes_code_fkey;
+    END IF;
+
+    ALTER TABLE redeemed_codes
+    ADD CONSTRAINT redeemed_codes_code_fkey
+    FOREIGN KEY (code) REFERENCES priority_codes(code) ON DELETE CASCADE;
+END $$;
+
 -- 4. Function to redeem a code
 CREATE OR REPLACE FUNCTION redeem_priority_code(user_id_param TEXT, code_param TEXT)
 RETURNS JSON AS $$
@@ -510,7 +525,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_priority_assignment ON processing_queue;
 CREATE TRIGGER trigger_priority_assignment
