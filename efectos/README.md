@@ -2,7 +2,7 @@
 title: VidSpri-Efectos
 emoji: 💥
 colorFrom: red
-colorTo: orange
+colorTo: yellow
 sdk: docker
 pinned: false
 ---
