@@ -374,7 +374,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS redeemed_codes (
     id SERIAL PRIMARY KEY,
     user_id TEXT NOT NULL,
-    code TEXT REFERENCES priority_codes(code),
+    code TEXT REFERENCES priority_codes(code) ON DELETE CASCADE,
     redeemed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(user_id, code)
 );
