@@ -5,7 +5,7 @@ import base64
 import datetime
 import torch
 import scipy.io.wavfile
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from transformers import AutoProcessor, MusicgenForConditionalGeneration
 from supabase import create_client, Client
@@ -33,8 +33,15 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- Model Loading ---
 device = "cpu"
 model_id = "facebook/musicgen-small"
-processor = AutoProcessor.from_pretrained(model_id)
-model = MusicgenForConditionalGeneration.from_pretrained(model_id).to(device)
+try:
+    print(f"Loading model {model_id}...")
+    processor = AutoProcessor.from_pretrained(model_id)
+    model = MusicgenForConditionalGeneration.from_pretrained(model_id).to(device)
+    print("Model loaded successfully.")
+except Exception as e:
+    print(f"Error loading model: {e}")
+    model = None
+    processor = None
 
 is_processing = False
 
@@ -70,7 +77,7 @@ async def root():
     return {"message": "VidSpri Sound Worker is running", "status": "ok"}
 
 @app.post("/generate/{job_id}")
-async def generate_sound(job_id: str, prompt: str):
+async def generate_sound(job_id: str, prompt: str = Form(...)):
     await update_status("busy")
     supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
 

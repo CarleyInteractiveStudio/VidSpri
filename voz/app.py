@@ -35,8 +35,15 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- Models Loading ---
 # STT (Speech to Text)
 stt_model_id = "openai/whisper-tiny"
-stt_processor = WhisperProcessor.from_pretrained(stt_model_id)
-stt_model = WhisperForConditionalGeneration.from_pretrained(stt_model_id).to("cpu")
+try:
+    print(f"Loading STT model {stt_model_id}...")
+    stt_processor = WhisperProcessor.from_pretrained(stt_model_id)
+    stt_model = WhisperForConditionalGeneration.from_pretrained(stt_model_id).to("cpu")
+    print("STT Model loaded successfully.")
+except Exception as e:
+    print(f"Error loading STT model: {e}")
+    stt_model = None
+    stt_processor = None
 
 # TTS (Text to Speech) is initialized per-request in pocket-tts for simplicity or globally
 # For pocket-tts, we usually use the library directly.
@@ -75,7 +82,7 @@ async def root():
     return {"message": "VidSpri Voice Worker is running", "status": "ok"}
 
 @app.post("/process-voice/{job_id}")
-async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_override: str = None):
+async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_override: str = Form(None)):
     await update_status("busy")
     supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
 
