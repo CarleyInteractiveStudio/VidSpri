@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+torch
+transformers
+scipy
+librosa
+pocket-tts
+supabase
+gunicorn
+numpy
