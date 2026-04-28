@@ -119,10 +119,14 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_ov
         # 2. Extract Text (STT) if no override provided
         if not text_override:
             import librosa
-            audio_stt, sr = librosa.load(temp_input_path, sr=16000)
-            input_features = stt_processor(audio_stt, sampling_rate=16000, return_tensors="pt").input_features
-            predicted_ids = stt_model.generate(input_features)
-            text_to_speak = stt_processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
+            def run_stt():
+                with torch.no_grad():
+                    audio_stt, sr = librosa.load(temp_input_path, sr=16000)
+                    input_features = stt_processor(audio_stt, sampling_rate=16000, return_tensors="pt").input_features
+                    predicted_ids = stt_model.generate(input_features)
+                    return stt_processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
+
+            text_to_speak = await asyncio.to_thread(run_stt)
         else:
             text_to_speak = text_override
 
@@ -130,19 +134,21 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_ov
         if tts_model is None:
              raise Exception("TTS Model not loaded")
 
-        # Get voice embedding from the input audio
-        model_state_for_voice = tts_model.get_state_for_audio_prompt(Path(temp_input_path))
+        def run_tts():
+            with torch.no_grad():
+                # Get voice embedding from the input audio
+                model_state_for_voice = tts_model.get_state_for_audio_prompt(Path(temp_input_path))
 
-        # Generate audio stream
-        audio_chunks = tts_model.generate_audio_stream(
-            model_state=model_state_for_voice,
-            text_to_generate=text_to_speak
-        )
+                # Generate audio stream
+                audio_chunks = tts_model.generate_audio_stream(
+                    model_state=model_state_for_voice,
+                    text_to_generate=text_to_speak
+                )
 
-        # Combine chunks
-        all_audio = []
-        for chunk in audio_chunks:
-            all_audio.append(chunk)
+                # Combine chunks
+                return list(audio_chunks)
+
+        all_audio = await asyncio.to_thread(run_tts)
 
         if not all_audio:
             raise Exception("No audio generated")

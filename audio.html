@@ -535,7 +535,14 @@
                 }
             } catch (e) {
                 console.error("Upload error:", e);
-                showToast("upload_error", "error");
+                let errorMessage = "upload_error";
+
+                // Try to get detailed error from server
+                if (e.message && e.message.includes("Server error")) {
+                    errorMessage = e.message;
+                }
+
+                showToast(errorMessage, "error");
                 // Reset state to allow retry and stop infinite authorization loop
                 isSending = false;
                 document.getElementById('generate-audio-btn').disabled = false;

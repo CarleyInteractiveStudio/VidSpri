@@ -86,7 +86,11 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
         # AudioGen-small: 50 tokens ~ 1 second of audio
         max_tokens = min(int(duration) * 50, 250) # Max 5 seconds (250 tokens)
 
-        result = audio_pipe(prompt, forward_params={"max_new_tokens": max_tokens})
+        def run_inference():
+            with torch.no_grad():
+                return audio_pipe(prompt, forward_params={"max_new_tokens": max_tokens})
+
+        result = await asyncio.to_thread(run_inference)
 
         sampling_rate = result["sampling_rate"]
         audio_data = result["audio"]
@@ -102,6 +106,7 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
         return {"status": "success", "audio": audio_base64}
 
     except Exception as e:
+        print(f"Generation error: {e}")
         await update_status("free")
         supabase.table("processing_queue").update({"status": "failed"}).eq("id", job_id).execute()
         raise HTTPException(status_code=500, detail=str(e))
