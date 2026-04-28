@@ -140,13 +140,24 @@
                 <div id="voice-preview" class="hidden" style="margin-bottom: 20px;">
                     <p data-i18n="voice_captured">Voz capturada. Puedes escribir un texto abajo para usar esta voz:</p>
                 </div>
-                <textarea id="voice-text" placeholder="Escribe lo que quieres que diga la IA... (Si lo dejas vacío, se usará el texto de lo que hablaste)" style="width: 100%; height: 100px; padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;"></textarea>
+                <textarea id="voice-text" maxlength="650" placeholder="Escribe lo que quieres que diga la IA... (Si lo dejas vacío, se usará el texto de lo que hablaste)" style="width: 100%; height: 100px; padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 10px;"></textarea>
+                <div style="text-align: right; font-size: 0.8rem; margin-bottom: 20px; opacity: 0.7;">
+                    <span data-i18n="char_count">Caracteres: </span><span id="char-count">0</span>/650
+                </div>
             </div>
 
             <!-- Generic Text-to-Audio (Sound/Effect) -->
             <div id="generic-interface" class="hidden">
                 <h2 id="interface-title">Prompt de Audio</h2>
                 <input type="text" id="audio-prompt" placeholder="Ej: Espada chocando contra metal..." style="width: 100%; padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;">
+
+                <div id="duration-container" style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 10px;">
+                        <span data-i18n="duration">Duración: </span>
+                        <span id="duration-value">10</span> <span data-i18n="seconds">segundos</span>
+                    </label>
+                    <input type="range" id="audio-duration" min="1" max="30" value="10" style="width: 100%; accent-color: #7c3aed;">
+                </div>
             </div>
 
             <div style="text-align: center;">
@@ -158,6 +169,7 @@
             <!-- Progress & Result -->
             <div id="processing-status" class="hidden" style="margin-top: 30px;">
                 <p id="status-text" style="text-align: center; margin-bottom: 10px;">Uniéndose a la cola...</p>
+                <p id="eta-text" style="text-align: center; font-size: 0.85rem; opacity: 0.7; margin-bottom: 10px;"></p>
                 <div class="progress-bar-container">
                     <div id="audio-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
                 </div>
@@ -205,6 +217,9 @@
         let recordedBlob;
         let currentJobId = null;
         let heartbeatInterval = null;
+        let estimatedTotalTime = 0;
+        let processingStartTime = 0;
+        let progressInterval = null;
         let isSending = false;
         const mainAudio = new Audio();
 
@@ -225,8 +240,31 @@
                 document.getElementById('generic-interface').classList.remove('hidden');
                 document.getElementById('interface-title').textContent = (service === 'sound') ? 'Prompt de Música' : 'Prompt de Efectos';
                 document.getElementById('audio-prompt').placeholder = (service === 'sound') ? 'Ej: Melodía de piano triste y lenta...' : 'Ej: Pasos sobre hierba...';
+
+                const slider = document.getElementById('audio-duration');
+                const valDisplay = document.getElementById('duration-value');
+                if (service === 'sound') {
+                    slider.max = 30;
+                    slider.value = 15;
+                } else {
+                    slider.max = 5;
+                    slider.value = 3;
+                }
+                valDisplay.textContent = slider.value;
             }
         }
+
+        document.getElementById('audio-duration').oninput = function() {
+            document.getElementById('duration-value').textContent = this.value;
+        };
+
+        document.getElementById('voice-text').oninput = function() {
+            const count = this.value.length;
+            document.getElementById('char-count').textContent = count;
+            if (count >= 650) {
+                showToast("max_chars_reached", "error");
+            }
+        };
 
         // --- Recording Logic ---
         document.getElementById('start-record').onclick = async () => {
@@ -313,9 +351,14 @@
             const subscription = supabaseClient
                 .channel(`audio_job_${jobId}`)
                 .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue', filter: `id=eq.${jobId}` }, payload => {
+                    // Update internal state
                     jobState = { ...jobState, ...payload.new };
                     const status = jobState.status;
-                    updateStatusText(status);
+
+                    // Only update status text if it's NOT waiting (because checkPosition handles waiting)
+                    if (status !== 'waiting') {
+                        updateStatusText(status);
+                    }
 
                     if (status === 'authorized' && !isSending) {
                         isSending = true;
@@ -420,14 +463,16 @@
             try {
                 // Once upload starts, we can't easily track progress with fetch(),
                 // but since these are small requests (text or small wav), it's fast.
+                const duration = document.getElementById('audio-duration').value || 10;
+                formData.append('duration', duration);
+
+                // Start progress before the fetch as it's a blocking call for generation
+                startProcessingProgress(duration);
+
                 const response = await fetch(url, {
                     method: 'POST',
                     body: formData
                 });
-
-                // After upload, while waiting for the model to infer:
-                updateStatusText("processing");
-                document.getElementById('audio-progress-bar').style.width = '50%';
 
                 const result = await response.json();
                 if (result.audio) {
@@ -439,14 +484,41 @@
             }
         }
 
+        function startProcessingProgress(duration) {
+            updateStatusText("processing");
+            estimatedTotalTime = parseInt(duration) * 1.5 + 5; // Roughly 1.5x duration + overhead
+            processingStartTime = Date.now();
+
+            if (progressInterval) clearInterval(progressInterval);
+
+            progressInterval = setInterval(() => {
+                const elapsed = (Date.now() - processingStartTime) / 1000;
+                let progress = (elapsed / estimatedTotalTime) * 100;
+
+                if (progress > 95) progress = 95; // Cap at 95 until real completion
+
+                document.getElementById('audio-progress-bar').style.width = `${progress}%`;
+
+                const remaining = Math.max(0, Math.ceil(estimatedTotalTime - elapsed));
+                const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
+                document.getElementById('eta-text').textContent = (dict['eta_prefix'] || 'Tiempo estimado: ') + remaining + 's';
+            }, 500);
+        }
+
         function displayAudioResult(base64) {
+            if (progressInterval) clearInterval(progressInterval);
+            document.getElementById('audio-progress-bar').style.width = '100%';
+            document.getElementById('eta-text').textContent = '';
+
             const blob = base64ToBlob(base64, 'audio/wav');
             const url = URL.createObjectURL(blob);
             mainAudio.src = url;
 
-            document.getElementById('processing-status').classList.add('hidden');
-            document.getElementById('audio-result').classList.remove('hidden');
-            document.getElementById('generate-audio-btn').disabled = false;
+            setTimeout(() => {
+                document.getElementById('processing-status').classList.add('hidden');
+                document.getElementById('audio-result').classList.remove('hidden');
+                document.getElementById('generate-audio-btn').disabled = false;
+            }, 500);
 
             document.getElementById('download-audio-btn').onclick = () => {
                 const a = document.createElement('a');
@@ -466,7 +538,13 @@
 
         function updateStatusText(key) {
             const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
-            document.getElementById('status-text').textContent = dict[key] || key;
+            const statusEl = document.getElementById('status-text');
+
+            if (key === 'waiting') {
+                statusEl.textContent = dict['waiting'] || 'En espera...';
+            } else {
+                statusEl.textContent = dict[key] || key;
+            }
         }
 
         function resetAudioUI() {

@@ -75,7 +75,7 @@ async def root():
     return {"message": "VidSpri Effects Worker is running", "status": "ok"}
 
 @app.post("/generate/{job_id}")
-async def generate_effect(job_id: str, prompt: str = Form(...)):
+async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = Form(3)):
     await update_status("busy")
     supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
 
@@ -83,7 +83,10 @@ async def generate_effect(job_id: str, prompt: str = Form(...)):
         if not audio_pipe:
             raise Exception("Model pipeline not loaded")
 
-        result = audio_pipe(prompt, forward_params={"max_new_tokens": 256})
+        # AudioGen-small: 50 tokens ~ 1 second of audio
+        max_tokens = min(int(duration) * 50, 250) # Max 5 seconds (250 tokens)
+
+        result = audio_pipe(prompt, forward_params={"max_new_tokens": max_tokens})
 
         sampling_rate = result["sampling_rate"]
         audio_data = result["audio"]
