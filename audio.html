@@ -536,6 +536,11 @@
             } catch (e) {
                 console.error("Upload error:", e);
                 showToast("upload_error", "error");
+                // Reset state to allow retry and stop infinite authorization loop
+                isSending = false;
+                document.getElementById('generate-audio-btn').disabled = false;
+                // Explicitly mark job as failed in DB so the server can be freed
+                await supabaseClient.from('processing_queue').update({ status: 'failed' }).eq('id', job.id);
             }
         }
 
