@@ -93,16 +93,16 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
         def run_inference():
             with torch.no_grad():
-                # Enabling sampling with higher fidelity parameters
+                # Balanced parameters for better audio quality
                 return audio_pipe(
                     prompt,
                     forward_params={
                         "max_new_tokens": max_tokens,
                         "do_sample": True,
-                        "temperature": 0.8,
-                        "top_k": 100,
-                        "top_p": 0.95,
-                        "guidance_scale": 4.5
+                        "temperature": 1.0,
+                        "top_k": 250,
+                        "top_p": 0.99,
+                        "guidance_scale": 3.0
                     }
                 )
 
@@ -127,12 +127,10 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
         audio_data = audio_data.flatten()
 
-        # Normalize audio with safe headroom
+        # Normalize audio with headroom
         max_val = np.abs(audio_data).max()
         if max_val > 0:
-            audio_data = audio_data / (max_val + 1e-6)
-
-        audio_data = np.clip(audio_data, -0.99, 0.99)
+            audio_data = (audio_data / (max_val + 1e-6)) * 0.9
 
         # Convert to 16-bit PCM
         audio_data = (audio_data * 32767).astype(np.int16)

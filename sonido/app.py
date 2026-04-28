@@ -33,7 +33,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Model Loading ---
 device = "cpu"
-model_id = "facebook/musicgen-small"
+model_id = "facebook/musicgen-medium"
 audio_pipe = None
 is_processing = False
 
@@ -94,16 +94,16 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Run inference in a separate thread to avoid blocking heartbeats
         def run_inference():
             with torch.no_grad():
-                # Higher guidance and lower temp to reduce background "sizzle"
+                # Reverting to more balanced parameters for MusicGen-medium
                 return audio_pipe(
                     prompt,
                     forward_params={
                         "max_new_tokens": max_tokens,
                         "do_sample": True,
-                        "temperature": 0.8,
-                        "top_k": 100,
-                        "top_p": 0.95,
-                        "guidance_scale": 4.5
+                        "temperature": 1.0,
+                        "top_k": 250,
+                        "top_p": 0.99,
+                        "guidance_scale": 3.0
                     }
                 )
 
@@ -132,15 +132,12 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Final safety squeeze
         audio_data = audio_data.flatten()
 
-        # Normalize audio to -1.0 to 1.0 range with safe headroom
+        # Normalize audio with headroom (0.9 multiplier) to avoid any clipping
         max_val = np.abs(audio_data).max()
         if max_val > 0:
-            audio_data = audio_data / (max_val + 1e-6)
+            audio_data = (audio_data / (max_val + 1e-6)) * 0.9
 
-        # Apply soft clipping to avoid harsh digital distortion if any values still exceed range
-        audio_data = np.clip(audio_data, -0.99, 0.99)
-
-        # Convert to 16-bit PCM
+        # Convert to 16-bit PCM (clamping just in case)
         audio_data = (audio_data * 32767).astype(np.int16)
 
         wav_buf = io.BytesIO()
