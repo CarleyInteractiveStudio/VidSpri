@@ -34,15 +34,17 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- Model Loading ---
 device = "cpu"
 model_id = "facebook/musicgen-small"
-try:
-    print(f"Loading model {model_id} via pipeline...")
-    audio_pipe = pipeline("text-to-audio", model=model_id, device=device)
-    print("Model loaded successfully.")
-except Exception as e:
-    print(f"Error loading model: {e}")
-    audio_pipe = None
-
+audio_pipe = None
 is_processing = False
+
+def load_models():
+    global audio_pipe
+    try:
+        print(f"Loading model {model_id} via pipeline...")
+        audio_pipe = pipeline("text-to-audio", model=model_id, device=device)
+        print("Model loaded successfully.")
+    except Exception as e:
+        print(f"Error loading model: {e}")
 
 async def update_status(status: str = None):
     global is_processing
@@ -68,6 +70,8 @@ async def heartbeat_loop():
 
 @app.on_event("startup")
 async def startup_event():
+    # Load models in background to avoid startup timeouts
+    asyncio.create_task(asyncio.to_thread(load_models))
     await update_status("free")
     asyncio.create_task(heartbeat_loop())
 

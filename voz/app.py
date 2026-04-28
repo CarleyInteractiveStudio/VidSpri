@@ -88,7 +88,8 @@ async def heartbeat_loop():
 
 @app.on_event("startup")
 async def startup_event():
-    load_models()
+    # Load models in background to avoid startup timeouts
+    asyncio.create_task(asyncio.to_thread(load_models))
     await update_status("free")
     asyncio.create_task(heartbeat_loop())
 
