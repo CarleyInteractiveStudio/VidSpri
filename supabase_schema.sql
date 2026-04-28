@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS processing_queue (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id TEXT NOT NULL, -- Supports both UUID strings and local IDs
     status TEXT DEFAULT 'waiting', -- 'waiting', 'authorized', 'processing', 'completed', 'failed'
+    job_type TEXT DEFAULT 'video', -- 'video', 'sound', 'voice', 'effect'
     queue_number SERIAL,
     is_priority BOOLEAN DEFAULT FALSE,
     assigned_server_url TEXT,
@@ -26,21 +27,25 @@ CREATE TABLE IF NOT EXISTS processing_queue (
 
 -- Ensure columns exist if table was already there
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS assigned_server_url TEXT;
+ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS job_type TEXT DEFAULT 'video';
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS processed_frames INTEGER DEFAULT 0;
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS total_frames INTEGER DEFAULT 0;
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_queue_status ON processing_queue(status);
-CREATE INDEX IF NOT EXISTS idx_queue_order ON processing_queue(is_priority DESC, queue_number ASC);
+CREATE INDEX IF NOT EXISTS idx_queue_order ON processing_queue(job_type, is_priority DESC, queue_number ASC);
 
 -- 3. Table for Server Status
 CREATE TABLE IF NOT EXISTS server_status (
-    id TEXT PRIMARY KEY, -- 'secretario', 'especialista'
+    id TEXT PRIMARY KEY, -- Unique ID for the server
     url TEXT NOT NULL,
+    service_type TEXT DEFAULT 'video', -- 'video', 'sound', 'voice', 'effect'
     status TEXT DEFAULT 'free', -- 'free', 'busy', 'offline'
     last_heartbeat TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE server_status ADD COLUMN IF NOT EXISTS service_type TEXT DEFAULT 'video';
 
 -- 4. Table for Global Notifications
 CREATE TABLE IF NOT EXISTS global_notifications (
@@ -51,38 +56,33 @@ CREATE TABLE IF NOT EXISTS global_notifications (
 );
 
 -- 5. Function to clean up expired codes and ensure 7 codes are available
+-- 5. Function to refresh priority codes every 24 hours
 CREATE OR REPLACE FUNCTION refresh_priority_codes()
 RETURNS void AS $$
 DECLARE
     active_count INTEGER;
     new_code TEXT;
+    last_refresh TIMESTAMP WITH TIME ZONE;
 BEGIN
-    DELETE FROM priority_codes WHERE expires_at < NOW() AND is_auto = TRUE;
-    SELECT COUNT(*) INTO active_count FROM priority_codes WHERE is_used = FALSE AND is_auto = TRUE;
-    WHILE active_count < 7 LOOP
-        new_code := 'VSP-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 8));
-        INSERT INTO priority_codes (code, is_auto) VALUES (new_code, TRUE);
-        active_count := active_count + 1;
-    END LOOP;
+    -- 1. Get the most recent creation time of an auto code
+    SELECT MAX(created_at) INTO last_refresh FROM priority_codes WHERE is_auto = TRUE;
+
+    -- 2. Only proceed if it has been more than 24 hours OR if there are NO auto codes
+    IF last_refresh IS NULL OR last_refresh < NOW() - INTERVAL '24 hours' THEN
+        -- Delete all previous auto-generated codes (used or expired) to start fresh
+        DELETE FROM priority_codes WHERE is_auto = TRUE;
+
+        -- Create exactly 7 new codes
+        FOR i IN 1..7 LOOP
+            new_code := 'VSP-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 8));
+            INSERT INTO priority_codes (code, is_auto) VALUES (new_code, TRUE);
+        END LOOP;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
--- Function wrapper for trigger
-CREATE OR REPLACE FUNCTION trigger_refresh_codes()
-RETURNS TRIGGER AS $$
-BEGIN
-    PERFORM refresh_priority_codes();
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger to refresh codes automatically when one is used
+-- Trigger for immediate refresh is REMOVED as per requirements (must wait 24h)
 DROP TRIGGER IF EXISTS trigger_refresh_codes_on_use ON priority_codes;
-CREATE TRIGGER trigger_refresh_codes_on_use
-AFTER UPDATE OF is_used ON priority_codes
-FOR EACH ROW
-WHEN (NEW.is_used = TRUE)
-EXECUTE FUNCTION trigger_refresh_codes();
 
 -- Run it once at the start
 SELECT refresh_priority_codes();
@@ -134,6 +134,9 @@ END $$;
 CREATE OR REPLACE FUNCTION cleanup_system()
 RETURNS void AS $$
 BEGIN
+    -- 0. Refresh priority codes (if 24h passed)
+    PERFORM refresh_priority_codes();
+
     -- 1. Mark servers as offline if no heartbeat for 60 seconds
     UPDATE server_status
     SET status = 'offline'
@@ -180,15 +183,16 @@ BEGIN
 
     -- Loop through all available waiting jobs in priority order
     FOR waiting_job IN (
-        SELECT id FROM processing_queue
+        SELECT id, job_type FROM processing_queue
         WHERE status = 'waiting'
         ORDER BY is_priority DESC, queue_number ASC
     ) LOOP
-        -- For each job, find a free server
+        -- For each job, find a free server of the matching type
         SELECT id, url INTO free_server_id_found, free_server_url_found
         FROM server_status
         WHERE status = 'free'
         AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+        AND service_type = waiting_job.job_type
         LIMIT 1;
 
         -- If a server is found, assign it

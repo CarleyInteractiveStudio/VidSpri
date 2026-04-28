@@ -101,26 +101,14 @@
         </div>
     </div>
 
+    <div id="toast-container"></div>
+
     <!-- SSO Bridge -->
     <iframe id="sso-bridge" src="https://carleystudio.com/bridge.html" style="display:none;"></iframe>
 
+    <script src="script.js"></script>
     <script>
-        // Minimal logic for the config page
         document.addEventListener('DOMContentLoaded', () => {
-            const bridgeIframe = document.getElementById('sso-bridge');
-
-            function requestSessionCheck() {
-                if (bridgeIframe && bridgeIframe.contentWindow) {
-                    bridgeIframe.contentWindow.postMessage({
-                        type: 'CHECK_SESSION'
-                    }, '*');
-                }
-            }
-
-            if (bridgeIframe) {
-                bridgeIframe.onload = requestSessionCheck;
-            }
-
             const currentLang = localStorage.getItem('vidspri_lang') || 'es';
             const langNames = {
                 es: "Español", en: "English", fr: "Français", pt: "Português",
@@ -131,90 +119,6 @@
             };
 
             document.getElementById('current-lang-name').textContent = langNames[currentLang] || "Español";
-            applyTranslations(currentLang);
-
-            // SSO and Auth logic
-            const loginBtn = document.getElementById('login-btn');
-            const logoutBtn = document.getElementById('logout-btn');
-            const userInfo = document.getElementById('user-info');
-            const userEmailEl = document.getElementById('user-email');
-
-            window.addEventListener('message', (event) => {
-                if (event.origin !== 'https://carleystudio.com') return;
-
-                if (event.data.type === 'BRIDGE_READY') {
-                    requestSessionCheck();
-                }
-
-                if (event.data.type === 'SESSION_RESPONSE') {
-                    const session = event.data.payload;
-                    if (session && session.user) {
-                        const user = session.user;
-                        loginBtn.classList.add('hidden');
-                        userInfo.classList.remove('hidden');
-
-                        const meta = user.user_metadata || {};
-                        const displayName = meta.username || meta.display_name || meta.full_name || user.email || user.id;
-
-                        userEmailEl.textContent = displayName;
-                        document.getElementById('welcome-name').textContent = displayName;
-                        localStorage.setItem('vidspri_user_id', user.id);
-                        localStorage.setItem('vidspri_user_name', displayName);
-                    } else {
-                        // Only show login button if we don't have a locally saved user
-                        const savedName = localStorage.getItem('vidspri_user_name');
-                        if (!savedName) {
-                            loginBtn.classList.remove('hidden');
-                            userInfo.classList.add('hidden');
-                        }
-                    }
-                }
-            });
-
-            const savedName = localStorage.getItem('vidspri_user_name');
-            if (savedName) {
-                loginBtn.classList.add('hidden');
-                userInfo.classList.remove('hidden');
-                userEmailEl.textContent = savedName;
-                document.getElementById('welcome-name').textContent = savedName;
-            }
-
-            // Capture SSO token from URL hash
-            const hash = window.location.hash.substring(1);
-            const params = new URLSearchParams(hash);
-            const token = params.get('sso_token');
-            const userIdFromHash = params.get('user_id');
-
-            if (token) {
-                console.log("¡Sesión iniciada con éxito!");
-                localStorage.setItem('vidspri_sso_token', token);
-                if (userIdFromHash) {
-                    localStorage.setItem('vidspri_user_id', userIdFromHash);
-                }
-                window.location.hash = ""; // Clean URL
-
-                // Show UI immediately if we have a name
-                const savedName = localStorage.getItem('vidspri_user_name');
-                if (savedName) {
-                    loginBtn.classList.add('hidden');
-                    userInfo.classList.remove('hidden');
-                }
-
-                requestSessionCheck();
-            }
-
-            loginBtn.onclick = () => {
-                const domain = "carleyinteractivestudio.github.io";
-                const redirectTo = window.location.href.split('#')[0];
-                window.location.href = `https://carleystudio.com/sso.html?domain=${domain}&redirect_to=${encodeURIComponent(redirectTo)}`;
-            };
-
-            logoutBtn.onclick = () => {
-                localStorage.removeItem('vidspri_user_id');
-                localStorage.removeItem('vidspri_user_name');
-                localStorage.removeItem('vidspri_sso_token');
-                location.reload();
-            };
 
             // Modal Logic
             const modal = document.getElementById('lang-modal');
@@ -230,7 +134,7 @@
                 btn.onclick = () => {
                     const lang = btn.getAttribute('data-lang');
                     localStorage.setItem('vidspri_lang', lang);
-                    applyTranslations(lang);
+                    if (window.applyTranslations) window.applyTranslations(lang);
                     document.getElementById('current-lang-name').textContent = langNames[lang];
                     modal.classList.add('hidden');
 
@@ -240,22 +144,6 @@
                 if (btn.getAttribute('data-lang') === currentLang) btn.classList.add('active');
             });
         });
-
-        function applyTranslations(lang) {
-            const dict = window.translations[lang] || window.translations['es'];
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (dict[key]) {
-                    if (el.children.length > 0) {
-                        const textNode = Array.from(el.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
-                        if (textNode) textNode.textContent = dict[key];
-                        else el.appendChild(document.createTextNode(dict[key]));
-                    } else {
-                        el.textContent = dict[key];
-                    }
-                }
-            });
-        }
     </script>
 </body>
 </html>
