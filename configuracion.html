@@ -140,7 +140,8 @@
             const userEmailEl = document.getElementById('user-email');
 
             window.addEventListener('message', (event) => {
-                if (event.origin !== 'https://carleystudio.com') return;
+                const isAuthorizedOrigin = event.origin === 'https://carleystudio.com' || event.origin === 'https://www.carleystudio.com';
+                if (!isAuthorizedOrigin) return;
 
                 if (event.data.type === 'BRIDGE_READY') {
                     requestSessionCheck();
@@ -149,27 +150,57 @@
                 if (event.data.type === 'SESSION_RESPONSE') {
                     const session = event.data.payload;
                     if (session && session.user) {
-                        const user = session.user;
-                        loginBtn.classList.add('hidden');
-                        userInfo.classList.remove('hidden');
-
-                        const meta = user.user_metadata || {};
-                        const displayName = meta.username || meta.display_name || meta.full_name || user.email || user.id;
-
-                        userEmailEl.textContent = displayName;
-                        document.getElementById('welcome-name').textContent = displayName;
-                        localStorage.setItem('vidspri_user_id', user.id);
-                        localStorage.setItem('vidspri_user_name', displayName);
+                        handleUserFound(session.user);
                     } else {
-                        // Only show login button if we don't have a locally saved user
-                        const savedName = localStorage.getItem('vidspri_user_name');
-                        if (!savedName) {
-                            loginBtn.classList.remove('hidden');
-                            userInfo.classList.add('hidden');
-                        }
+                        console.log("Standard session check returned null, trying profile fallback...");
+                        requestProfileFallback();
+                    }
+                }
+
+                if (event.data.type === 'SUPABASE_RESPONSE') {
+                    const { data } = event.data.payload;
+                    if (data && data[0]) {
+                        handleUserFound(data[0]);
                     }
                 }
             });
+
+            function handleUserFound(user) {
+                if (!user || !user.id) return;
+
+                loginBtn.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+
+                const meta = user.user_metadata || user;
+                const displayName = meta.username || meta.display_name || meta.full_name || user.email || user.id;
+
+                userEmailEl.textContent = displayName;
+                document.getElementById('welcome-name').textContent = displayName;
+                localStorage.setItem('vidspri_user_id', user.id);
+                localStorage.setItem('vidspri_user_name', displayName);
+            }
+
+            function requestProfileFallback() {
+                const savedId = localStorage.getItem('vidspri_user_id');
+                if (!savedId || !bridgeIframe || !bridgeIframe.contentWindow) {
+                    // Only show login button if we don't have a locally saved user
+                    if (!localStorage.getItem('vidspri_user_name')) {
+                        loginBtn.classList.remove('hidden');
+                        userInfo.classList.add('hidden');
+                    }
+                    return;
+                }
+
+                bridgeIframe.contentWindow.postMessage({
+                    type: 'SUPABASE_CALL',
+                    payload: {
+                        table: 'profiles',
+                        method: 'select',
+                        query: '*',
+                        filter: { id: savedId }
+                    }
+                }, '*');
+            }
 
             const savedName = localStorage.getItem('vidspri_user_name');
             if (savedName) {

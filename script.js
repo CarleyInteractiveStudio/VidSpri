@@ -63,7 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 1. Listen for bridge responses
         window.addEventListener('message', (event) => {
-            if (event.origin !== 'https://carleystudio.com') return;
+            const isAuthorizedOrigin = event.origin === 'https://carleystudio.com' || event.origin === 'https://www.carleystudio.com';
+            if (!isAuthorizedOrigin) return;
 
             if (event.data.type === 'BRIDGE_READY') {
                 requestSessionCheck();
@@ -73,25 +74,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 sessionReceived = true;
                 const session = event.data.payload;
                 if (session && session.user) {
-                    const user = session.user;
-                    userId = user.id;
-                    localStorage.setItem('vidspri_user_id', userId);
-
-                    const meta = user.user_metadata || {};
-                    const displayName = meta.username || meta.display_name || meta.full_name || user.email || userId;
-                    localStorage.setItem('vidspri_user_name', displayName);
-                    updateWelcomeMessage(displayName);
+                    handleUserFound(session.user);
                 } else {
-                    console.log("No active session on bridge.");
-                    // Only hide if we don't have a locally saved user
-                    const savedName = localStorage.getItem('vidspri_user_name');
-                    if (!savedName) {
-                        const welcomeMsg = document.getElementById('welcome-msg');
-                        if (welcomeMsg) welcomeMsg.classList.add('hidden');
-                    }
+                    console.log("Standard session check returned null, trying profile fallback...");
+                    requestProfileFallback();
+                }
+            }
+
+            if (event.data.type === 'SUPABASE_RESPONSE') {
+                const { data, error } = event.data.payload;
+                if (data && data[0]) {
+                    handleUserFound(data[0], true);
                 }
             }
         });
+
+        function handleUserFound(user, isFromProfile = false) {
+            if (!user || !user.id) return;
+
+            userId = user.id;
+            localStorage.setItem('vidspri_user_id', userId);
+
+            // Extract display name with multiple fallbacks
+            const meta = user.user_metadata || user;
+            const displayName = meta.username || meta.display_name || meta.full_name || user.email || (isFromProfile ? null : user.id);
+
+            if (displayName) {
+                localStorage.setItem('vidspri_user_name', displayName);
+                updateWelcomeMessage(displayName);
+            }
+        }
 
         function requestSessionCheck() {
             if (bridgeIframe && bridgeIframe.contentWindow) {
@@ -100,6 +112,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     requestId: 'poll-' + Date.now()
                 }, '*');
             }
+        }
+
+        function requestProfileFallback() {
+            const savedId = localStorage.getItem('vidspri_user_id');
+            if (!savedId || !bridgeIframe || !bridgeIframe.contentWindow) return;
+
+            bridgeIframe.contentWindow.postMessage({
+                type: 'SUPABASE_CALL',
+                payload: {
+                    table: 'profiles',
+                    method: 'select',
+                    query: '*',
+                    filter: { id: savedId }
+                },
+                requestId: 'fallback-' + Date.now()
+            }, '*');
         }
 
         // 2. Handle incoming data from URL redirect (fast-path)

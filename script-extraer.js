@@ -94,7 +94,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         window.addEventListener('message', (event) => {
-            if (event.origin !== 'https://carleystudio.com') return;
+            const isAuthorizedOrigin = event.origin === 'https://carleystudio.com' || event.origin === 'https://www.carleystudio.com';
+            if (!isAuthorizedOrigin) return;
 
             if (event.data.type === 'BRIDGE_READY') {
                 requestSessionCheck();
@@ -104,6 +105,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const session = event.data.payload;
                 if (session && session.user) {
                     userId = session.user.id;
+                    localStorage.setItem('vidspri_user_id', userId);
+                }
+            }
+
+            if (event.data.type === 'SUPABASE_RESPONSE') {
+                const { data } = event.data.payload;
+                if (data && data[0]) {
+                    userId = data[0].id;
                     localStorage.setItem('vidspri_user_id', userId);
                 }
             }
