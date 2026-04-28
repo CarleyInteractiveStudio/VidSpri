@@ -140,13 +140,24 @@
                 <div id="voice-preview" class="hidden" style="margin-bottom: 20px;">
                     <p data-i18n="voice_captured">Voz capturada. Puedes escribir un texto abajo para usar esta voz:</p>
                 </div>
-                <textarea id="voice-text" placeholder="Escribe lo que quieres que diga la IA... (Si lo dejas vacío, se usará el texto de lo que hablaste)" style="width: 100%; height: 100px; padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;"></textarea>
+                <textarea id="voice-text" maxlength="650" placeholder="Escribe lo que quieres que diga la IA... (Si lo dejas vacío, se usará el texto de lo que hablaste)" style="width: 100%; height: 100px; padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 10px;"></textarea>
+                <div style="text-align: right; font-size: 0.8rem; margin-bottom: 20px; opacity: 0.7;">
+                    <span data-i18n="char_count">Caracteres: </span><span id="char-count">0</span>/650
+                </div>
             </div>
 
             <!-- Generic Text-to-Audio (Sound/Effect) -->
             <div id="generic-interface" class="hidden">
                 <h2 id="interface-title">Prompt de Audio</h2>
                 <input type="text" id="audio-prompt" placeholder="Ej: Espada chocando contra metal..." style="width: 100%; padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;">
+
+                <div id="duration-container" style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 10px;">
+                        <span data-i18n="duration">Duración: </span>
+                        <span id="duration-value">10</span> <span data-i18n="seconds">segundos</span>
+                    </label>
+                    <input type="range" id="audio-duration" min="1" max="30" value="10" style="width: 100%; accent-color: #7c3aed;">
+                </div>
             </div>
 
             <div style="text-align: center;">
@@ -158,6 +169,7 @@
             <!-- Progress & Result -->
             <div id="processing-status" class="hidden" style="margin-top: 30px;">
                 <p id="status-text" style="text-align: center; margin-bottom: 10px;">Uniéndose a la cola...</p>
+                <p id="eta-text" style="text-align: center; font-size: 0.85rem; opacity: 0.7; margin-bottom: 10px;"></p>
                 <div class="progress-bar-container">
                     <div id="audio-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
                 </div>
@@ -199,12 +211,15 @@
     <div id="toast-container"></div>
     <script src="script.js"></script>
     <script>
-        let selectedService = '';
+        let selectedService = 'voice';
         let mediaRecorder;
         let audioChunks = [];
         let recordedBlob;
         let currentJobId = null;
         let heartbeatInterval = null;
+        let estimatedTotalTime = 0;
+        let processingStartTime = 0;
+        let progressInterval = null;
         let isSending = false;
         const mainAudio = new Audio();
 
@@ -225,8 +240,31 @@
                 document.getElementById('generic-interface').classList.remove('hidden');
                 document.getElementById('interface-title').textContent = (service === 'sound') ? 'Prompt de Música' : 'Prompt de Efectos';
                 document.getElementById('audio-prompt').placeholder = (service === 'sound') ? 'Ej: Melodía de piano triste y lenta...' : 'Ej: Pasos sobre hierba...';
+
+                const slider = document.getElementById('audio-duration');
+                const valDisplay = document.getElementById('duration-value');
+                if (service === 'sound') {
+                    slider.max = 30;
+                    slider.value = 15;
+                } else {
+                    slider.max = 5;
+                    slider.value = 3;
+                }
+                valDisplay.textContent = slider.value;
             }
         }
+
+        document.getElementById('audio-duration').oninput = function() {
+            document.getElementById('duration-value').textContent = this.value;
+        };
+
+        document.getElementById('voice-text').oninput = function() {
+            const count = this.value.length;
+            document.getElementById('char-count').textContent = count;
+            if (count >= 650) {
+                showToast("max_chars_reached", "error");
+            }
+        };
 
         // --- Recording Logic ---
         document.getElementById('start-record').onclick = async () => {
@@ -252,22 +290,42 @@
 
         // --- Generation Logic ---
         document.getElementById('generate-audio-btn').onclick = async () => {
-            const userId = localStorage.getItem('vidspri_user_id');
-            const prompt = document.getElementById('audio-prompt').value;
+            const userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
+            if (!localStorage.getItem('vidspri_user_id')) {
+                localStorage.setItem('vidspri_user_id', userId);
+            }
 
+            const prompt = document.getElementById('audio-prompt').value;
+            const voiceText = document.getElementById('voice-text').value;
             if (selectedService !== 'voice' && !prompt) {
                 showToast("empty_prompt", "error");
+                return;
+            }
+            if (selectedService === 'voice' && !recordedBlob && !voiceText) {
+                showToast("Debes grabar algo o escribir un texto", "error", true);
                 return;
             }
 
             document.getElementById('generate-audio-btn').disabled = true;
             document.getElementById('processing-status').classList.remove('hidden');
+            document.getElementById('audio-progress-bar').style.width = '0%';
+            document.getElementById('eta-text').textContent = '';
             updateStatusText("joining");
 
             try {
-                // Cancel previous
-                await supabaseClient.from('processing_queue').update({ status: 'failed' }).eq('user_id', userId).in('status', ['waiting', 'authorized', 'processing']);
+                console.log("Cancelling previous jobs for user:", userId);
+                // Attempt to cancel previous jobs, but don't fail if the update fails (non-critical)
+                try {
+                    await supabaseClient
+                        .from('processing_queue')
+                        .update({ status: 'failed' })
+                        .eq('user_id', userId)
+                        .in('status', ['waiting', 'authorized', 'processing']);
+                } catch (cancelErr) {
+                    console.warn("Could not cancel previous jobs:", cancelErr);
+                }
 
+                console.log("Inserting new job for type:", selectedService);
                 const { data: job, error } = await supabaseClient
                     .from('processing_queue')
                     .insert({
@@ -279,17 +337,29 @@
                     .select()
                     .single();
 
-                if (error) throw error;
+                if (error) {
+                    console.error("Supabase insert error:", error);
+                    // Provide detailed error feedback
+                    throw new Error(error.message || "Error al insertar en la cola");
+                }
 
+                if (!job) {
+                    throw new Error("No job record returned from database");
+                }
+
+                console.log("Job created successfully:", job.id);
                 currentJobId = job.id;
                 isSending = false;
                 startHeartbeat(currentJobId);
                 pollJobStatus(currentJobId, job);
 
             } catch (e) {
-                console.error(e);
-                showToast("error_joining", "error");
+                console.error("Queue join failed:", e);
+                const msg = e.message || "error_joining";
+                // If it's a literal error from Supabase, show it
+                showToast(msg, "error", true);
                 document.getElementById('generate-audio-btn').disabled = false;
+                document.getElementById('processing-status').classList.add('hidden');
             }
         };
 
@@ -310,58 +380,136 @@
         async function pollJobStatus(jobId, initialJob) {
             let jobState = initialJob;
 
-            const subscription = supabaseClient
+            console.log("Starting Realtime subscription for job:", jobId);
+            const channel = supabaseClient
                 .channel(`audio_job_${jobId}`)
-                .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue', filter: `id=eq.${jobId}` }, payload => {
+                .on('postgres_changes', {
+                    event: 'UPDATE',
+                    table: 'processing_queue',
+                    filter: `id=eq.${jobId}`
+                }, payload => {
+                    // Double check ID just in case filter fails on some clients
+                    if (payload.new.id !== jobId) return;
+
+                    console.log("Realtime Update Received:", payload.new.status);
+
+                    // Update internal state
                     jobState = { ...jobState, ...payload.new };
                     const status = jobState.status;
-                    updateStatusText(status);
+
+                    // Only update status text if it's NOT waiting (because checkPosition handles waiting)
+                    if (status !== 'waiting') {
+                        updateStatusText(status);
+                    }
 
                     if (status === 'authorized' && !isSending) {
+                        console.log("Job authorized detected in Realtime");
                         isSending = true;
                         uploadData(jobState);
                     } else if (status === 'completed') {
+                        console.log("Job completed detected in Realtime");
                         stopHeartbeat();
-                        subscription.unsubscribe();
+                        channel.unsubscribe();
                     } else if (status === 'failed') {
+                        console.log("Job failed detected in Realtime");
                         showToast("process_failed", "error");
                         document.getElementById('generate-audio-btn').disabled = false;
                         stopHeartbeat();
-                        subscription.unsubscribe();
+                        channel.unsubscribe();
                     }
                 })
-                .subscribe();
+                .subscribe(status => {
+                    console.log("Realtime subscription status:", status);
+                });
 
-            checkPosition(jobId);
+            // Handle immediate authorization or start tracking position
+            if (jobState.status === 'authorized' && !isSending) {
+                console.log("Job already authorized at creation");
+                isSending = true;
+                uploadData(jobState);
+            } else {
+                console.log("Job starting in waiting state, calling checkPosition");
+                checkPosition(jobId, jobState);
+            }
         }
 
-        async function checkPosition(jobId) {
-            const { data: job } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
-            if (!job || job.status !== 'waiting') {
-                document.getElementById('queue-priority-actions').classList.add('hidden');
-                return;
+        async function checkPosition(jobId, jobData = null) {
+            if (currentJobId !== jobId) return;
+
+            try {
+                let job = jobData;
+                // If we don't have queue_number, we must fetch the full job record
+                if (!job || job.queue_number === undefined) {
+                    const { data, error } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
+                    if (error || !data) {
+                        console.warn("Could not fetch job for position check", error);
+                        return;
+                    }
+                    job = data;
+                }
+
+                console.log("Checking position for job:", job.id, "Status:", job.status, "Queue No:", job.queue_number);
+
+                if (job.status !== 'waiting') {
+                    document.getElementById('queue-priority-actions').classList.add('hidden');
+                    if (job.status === 'authorized' && !isSending) {
+                        console.log("Job authorized detected in checkPosition");
+                        isSending = true;
+                        uploadData(job);
+                    }
+                    return;
+                }
+
+                updatePriorityUI();
+                updateStatusText("waiting"); // Show "Waiting..." while we count exactly
+
+                let query = supabaseClient
+                    .from('processing_queue')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('status', 'waiting')
+                    .eq('job_type', selectedService);
+
+                if (job.is_priority) {
+                    // Only count priority jobs with smaller queue number
+                    query = query.eq('is_priority', true).lt('queue_number', job.queue_number);
+                } else {
+                    // Count ALL priority jobs + non-priority jobs with smaller queue number
+                    // Simplified OR for better compatibility
+                    query = query.or(`is_priority.eq.true,queue_number.lt.${job.queue_number}`);
+                }
+
+                const { count, error: countError } = await query;
+
+                const lang = localStorage.getItem('vidspri_lang') || 'es';
+                const dict = window.translations[lang] || window.translations['es'] || {};
+
+                if (countError) {
+                    console.error("Queue position query error:", countError);
+                    // Keep "Waiting..."
+                } else {
+                    const position = (count || 0) + 1;
+                    console.log("Position in queue calculated:", position);
+                    const statusEl = document.getElementById('status-text');
+                    if (position === 1) {
+                        statusEl.textContent = dict['your_turn'] || '¡Es tu turno!';
+                    } else {
+                        statusEl.textContent = (dict['position'] || 'Posición en cola: ') + position;
+                    }
+                }
+
+                // Small initial progress to show something is happening
+                const progressBar = document.getElementById('audio-progress-bar');
+                if (progressBar.style.width === '0%' || progressBar.style.width === '0px' || !progressBar.style.width) {
+                    progressBar.style.width = '5%';
+                }
+            } catch (e) {
+                console.error("checkPosition exception:", e);
+            } finally {
+                // Only reschedule if we're still in this job and still waiting
+                if (currentJobId === jobId) {
+                    setTimeout(() => checkPosition(jobId), 3000);
+                }
             }
-
-            updatePriorityUI();
-
-            const { count } = await supabaseClient
-                .from('processing_queue')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'waiting')
-                .eq('job_type', selectedService)
-                .or(`is_priority.gt.${job.is_priority},and(is_priority.eq.${job.is_priority},queue_number.lt.${job.queue_number})`);
-
-            const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
-            const position = (count || 0) + 1;
-
-            if (position === 1) {
-                document.getElementById('status-text').textContent = dict['your_turn'] || '¡Es tu turno!';
-            } else {
-                document.getElementById('status-text').textContent = (dict['position'] || 'Posición en cola: ') + position;
-            }
-
-            document.getElementById('audio-progress-bar').style.width = '10%';
-            setTimeout(() => checkPosition(jobId), 3000);
         }
 
         async function updatePriorityUI() {
@@ -406,7 +554,7 @@
         };
 
         async function uploadData(job) {
-            updateStatusText("sending_frames"); // Re-using translation key for "sending data"
+            updateStatusText("sending_data");
             const url = `${job.assigned_server_url}/${selectedService === 'voice' ? 'process-voice' : 'generate'}/${job.id}`;
 
             const formData = new FormData();
@@ -418,16 +566,26 @@
             }
 
             try {
-                // Once upload starts, we can't easily track progress with fetch(),
-                // but since these are small requests (text or small wav), it's fast.
+                const duration = document.getElementById('audio-duration').value || 10;
+                formData.append('duration', duration);
+
+                // Start progress before the fetch as it's a blocking call for generation
+                startProcessingProgress(duration);
+
+                console.log("Uploading to:", url);
                 const response = await fetch(url, {
                     method: 'POST',
                     body: formData
                 });
 
-                // After upload, while waiting for the model to infer:
-                updateStatusText("processing");
-                document.getElementById('audio-progress-bar').style.width = '50%';
+                if (!response.ok) {
+                    let detail = response.status;
+                    try {
+                        const errBody = await response.json();
+                        detail = errBody.detail || JSON.stringify(errBody);
+                    } catch(e) {}
+                    throw new Error("Server error: " + detail);
+                }
 
                 const result = await response.json();
                 if (result.audio) {
@@ -435,18 +593,67 @@
                 }
             } catch (e) {
                 console.error("Upload error:", e);
-                showToast("upload_error", "error");
+                let errorMessage = "upload_error";
+
+                // Try to get detailed error from server
+                if (e.message && e.message.includes("Server error")) {
+                    errorMessage = e.message;
+                }
+
+                showToast(errorMessage, "error");
+                // Reset state to allow retry and stop infinite authorization loop
+                isSending = false;
+                document.getElementById('generate-audio-btn').disabled = false;
+                // Explicitly mark job as failed in DB so the server can be freed
+                await supabaseClient.from('processing_queue').update({ status: 'failed' }).eq('id', job.id);
             }
         }
 
+        function startProcessingProgress(duration) {
+            updateStatusText("processing");
+            // More conservative ETA: 2x duration + fixed overhead
+            estimatedTotalTime = parseInt(duration) * 2 + 8;
+            processingStartTime = Date.now();
+
+            if (progressInterval) clearInterval(progressInterval);
+
+            progressInterval = setInterval(() => {
+                const elapsed = (Date.now() - processingStartTime) / 1000;
+                let progress = (elapsed / estimatedTotalTime) * 100;
+
+                // Keep moving slowly after 90% but don't reach 100% until finished
+                if (progress > 90) {
+                    progress = 90 + (progress - 90) * 0.1;
+                }
+                if (progress > 98) progress = 98;
+
+                document.getElementById('audio-progress-bar').style.width = `${progress}%`;
+
+                const remaining = Math.max(1, Math.ceil(estimatedTotalTime - elapsed));
+                const lang = localStorage.getItem('vidspri_lang') || 'es';
+                const dict = window.translations[lang] || window.translations['es'] || {};
+
+                // Show BOTH status and ETA in the status text for better visibility as requested
+                const statusBase = dict['processing'] || 'Procesando...';
+                document.getElementById('status-text').textContent = `${statusBase} (${Math.round(progress)}%)`;
+                document.getElementById('eta-text').textContent = (dict['eta_prefix'] || 'Tiempo estimado: ') + remaining + 's';
+            }, 500);
+        }
+
         function displayAudioResult(base64) {
+            if (progressInterval) clearInterval(progressInterval);
+            document.getElementById('audio-progress-bar').style.width = '100%';
+            document.getElementById('eta-text').textContent = '';
+
             const blob = base64ToBlob(base64, 'audio/wav');
             const url = URL.createObjectURL(blob);
             mainAudio.src = url;
 
-            document.getElementById('processing-status').classList.add('hidden');
-            document.getElementById('audio-result').classList.remove('hidden');
-            document.getElementById('generate-audio-btn').disabled = false;
+            setTimeout(() => {
+                document.getElementById('processing-status').classList.add('hidden');
+                document.getElementById('audio-result').classList.remove('hidden');
+                document.getElementById('generate-audio-btn').disabled = false;
+            }, 500);
 
             document.getElementById('download-audio-btn').onclick = () => {
                 const a = document.createElement('a');
@@ -465,8 +672,15 @@
         }
 
         function updateStatusText(key) {
-            const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
-            document.getElementById('status-text').textContent = dict[key] || key;
+            const lang = localStorage.getItem('vidspri_lang') || 'es';
+            const dict = window.translations[lang] || window.translations['es'] || {};
+            const statusEl = document.getElementById('status-text');
+
+            if (key === 'waiting') {
+                statusEl.textContent = dict['waiting'] || 'En espera...';
+            } else {
+                statusEl.textContent = dict[key] || key;
+            }
         }
 
         function resetAudioUI() {
@@ -506,6 +720,9 @@
             const pos = (e.clientX - rect.left) / rect.width;
             mainAudio.currentTime = pos * mainAudio.duration;
         }
+
+        // Initialize default view
+        selectService('voice');
     </script>
 </body>
 </html>

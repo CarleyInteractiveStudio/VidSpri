@@ -10,9 +10,22 @@ import tempfile
 from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
-from pocket_tts import TTSModel
-from supabase import create_client, Client
+try:
+    from transformers import WhisperProcessor, WhisperForConditionalGeneration
+    from pocket_tts import TTSModel
+    from supabase import create_client, Client
+except ImportError as e:
+    print(f"CRITICAL IMPORT ERROR: {e}")
+    # Try to re-install at runtime as a last resort
+    import subprocess
+    import sys
+    print("Attempting runtime install of pocket-tts...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "pocket-tts"])
+        from pocket_tts import TTSModel
+        from supabase import create_client, Client
+    except Exception as e2:
+        print(f"Runtime install failed: {e2}")
 
 app = FastAPI()
 
@@ -88,7 +101,8 @@ async def heartbeat_loop():
 
 @app.on_event("startup")
 async def startup_event():
-    load_models()
+    # Load models in background to avoid startup timeouts
+    asyncio.create_task(asyncio.to_thread(load_models))
     await update_status("free")
     asyncio.create_task(heartbeat_loop())
 
@@ -119,10 +133,14 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_ov
         # 2. Extract Text (STT) if no override provided
         if not text_override:
             import librosa
-            audio_stt, sr = librosa.load(temp_input_path, sr=16000)
-            input_features = stt_processor(audio_stt, sampling_rate=16000, return_tensors="pt").input_features
-            predicted_ids = stt_model.generate(input_features)
-            text_to_speak = stt_processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
+            def run_stt():
+                with torch.no_grad():
+                    audio_stt, sr = librosa.load(temp_input_path, sr=16000)
+                    input_features = stt_processor(audio_stt, sampling_rate=16000, return_tensors="pt").input_features
+                    predicted_ids = stt_model.generate(input_features)
+                    return stt_processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
+
+            text_to_speak = await asyncio.to_thread(run_stt)
         else:
             text_to_speak = text_override
 
@@ -130,25 +148,37 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_ov
         if tts_model is None:
              raise Exception("TTS Model not loaded")
 
-        # Get voice embedding from the input audio
-        model_state_for_voice = tts_model.get_state_for_audio_prompt(Path(temp_input_path))
+        def run_tts():
+            with torch.no_grad():
+                # Get voice embedding from the input audio
+                model_state_for_voice = tts_model.get_state_for_audio_prompt(Path(temp_input_path))
 
-        # Generate audio stream
-        audio_chunks = tts_model.generate_audio_stream(
-            model_state=model_state_for_voice,
-            text_to_generate=text_to_speak
-        )
+                # Generate audio stream
+                audio_chunks = tts_model.generate_audio_stream(
+                    model_state=model_state_for_voice,
+                    text_to_generate=text_to_speak
+                )
 
-        # Combine chunks
-        all_audio = []
-        for chunk in audio_chunks:
-            all_audio.append(chunk)
+                # Combine chunks
+                return list(audio_chunks)
+
+        all_audio = await asyncio.to_thread(run_tts)
 
         if not all_audio:
             raise Exception("No audio generated")
 
         combined_audio = np.concatenate(all_audio)
         sample_rate = tts_model.config.mimi.sample_rate
+
+        # Clean audio data
+        combined_audio = np.nan_to_num(combined_audio)
+
+        # Normalize audio
+        max_val = np.abs(combined_audio).max()
+        if max_val > 0:
+            combined_audio = combined_audio / (max_val + 1e-6) * 0.95
+
+        combined_audio = np.clip(combined_audio * 32767, -32768, 32767).astype(np.int16)
 
         # Write to buffer
         out_buf = io.BytesIO()

@@ -3,6 +3,7 @@ fastapi
 uvicorn
 python-multipart
 torch
+numpy
 transformers>=4.35.0
 scipy
 supabase
