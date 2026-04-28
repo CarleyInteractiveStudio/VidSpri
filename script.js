@@ -1,8 +1,8 @@
 
-document.addEventListener('DOMContentLoaded', () => {
-    // --- Supabase Configuration ---
-    const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+// --- Supabase Configuration ---
+const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 
+document.addEventListener('DOMContentLoaded', () => {
     // --- Global State ---
     let userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
     localStorage.setItem('vidspri_user_id', userId);
@@ -21,7 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Moved to the end to ensure all functions are defined first
     async function cleanupStuckJobs() {
         try {
-            // Cancel any previous jobs from this user that might be stuck
+            // Only clean up 'video' jobs on main pages to allow concurrent audio/video jobs if needed,
+            // or just clean up everything to avoid queue bloat.
+            // Let's stick to cleaning up everything for stability.
             await supabaseClient
                 .from('processing_queue')
                 .update({ status: 'failed' })
@@ -149,10 +151,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 userId = userIdFromHash;
                 localStorage.setItem('vidspri_user_id', userId);
             }
+
+            // Fast-path: decode name immediately from token
+            const decoded = parseJwt(ssoToken);
+            let name = "...";
+            if (decoded && decoded.user_metadata) {
+                const meta = decoded.user_metadata;
+                name = meta.username || meta.display_name || meta.full_name || decoded.email || "Usuario";
+                localStorage.setItem('vidspri_user_name', name);
+            }
+
             // Use replaceState to clear hash without triggering scroll or history bloat
             history.replaceState(null, null, window.location.pathname + window.location.search);
 
-            updateAuthUI(localStorage.getItem('vidspri_user_name') || "...");
+            updateAuthUI(name);
             showToast("login_success", "success");
             requestSessionCheck(); // Request full metadata
         }

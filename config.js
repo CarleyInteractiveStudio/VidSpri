@@ -8,6 +8,9 @@ const CONFIG = {
     // Server Endpoints (for heartbeats/fallback)
     SECRETARIO_URL: 'https://carley1234-vidspri-secretario.hf.space',
     ESPECIALISTA_URL: 'https://carley1234-vidspri.hf.space',
+    SONIDO_URL: 'https://carley1234-vidsprisonido.hf.space',
+    VOZ_URL: 'https://carley1234-voz.hf.space',
+    EFECTOS_URL: 'https://carley1234-efectos.hf.space',
 
     // SSO Config
     SSO_BRIDGE_URL: 'https://carleystudio.com/sso/vidspri'

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS processing_queue (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id TEXT NOT NULL, -- Supports both UUID strings and local IDs
     status TEXT DEFAULT 'waiting', -- 'waiting', 'authorized', 'processing', 'completed', 'failed'
+    job_type TEXT DEFAULT 'video', -- 'video', 'sound', 'voice', 'effect'
     queue_number SERIAL,
     is_priority BOOLEAN DEFAULT FALSE,
     assigned_server_url TEXT,
@@ -26,21 +27,25 @@ CREATE TABLE IF NOT EXISTS processing_queue (
 
 -- Ensure columns exist if table was already there
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS assigned_server_url TEXT;
+ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS job_type TEXT DEFAULT 'video';
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS processed_frames INTEGER DEFAULT 0;
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS total_frames INTEGER DEFAULT 0;
 ALTER TABLE processing_queue ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_queue_status ON processing_queue(status);
-CREATE INDEX IF NOT EXISTS idx_queue_order ON processing_queue(is_priority DESC, queue_number ASC);
+CREATE INDEX IF NOT EXISTS idx_queue_order ON processing_queue(job_type, is_priority DESC, queue_number ASC);
 
 -- 3. Table for Server Status
 CREATE TABLE IF NOT EXISTS server_status (
-    id TEXT PRIMARY KEY, -- 'secretario', 'especialista'
+    id TEXT PRIMARY KEY, -- Unique ID for the server
     url TEXT NOT NULL,
+    service_type TEXT DEFAULT 'video', -- 'video', 'sound', 'voice', 'effect'
     status TEXT DEFAULT 'free', -- 'free', 'busy', 'offline'
     last_heartbeat TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE server_status ADD COLUMN IF NOT EXISTS service_type TEXT DEFAULT 'video';
 
 -- 4. Table for Global Notifications
 CREATE TABLE IF NOT EXISTS global_notifications (
@@ -178,15 +183,16 @@ BEGIN
 
     -- Loop through all available waiting jobs in priority order
     FOR waiting_job IN (
-        SELECT id FROM processing_queue
+        SELECT id, job_type FROM processing_queue
         WHERE status = 'waiting'
         ORDER BY is_priority DESC, queue_number ASC
     ) LOOP
-        -- For each job, find a free server
+        -- For each job, find a free server of the matching type
         SELECT id, url INTO free_server_id_found, free_server_url_found
         FROM server_status
         WHERE status = 'free'
         AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+        AND service_type = waiting_job.job_type
         LIMIT 1;
 
         -- If a server is found, assign it
