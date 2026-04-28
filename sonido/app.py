@@ -100,10 +100,10 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
                     forward_params={
                         "max_new_tokens": max_tokens,
                         "do_sample": True,
-                        "temperature": 0.8,
+                        "temperature": 1.0,
                         "top_k": 250,
                         "top_p": 0.99,
-                        "guidance_scale": 3.5
+                        "guidance_scale": 3.0
                     }
                 )
 
