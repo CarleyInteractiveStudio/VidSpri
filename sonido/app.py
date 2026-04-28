@@ -90,7 +90,16 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Run inference in a separate thread to avoid blocking heartbeats
         def run_inference():
             with torch.no_grad():
-                return audio_pipe(prompt, forward_params={"max_new_tokens": max_tokens})
+                # do_sample=True is crucial for quality and avoiding repetitive noise/artifacts
+                return audio_pipe(
+                    prompt,
+                    forward_params={
+                        "max_new_tokens": max_tokens,
+                        "do_sample": True,
+                        "temperature": 1.0,
+                        "top_k": 250
+                    }
+                )
 
         result = await asyncio.to_thread(run_inference)
 
@@ -102,15 +111,21 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         if isinstance(audio_data, torch.Tensor):
             audio_data = audio_data.cpu().numpy()
 
-        # Squeeze if necessary
-        audio_data = np.squeeze(audio_data)
+        # Handle potential multi-channel output and clean data
+        audio_data = np.nan_to_num(audio_data) # Remove NaNs/Infs
 
-        # Normalize audio to -1.0 to 1.0 range if it isn't already
+        # MusicGen output is often [batch, channels, samples] or [channels, samples]
+        if audio_data.ndim > 1:
+            audio_data = audio_data[0] # Take first item in batch
+        if audio_data.ndim > 1:
+            audio_data = np.mean(audio_data, axis=0) # Mix to mono if multi-channel
+
+        # Normalize audio to -1.0 to 1.0 range
         max_val = np.abs(audio_data).max()
         if max_val > 0:
-            audio_data = audio_data / max_val
+            audio_data = audio_data / (max_val + 1e-6) # Avoid clipping
 
-        # Convert to 16-bit PCM (standard WAV format) for better quality/compatibility
+        # Convert to 16-bit PCM (standard WAV format)
         audio_data = (audio_data * 32767).astype(np.int16)
 
         wav_buf = io.BytesIO()

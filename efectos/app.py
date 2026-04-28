@@ -89,7 +89,16 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
         def run_inference():
             with torch.no_grad():
-                return audio_pipe(prompt, forward_params={"max_new_tokens": max_tokens})
+                # Enabling sampling for AudioGen-small as well
+                return audio_pipe(
+                    prompt,
+                    forward_params={
+                        "max_new_tokens": max_tokens,
+                        "do_sample": True,
+                        "temperature": 1.0,
+                        "top_k": 250
+                    }
+                )
 
         result = await asyncio.to_thread(run_inference)
 
@@ -100,15 +109,20 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
         if isinstance(audio_data, torch.Tensor):
             audio_data = audio_data.cpu().numpy()
 
-        # Squeeze if necessary
-        audio_data = np.squeeze(audio_data)
+        # Clean data and handle dimensions
+        audio_data = np.nan_to_num(audio_data)
 
-        # Normalize audio to -1.0 to 1.0 range if it isn't already
+        if audio_data.ndim > 1:
+            audio_data = audio_data[0]
+        if audio_data.ndim > 1:
+            audio_data = np.mean(audio_data, axis=0)
+
+        # Normalize audio to -1.0 to 1.0 range
         max_val = np.abs(audio_data).max()
         if max_val > 0:
-            audio_data = audio_data / max_val
+            audio_data = audio_data / (max_val + 1e-6)
 
-        # Convert to 16-bit PCM (standard WAV format) for better quality/compatibility
+        # Convert to 16-bit PCM (standard WAV format)
         audio_data = (audio_data * 32767).astype(np.int16)
 
         wav_buf = io.BytesIO()

@@ -156,10 +156,13 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_ov
         combined_audio = np.concatenate(all_audio)
         sample_rate = tts_model.config.mimi.sample_rate
 
+        # Clean audio data
+        combined_audio = np.nan_to_num(combined_audio)
+
         # Normalize audio
         max_val = np.abs(combined_audio).max()
         if max_val > 0:
-            combined_audio = combined_audio / max_val
+            combined_audio = combined_audio / (max_val + 1e-6)
 
         combined_audio = (combined_audio * 32767).astype(np.int16)
 
