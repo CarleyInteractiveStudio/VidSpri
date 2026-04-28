@@ -7,7 +7,7 @@ import torch
 import scipy.io.wavfile
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import AutoProcessor, AutoModelForAudioSeq2Seq
+from transformers import AutoProcessor, AudiogenForConditionalGeneration
 from supabase import create_client, Client
 
 app = FastAPI()
@@ -36,7 +36,7 @@ model_id = "facebook/audiogen-small"
 try:
     print(f"Loading model {model_id}...")
     processor = AutoProcessor.from_pretrained(model_id)
-    model = AutoModelForAudioSeq2Seq.from_pretrained(model_id).to(device)
+    model = AudiogenForConditionalGeneration.from_pretrained(model_id).to(device)
     print("Model loaded successfully.")
 except Exception as e:
     print(f"Error loading model: {e}")

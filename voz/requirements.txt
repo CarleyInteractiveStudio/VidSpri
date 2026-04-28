@@ -10,3 +10,4 @@ pocket-tts
 supabase
 gunicorn
 numpy
+accelerate
