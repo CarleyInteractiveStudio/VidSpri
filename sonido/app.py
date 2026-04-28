@@ -94,16 +94,16 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Run inference in a separate thread to avoid blocking heartbeats
         def run_inference():
             with torch.no_grad():
-                # Reverting to more balanced parameters for MusicGen-medium
+                # Stable parameters for long generations: lower temp and top_k, higher guidance
                 return audio_pipe(
                     prompt,
                     forward_params={
                         "max_new_tokens": max_tokens,
                         "do_sample": True,
-                        "temperature": 1.0,
-                        "top_k": 250,
-                        "top_p": 0.99,
-                        "guidance_scale": 3.0
+                        "temperature": 0.7,
+                        "top_k": 50,
+                        "top_p": 0.95,
+                        "guidance_scale": 5.0
                     }
                 )
 
@@ -132,13 +132,19 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Final safety squeeze
         audio_data = audio_data.flatten()
 
+        # Add a small fade-out (0.5s) to the end to ensure a clean finish
+        fade_len = int(sampling_rate * 0.5)
+        if len(audio_data) > fade_len:
+            fade_window = np.linspace(1.0, 0.0, fade_len)
+            audio_data[-fade_len:] *= fade_window
+
         # Normalize audio with headroom (0.9 multiplier) to avoid any clipping
         max_val = np.abs(audio_data).max()
         if max_val > 0:
             audio_data = (audio_data / (max_val + 1e-6)) * 0.9
 
-        # Convert to 16-bit PCM (clamping just in case)
-        audio_data = (audio_data * 32767).astype(np.int16)
+        # Final safety clamp and convert to 16-bit PCM
+        audio_data = np.clip(audio_data * 32767, -32768, 32767).astype(np.int16)
 
         wav_buf = io.BytesIO()
         scipy.io.wavfile.write(wav_buf, rate=sampling_rate, data=audio_data)

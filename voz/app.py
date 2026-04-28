@@ -165,7 +165,7 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_ov
         if max_val > 0:
             combined_audio = combined_audio / (max_val + 1e-6) * 0.95
 
-        combined_audio = (combined_audio * 32767).astype(np.int16)
+        combined_audio = np.clip(combined_audio * 32767, -32768, 32767).astype(np.int16)
 
         # Write to buffer
         out_buf = io.BytesIO()

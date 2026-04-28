@@ -93,16 +93,16 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
         def run_inference():
             with torch.no_grad():
-                # Balanced parameters for better audio quality
+                # Stable parameters for reliable audio quality
                 return audio_pipe(
                     prompt,
                     forward_params={
                         "max_new_tokens": max_tokens,
                         "do_sample": True,
-                        "temperature": 1.0,
-                        "top_k": 250,
-                        "top_p": 0.99,
-                        "guidance_scale": 3.0
+                        "temperature": 0.7,
+                        "top_k": 50,
+                        "top_p": 0.95,
+                        "guidance_scale": 5.0
                     }
                 )
 
@@ -127,13 +127,19 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
         audio_data = audio_data.flatten()
 
+        # Fade out end of clip (0.2s for effects)
+        fade_len = int(sampling_rate * 0.2)
+        if len(audio_data) > fade_len:
+            fade_window = np.linspace(1.0, 0.0, fade_len)
+            audio_data[-fade_len:] *= fade_window
+
         # Normalize audio with headroom
         max_val = np.abs(audio_data).max()
         if max_val > 0:
             audio_data = (audio_data / (max_val + 1e-6)) * 0.9
 
-        # Convert to 16-bit PCM
-        audio_data = (audio_data * 32767).astype(np.int16)
+        # Convert to 16-bit PCM with safety clamp
+        audio_data = np.clip(audio_data * 32767, -32768, 32767).astype(np.int16)
 
         wav_buf = io.BytesIO()
         scipy.io.wavfile.write(wav_buf, rate=sampling_rate, data=audio_data)
