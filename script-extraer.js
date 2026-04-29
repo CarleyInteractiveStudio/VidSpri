@@ -31,7 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressText = document.getElementById('progress-text');
     const etaText = document.getElementById('eta-text');
     const progressBarInner = document.getElementById('progress-bar-inner');
-    const resultContainer = document.getElementById('result-container');
     const spriteImage = document.getElementById('sprite-image');
     const downloadLink = document.getElementById('download-link');
     const downloadLinkQuick = document.getElementById('download-link-quick');
