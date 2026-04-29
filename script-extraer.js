@@ -219,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ctx = canvas.getContext('2d');
         canvas.width = 160;
         canvas.height = 90;
+        ctx.imageSmoothingEnabled = false;
 
         for (let i = 0; i < thumbCount; i++) {
             video.currentTime = (duration / thumbCount) * i;
@@ -785,15 +786,15 @@ document.addEventListener('DOMContentLoaded', () => {
             globalBounds = { minX: 0, minY: 0, maxX: images[0].width - 1, maxY: images[0].height - 1 };
         }
 
-        const cropWidth = globalBounds.maxX - globalBounds.minX + 1;
-        const cropHeight = globalBounds.maxY - globalBounds.minY + 1;
+        const cropWidth = Math.round(globalBounds.maxX - globalBounds.minX + 1);
+        const cropHeight = Math.round(globalBounds.maxY - globalBounds.minY + 1);
 
         // Process each image (crop and resize)
         const processedBlobs = await Promise.all(images.map(img => {
             const canvas = document.createElement('canvas');
 
-            const finalWidth = targetWidth || cropWidth;
-            const finalHeight = targetHeight || cropHeight;
+            const finalWidth = Math.round(targetWidth || cropWidth);
+            const finalHeight = Math.round(targetHeight || cropHeight);
 
             canvas.width = finalWidth;
             canvas.height = finalHeight;
@@ -883,6 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = false;
                 const frames = [];
                 const duration = endTime - startTime;
                 const interval = duration / frameCount;
@@ -922,8 +924,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (images.length === 0) return;
 
-        const totalWidth = images.reduce((sum, img) => sum + img.width, 0);
-        const maxHeight = Math.max(...images.map(img => img.height));
+        const totalWidth = Math.round(images.reduce((sum, img) => sum + img.width, 0));
+        const maxHeight = Math.round(Math.max(...images.map(img => img.height)));
         const canvas = document.createElement('canvas');
         canvas.width = totalWidth;
         canvas.height = maxHeight;

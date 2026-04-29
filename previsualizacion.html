@@ -25,6 +25,11 @@
                 0 10px 40px rgba(0,0,0,0.4);
             overflow: hidden;
             backdrop-filter: blur(20px);
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -o-crisp-edges;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
         }
         .preview-area::before {
             content: '';
@@ -40,14 +45,16 @@
             to { transform: rotate(360deg); }
         }
         #anim-canvas {
-            image-rendering: optimizeSpeed;
-            image-rendering: -moz-crisp-edges;
             image-rendering: -webkit-optimize-contrast;
+            image-rendering: -moz-crisp-edges;
             image-rendering: -o-crisp-edges;
             image-rendering: pixelated;
+            image-rendering: crisp-edges;
             -ms-interpolation-mode: nearest-neighbor;
             filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
             transition: transform 0.2s ease;
+            display: block;
+            margin: 0 auto;
         }
         .controls-grid {
             display: grid;
@@ -342,8 +349,8 @@
 
         function drawFrame() {
             if (!spriteImg.complete) return;
-            const frameW = spriteImg.width / cols;
-            const frameH = spriteImg.height / rows;
+            const frameW = Math.floor(spriteImg.width / cols);
+            const frameH = Math.floor(spriteImg.height / rows);
             const col = currentFrame % cols;
             const row = Math.floor(currentFrame / cols);
 
@@ -359,8 +366,8 @@
                 if (scale > 10) scale = 10; // Cap it
             }
 
-            canvas.style.width = (frameW * scale) + 'px';
-            canvas.style.height = (frameH * scale) + 'px';
+            canvas.style.width = Math.round(frameW * scale) + 'px';
+            canvas.style.height = Math.round(frameH * scale) + 'px';
 
             ctx.imageSmoothingEnabled = false;
             ctx.webkitImageSmoothingEnabled = false;
@@ -421,6 +428,9 @@
                 eCtx.mozImageSmoothingEnabled = false;
                 eCtx.msImageSmoothingEnabled = false;
                 eCtx.imageSmoothingQuality = 'low';
+
+            targetW = Math.round(targetW);
+            targetH = Math.round(targetH);
             }
 
             for (let r = 0; r < rows; r++) {
