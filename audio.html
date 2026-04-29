@@ -492,6 +492,12 @@
                     const statusEl = document.getElementById('status-text');
                     if (position === 1) {
                         statusEl.textContent = dict['your_turn'] || '¡Es tu turno!';
+
+                    // Proactive wake-up: Ping all servers of this type
+                    const { data: servers } = await supabaseClient.from('server_status').select('url').eq('service_type', selectedService);
+                    if (servers) {
+                        servers.forEach(s => fetch(s.url).catch(() => {}));
+                    }
                     } else {
                         statusEl.textContent = (dict['position'] || 'Posición en cola: ') + position;
                     }

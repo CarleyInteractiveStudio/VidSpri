@@ -563,6 +563,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (position === 1) {
             progressText.textContent = dict['your_turn'] || '¡Es tu turno! Preparando...';
+
+            // Proactive wake-up: Ping all video servers
+            const { data: servers } = await supabaseClient.from('server_status').select('url').eq('service_type', 'video');
+            if (servers) {
+                servers.forEach(s => fetch(s.url).catch(() => {}));
+            }
         } else {
             progressText.textContent = (dict['position'] || 'Posición en cola: ') + position;
         }

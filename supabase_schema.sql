@@ -378,21 +378,24 @@ CREATE TABLE IF NOT EXISTS redeemed_codes (
 );
 
 -- Migration: Ensure the foreign key constraint on redeemed_codes uses ON DELETE CASCADE
--- This version is more robust and will find the constraint even if it has a different name
+-- This version is bulletproof and finds all potential constraints on the 'code' column
 DO $$
 DECLARE
-    const_name TEXT;
+    r RECORD;
 BEGIN
-    FOR const_name IN (
-        SELECT conname
-        FROM pg_constraint con
-        JOIN pg_class rel ON rel.oid = con.conrelid
-        JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
-        WHERE nsp.nspname = 'public'
-          AND rel.relname = 'redeemed_codes'
-          AND con.contype = 'f'
+    FOR r IN (
+        SELECT
+            tc.constraint_name
+        FROM
+            information_schema.table_constraints AS tc
+            JOIN information_schema.key_column_usage AS kcu
+              ON tc.constraint_name = kcu.constraint_name
+              AND tc.table_schema = kcu.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_name = 'redeemed_codes'
+          AND kcu.column_name = 'code'
     ) LOOP
-        EXECUTE 'ALTER TABLE public.redeemed_codes DROP CONSTRAINT ' || quote_ident(const_name);
+        EXECUTE 'ALTER TABLE public.redeemed_codes DROP CONSTRAINT ' || quote_ident(r.constraint_name);
     END LOOP;
 
     ALTER TABLE public.redeemed_codes
