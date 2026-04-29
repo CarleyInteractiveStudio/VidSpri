@@ -461,6 +461,7 @@ const translations = {
         redeem_code: "Canjear Código",
         redeem_sub: "Canjea un código para obtener una mejor posición en la fila sin afectar a los demás.",
         reprocess_tip: "Haz clic en los cuadros que aún tienen fondo para volver a procesarlos.",
+        reprocess_selected: "Re-procesar Seleccionados",
         result_audio: "Resultado:",
         rows: "Filas",
         save_code: "Guardar Código",

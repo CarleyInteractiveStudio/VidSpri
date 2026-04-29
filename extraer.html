@@ -62,13 +62,11 @@
                     <div id="timeline-marker" class="timeline-marker"></div>
                 </div>
 
-                <div class="timeline-container">
-                    <div id="thumbnails-track" class="thumbnails-track"></div>
-                    <div id="range-selector" class="range-selector">
-                        <div class="range-handle left" id="handle-start"></div>
-                        <div class="range-highlight"></div>
-                        <div class="range-handle right" id="handle-end"></div>
-                    </div>
+                <div class="range-slider-container" style="height: 60px; margin: 15px 0 25px 0;">
+                    <div id="thumbnails-track" class="thumbnails-track" style="position: absolute; width: 100%; height: 100%; pointer-events: none;"></div>
+                    <div id="range-highlight"></div>
+                    <input type="range" id="range-start-video" min="0" max="100" value="0" step="0.1" style="height: 100%;">
+                    <input type="range" id="range-end-video" min="0" max="100" value="100" step="0.1" style="height: 100%;">
                 </div>
 
                 <div class="editor-controls">
@@ -100,6 +98,39 @@
         <section id="frame-preview-container" class="hidden">
             <h2 data-i18n="step_process">Quitar Fondo</h2>
             <div id="frames-output"></div>
+
+            <!-- New Process Options -->
+            <div class="modern-card" style="text-align: left; margin-bottom: 25px;">
+                <h3 style="font-size: 1.1rem; color: var(--primary); margin-bottom: 15px;">Opciones de Procesamiento</h3>
+
+                <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="smart-crop-check" checked style="width: 20px; height: 20px; accent-color: var(--primary);">
+                    <label for="smart-crop-check" style="margin: 0; color: white;">Recorte Inteligente (Ajustar personaje)</label>
+                </div>
+
+                <div class="form-group">
+                    <label for="export-size">Tamaño de exportación (por cuadro)</label>
+                    <select id="export-size" class="pill-btn" style="width: 100%; height: 45px; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); color: white;">
+                        <option value="original">Tamaño Original</option>
+                        <option value="16">16 x 16 px</option>
+                        <option value="32" selected>32 x 32 px</option>
+                        <option value="64">64 x 64 px</option>
+                        <option value="custom">Personalizado</option>
+                    </select>
+                </div>
+
+                <div id="custom-size-inputs" class="hidden time-range-grid">
+                    <div class="time-input-group">
+                        <label for="custom-width">Ancho (px)</label>
+                        <input type="number" id="custom-width" value="32" min="8" max="512">
+                    </div>
+                    <div class="time-input-group">
+                        <label for="custom-height">Alto (px)</label>
+                        <input type="number" id="custom-height" value="32" min="8" max="512">
+                    </div>
+                </div>
+            </div>
+
             <button type="button" id="generate-sprite-btn" class="action-btn" data-i18n="process_btn">Quitar Fondo y Generar Sprite ✨</button>
         </section>
 
@@ -127,9 +158,9 @@
             <div class="result-frames-grid" id="result-frames-output"></div>
             <p class="small-text" style="text-align: center; margin-bottom: 10px; opacity: 0.8;" data-i18n="reprocess_tip">Haz clic en los cuadros que aún tienen fondo para volver a procesarlos.</p>
             <div style="text-align: center; margin-bottom: 20px;">
-                <button type="button" id="reprocess-btn" class="pill-btn highlight-btn hidden">
+                <button type="button" id="reprocess-btn" class="pill-btn highlight-btn hidden" style="margin: 0 auto;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                    Re-procesar Seleccionados
+                    <span data-i18n="reprocess_selected">Re-procesar Seleccionados</span>
                 </button>
             </div>
             <img id="sprite-image" src="" alt="Sprite Sheet">
