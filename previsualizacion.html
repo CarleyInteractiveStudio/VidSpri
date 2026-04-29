@@ -188,6 +188,9 @@
             canvas.style.width = (frameW * scale) + 'px';
             canvas.style.height = (frameH * scale) + 'px';
 
+            // Ensure pixelated rendering for the preview if it's small
+            ctx.imageSmoothingEnabled = false;
+
             ctx.clearRect(0, 0, frameW, frameH);
             ctx.drawImage(spriteImg, col * frameW, row * frameH, frameW, frameH, 0, 0, frameW, frameH);
         }

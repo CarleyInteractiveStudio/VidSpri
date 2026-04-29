@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const endTimeInput = document.getElementById('end-time');
 
     const smartCropCheck = document.getElementById('smart-crop-check');
+    const pixelArtCheck = document.getElementById('pixel-art-check');
     const exportSizeSelect = document.getElementById('export-size');
     const customSizeInputs = document.getElementById('custom-size-inputs');
     const customWidthInput = document.getElementById('custom-width');
@@ -272,6 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     smartCropCheck.addEventListener('change', updateFinalSpriteSheet);
+    pixelArtCheck.addEventListener('change', updateFinalSpriteSheet);
     customWidthInput.addEventListener('change', updateFinalSpriteSheet);
     customHeightInput.addEventListener('change', updateFinalSpriteSheet);
 
@@ -711,6 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function processSmartCropAndResize(blobs) {
         const smartCrop = smartCropCheck.checked;
+        const pixelArtMode = pixelArtCheck.checked;
         const exportSizeValue = exportSizeSelect.value;
 
         let targetWidth = null, targetHeight = null;
@@ -796,8 +799,10 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.height = finalHeight;
             const ctx = canvas.getContext('2d');
 
-            ctx.imageSmoothingEnabled = (exportSizeValue !== 'original');
-            ctx.imageSmoothingQuality = 'high';
+            ctx.imageSmoothingEnabled = !pixelArtMode;
+            if (!pixelArtMode) {
+                ctx.imageSmoothingQuality = 'high';
+            }
 
             ctx.drawImage(
                 img,
