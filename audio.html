@@ -351,22 +351,51 @@
                 <!-- Editor / Trimmer (Only for music/effects) -->
                 <div id="audio-trimmer" class="trimmer-container hidden">
                     <p style="font-size: 0.85rem; line-height: 1.4; color: var(--text-dim);" data-i18n="trim_instruction">
-                        Puedes recortar tu música en 2 partes específicas para tener una mejor calidad de audio evitando el sonido de inicio y fin.
+                        Arrastra los controles para seleccionar el inicio y fin de tu audio.
                     </p>
+
+                    <!-- Visual Range Slider -->
+                    <div class="range-slider-container" style="position: relative; height: 40px; background: rgba(255,255,255,0.05); border-radius: 10px; margin: 20px 0; overflow: hidden;">
+                        <div id="range-highlight" style="position: absolute; height: 100%; background: rgba(124, 58, 237, 0.3); left: 0%; right: 0%;"></div>
+                        <input type="range" id="range-start" min="0" max="100" value="0" step="0.1" style="position: absolute; width: 100%; top: 0; pointer-events: none; -webkit-appearance: none; background: transparent;">
+                        <input type="range" id="range-end" min="0" max="100" value="100" step="0.1" style="position: absolute; width: 100%; top: 0; pointer-events: none; -webkit-appearance: none; background: transparent;">
+                    </div>
+
+                    <style>
+                        /* Custom range slider styling for dual handles */
+                        .range-slider-container input[type=range]::-webkit-slider-thumb {
+                            pointer-events: auto;
+                            -webkit-appearance: none;
+                            height: 40px;
+                            width: 10px;
+                            background: #7c3aed;
+                            cursor: pointer;
+                            border-radius: 2px;
+                        }
+                        .range-slider-container input[type=range]::-moz-range-thumb {
+                            pointer-events: auto;
+                            height: 40px;
+                            width: 10px;
+                            background: #7c3aed;
+                            cursor: pointer;
+                            border-radius: 2px;
+                        }
+                    </style>
+
                     <div class="trim-controls">
-                        <div class="trim-range-box">
-                            <div class="form-group">
-                                <label style="font-size: 0.7rem;">Inicio (s)</label>
-                                <input type="number" id="trim-start" step="0.1" value="0" min="0">
-                            </div>
-                            <div class="form-group">
-                                <label style="font-size: 0.7rem;">Fin (s)</label>
-                                <input type="number" id="trim-end" step="0.1" value="10">
-                            </div>
+                        <div style="display: flex; gap: 10px; justify-content: center;">
+                            <button type="button" id="play-trim-preview" class="pill-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                <span data-i18n="preview">Probar Selección</span>
+                            </button>
+                            <button type="button" id="apply-trim" class="pill-btn highlight-btn">
+                                <span data-i18n="trim">Recortar Definitivo</span>
+                            </button>
                         </div>
-                        <button type="button" id="apply-trim" class="pill-btn highlight-btn" style="justify-content: center;">
-                            <span data-i18n="trim">Recortar</span>
-                        </button>
+                        <div class="trim-range-box hidden"> <!-- Keep inputs for internal logic but hide them -->
+                            <input type="number" id="trim-start" step="0.1" value="0">
+                            <input type="number" id="trim-end" step="0.1" value="10">
+                        </div>
                     </div>
                 </div>
 
@@ -575,18 +604,37 @@
             const container = document.getElementById('chips-container');
             container.innerHTML = '';
 
-            const musicChips = ["Épica", "8-bit", "Terror", "Aventura", "Relajante", "Combate", "Misterio", "Cyberpunk"];
-            const effectChips = ["Explosión", "Pasos", "Espada", "Moneda", "Salto", "Puerta", "Láser", "Viento"];
+            const musicChips = [
+                { label: "Épica", prompt: "Música épica de orquesta para batalla final con tambores" },
+                { label: "8-bit", prompt: "Melodía retro de 8 bits estilo videojuego clásico" },
+                { label: "Terror", prompt: "Ambiente oscuro y tenso con ruidos de suspenso" },
+                { label: "Aventura", prompt: "Tema de aventura heroica con flautas y cuerdas" },
+                { label: "Relajante", prompt: "Música tranquila y ambiental para momentos de calma" },
+                { label: "Combate", prompt: "Ritmo rápido de acción y adrenalina para pelea" },
+                { label: "Misterio", prompt: "Melodía intrigante y misteriosa con piano suave" },
+                { label: "Cyberpunk", prompt: "Sintetizadores futuristas estilo synthwave oscuro" }
+            ];
+            const effectChips = [
+                { label: "Explosión", prompt: "Explosión potente y profunda con escombros" },
+                { label: "Pasos", prompt: "Pasos rápidos sobre madera crujiente" },
+                { label: "Espada", prompt: "Sonido de espada de metal chocando o desvainando" },
+                { label: "Moneda", prompt: "Tintineo brillante de moneda de oro recogida" },
+                { label: "Salto", prompt: "Efecto de salto caricaturesco o de videojuego" },
+                { label: "Puerta", prompt: "Puerta pesada de piedra abriéndose lentamente" },
+                { label: "Láser", prompt: "Disparo de arma láser futurista de alta energía" },
+                { label: "Viento", prompt: "Viento silbando fuertemente en un desierto" }
+            ];
 
             const chips = (service === 'sound') ? musicChips : effectChips;
 
-            chips.forEach(text => {
+            chips.forEach(item => {
+                const text = item.label;
                 const chip = document.createElement('div');
                 chip.className = 'chip';
                 chip.textContent = text;
                 chip.onclick = () => {
                     const promptInput = document.getElementById('audio-prompt');
-                    promptInput.value += (promptInput.value ? ', ' : '') + text;
+                    promptInput.value = item.prompt;
                 };
                 container.appendChild(chip);
             });
@@ -993,8 +1041,16 @@
                     trimmer.classList.remove('hidden');
                     // Reset trim values
                     mainAudio.onloadedmetadata = () => {
+                        const dur = mainAudio.duration;
                         document.getElementById('trim-start').value = 0;
-                        document.getElementById('trim-end').value = mainAudio.duration.toFixed(1);
+                        document.getElementById('trim-end').value = dur.toFixed(1);
+
+                        // Sync visual sliders
+                        const rs = document.getElementById('range-start');
+                        const re = document.getElementById('range-end');
+                        rs.max = dur; re.max = dur;
+                        rs.value = 0; re.value = dur;
+                        updateRangeUI();
                     };
                 } else {
                     trimmer.classList.add('hidden');
@@ -1039,6 +1095,48 @@
         }
 
         // --- Trimmer Logic ---
+        function updateRangeUI() {
+            const rs = document.getElementById('range-start');
+            const re = document.getElementById('range-end');
+            const highlight = document.getElementById('range-highlight');
+            const dur = mainAudio.duration || 1;
+
+            let start = parseFloat(rs.value);
+            let end = parseFloat(re.value);
+
+            if (start > end) {
+                [start, end] = [end, start];
+            }
+
+            document.getElementById('trim-start').value = start.toFixed(1);
+            document.getElementById('trim-end').value = end.toFixed(1);
+
+            highlight.style.left = (start / dur * 100) + '%';
+            highlight.style.right = (100 - (end / dur * 100)) + '%';
+        }
+
+        document.getElementById('range-start').oninput = updateRangeUI;
+        document.getElementById('range-end').oninput = updateRangeUI;
+
+        let isPreviewing = false;
+        document.getElementById('play-trim-preview').onclick = () => {
+            const start = parseFloat(document.getElementById('trim-start').value);
+            const end = parseFloat(document.getElementById('trim-end').value);
+
+            mainAudio.currentTime = start;
+            mainAudio.play();
+            isPreviewing = true;
+
+            const checkEnd = () => {
+                if (mainAudio.currentTime >= end || mainAudio.paused) {
+                    mainAudio.pause();
+                    mainAudio.removeEventListener('timeupdate', checkEnd);
+                    isPreviewing = false;
+                }
+            };
+            mainAudio.addEventListener('timeupdate', checkEnd);
+        };
+
         document.getElementById('apply-trim').onclick = async () => {
             const start = parseFloat(document.getElementById('trim-start').value);
             const end = parseFloat(document.getElementById('trim-end').value);
