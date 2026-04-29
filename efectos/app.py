@@ -35,15 +35,18 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 device = "cpu"
 model_id = "facebook/audiogen-small"
 audio_pipe = None
+load_error = None
 is_processing = False
 
 def load_models():
-    global audio_pipe
+    global audio_pipe, load_error
     try:
         print(f"Loading model {model_id} via pipeline...")
         audio_pipe = pipeline("text-to-audio", model=model_id, device=device)
         print("Model loaded successfully.")
+        load_error = None
     except Exception as e:
+        load_error = str(e)
         print(f"Error loading model: {e}")
 
 async def update_status(status: str = None):
@@ -86,7 +89,8 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
     try:
         if not audio_pipe:
-            raise Exception("Model pipeline not loaded")
+            msg = f"Model pipeline not loaded. Error during startup: {load_error}" if load_error else "Model pipeline not loaded yet (still starting up?)"
+            raise Exception(msg)
 
         # AudioGen-small: 50 tokens ~ 1 second of audio
         max_tokens = min(int(duration) * 50, 250) # Max 5 seconds (250 tokens)

@@ -67,6 +67,12 @@ def load_models():
     # TTS (Text to Speech)
     try:
         print("Loading Pocket TTS model...")
+
+        # Check for HF Token to handle gated models
+        hf_token = os.environ.get("HF_TOKEN")
+        if not hf_token:
+            print("WARNING: HF_TOKEN environment variable not set. Loading model without voice cloning capability.")
+
         # We can specify language='spanish' or leave it for default English
         # For VidSpri, maybe we should detect language or use a default.
         tts_model = TTSModel.load_model(language="spanish")
@@ -74,6 +80,8 @@ def load_models():
         print("Pocket TTS Model loaded successfully.")
     except Exception as e:
         print(f"Error loading Pocket TTS model: {e}")
+        if "gated" in str(e).lower() or "cloning" in str(e).lower():
+            print("IMPORTANT: This model requires a HF_TOKEN to access voice cloning. Ensure you have accepted the terms on Hugging Face.")
 
 is_processing = False
 

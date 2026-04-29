@@ -69,6 +69,9 @@ BEGIN
 
     -- 2. Only proceed if it has been more than 24 hours OR if there are NO auto codes
     IF last_refresh IS NULL OR last_refresh < NOW() - INTERVAL '24 hours' THEN
+        -- Failsafe: Manual delete of references in redeemed_codes before purging priority_codes
+        DELETE FROM redeemed_codes WHERE code IN (SELECT code FROM priority_codes WHERE is_auto = TRUE);
+
         -- Delete all previous auto-generated codes (used or expired) to start fresh
         DELETE FROM priority_codes WHERE is_auto = TRUE;
 
