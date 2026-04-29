@@ -1,17 +1,18 @@
 FROM python:3.10-slim
 
-# Install system dependencies for audio processing
+# Install system dependencies for audio processing and compilation
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libsndfile1 \
+    build-essential \
+    gcc \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Explicitly install pocket-tts to ensure it's available
-RUN pip install --no-cache-dir pocket-tts
 
 COPY . .
 

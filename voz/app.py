@@ -45,6 +45,8 @@ load_error = None
 def load_models():
     global model_interface, load_error
     try:
+        # Limit threads for CPU stability on free tier
+        torch.set_num_threads(1)
         print("Loading OuteTTS model (Apache 2.0)...")
         # Initialize the model interface
         model_config = outetts.GGUFModelConfig_v1(

@@ -12,18 +12,22 @@
     <style>
         .audio-service-selector {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
         .service-card {
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 30px;
+            padding: 25px;
             border-radius: 15px;
             cursor: pointer;
             transition: all 0.3s;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
         .service-card:hover, .service-card.active {
             background: rgba(124, 58, 237, 0.2);
@@ -36,13 +40,15 @@
         }
         .audio-form-container {
             background: rgba(0,0,0,0.2);
-            padding: 30px;
+            padding: 25px;
             border-radius: 20px;
             margin-top: 20px;
+            width: 100%;
+            box-sizing: border-box;
         }
         .custom-audio-player {
             background: #1a1a1a;
-            padding: 15px;
+            padding: 12px 20px;
             border-radius: 50px;
             display: flex;
             align-items: center;
@@ -50,6 +56,7 @@
             width: 100%;
             margin-top: 20px;
             border: 1px solid #333;
+            box-sizing: border-box;
         }
         .play-pause-btn {
             background: #7c3aed;
@@ -62,6 +69,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
         }
         .audio-progress {
             flex-grow: 1;
@@ -91,6 +99,79 @@
             50% { opacity: 0.3; }
             100% { opacity: 1; }
         }
+        .recommendation-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        .chip {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .chip:hover {
+            background: rgba(124, 58, 237, 0.2);
+            border-color: #7c3aed;
+        }
+        .stage-title {
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        .trimmer-container {
+            margin-top: 25px;
+            padding: 20px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .trim-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .trim-range-box {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .history-section {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .history-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .history-item {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .history-item:hover {
+            background: rgba(124, 58, 237, 0.1);
+            border-color: #7c3aed;
+        }
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            resize: none;
+        }
     </style>
 </head>
 <body>
@@ -105,29 +186,60 @@
         <h1 data-i18n="gen_sound_title">Generador de Audio IA</h1>
         <p data-i18n="audio_subtitle">Crea voces, música y efectos para tus proyectos.</p>
 
-        <div class="audio-service-selector">
-            <div class="service-card" id="service-voice" onclick="selectService('voice')">
+        <!-- Stepper -->
+        <div class="stepper">
+            <div class="step active" id="step-1">
+                <div class="step-icon">1</div>
+                <span style="font-size: 0.7rem;" data-i18n="stage_selection">Selección</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" id="step-2">
+                <div class="step-icon">2</div>
+                <span style="font-size: 0.7rem;" data-i18n="stage_config">Config</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" id="step-3">
+                <div class="step-icon">3</div>
+                <span style="font-size: 0.7rem;" data-i18n="stage_queue">Cola</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" id="step-4">
+                <div class="step-icon">4</div>
+                <span style="font-size: 0.7rem;" data-i18n="stage_result">Resultado</span>
+            </div>
+        </div>
+
+        <!-- Stage 1: Selection -->
+        <div id="stage-selection" class="audio-service-selector">
+            <div class="service-card" id="service-voice" onclick="goToConfig('voice')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                 <h3 data-i18n="service_voice">Voz y Clonación</h3>
                 <p data-i18n="service_voice_desc">Habla y clona tu voz o usa una de defecto.</p>
             </div>
-            <div class="service-card" id="service-sound" onclick="selectService('sound')">
+            <div class="service-card" id="service-sound" onclick="goToConfig('sound')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
                 <h3 data-i18n="service_music">Música / Instrumentos</h3>
                 <p data-i18n="service_music_desc">Genera melodías y loops instrumentales.</p>
             </div>
-            <div class="service-card" id="service-effect" onclick="selectService('effect')">
+            <div class="service-card" id="service-effect" onclick="goToConfig('effect')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12a10 10 0 1 0 20 0 10 10 0 1 0-20 0Z"></path><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
                 <h3 data-i18n="service_sfx">Efectos de Sonido</h3>
                 <p data-i18n="service_sfx_desc">Crea sonidos cortos como explosiones o pasos.</p>
             </div>
         </div>
 
-        <div id="audio-interface" class="audio-form-container hidden">
-            <!-- Voice Flow -->
-            <div id="voice-interface" class="hidden">
-                <h2 data-i18n="voice_setup">Configuración de Voz</h2>
-                <div style="display: flex; gap: 15px; margin-bottom: 20px; justify-content: center;">
+        <!-- Stage 2: Configuration -->
+        <div id="stage-config" class="audio-form-container hidden">
+            <button type="button" onclick="goToSelection()" class="pill-btn" style="margin-bottom: 20px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                <span data-i18n="back">Volver</span>
+            </button>
+
+            <!-- Voice Configuration -->
+            <div id="voice-config" class="hidden">
+                <h2 data-i18n="voice_setup" class="stage-title">Configuración de Voz</h2>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 20px; justify-content: center;">
                     <button type="button" id="start-record" class="pill-btn highlight-btn">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></svg>
                         <span data-i18n="record">Grabar Voz</span>
@@ -136,23 +248,52 @@
                         <div class="recording-indicator"></div>
                         <span data-i18n="stop">Detener</span>
                     </button>
+                    <input type="file" id="voice-upload" accept="audio/*" class="hidden">
+                    <button type="button" onclick="document.getElementById('voice-upload').click()" class="pill-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <span data-i18n="upload_audio">Subir Audio</span>
+                    </button>
                 </div>
-                <div id="voice-preview" class="hidden" style="margin-bottom: 20px;">
-                    <p data-i18n="voice_captured">Voz capturada. Puedes escribir un texto abajo para usar esta voz:</p>
+
+                <div id="voice-status-preview" class="hidden" style="margin-bottom: 15px; font-size: 0.9rem; color: #4CAF50; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span id="voice-status-text">Voz lista</span>
                 </div>
-                <textarea id="voice-text" maxlength="650" placeholder="Escribe lo que quieres que diga la IA... (Si lo dejas vacío, se usará el texto de lo que hablaste)" style="width: 100%; height: 100px; padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 10px;"></textarea>
-                <div style="text-align: right; font-size: 0.8rem; margin-bottom: 20px; opacity: 0.7;">
-                    <span data-i18n="char_count">Caracteres: </span><span id="char-count">0</span>/650
+
+                <div style="margin-bottom: 20px; text-align: left;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="extract-text-check" checked style="accent-color: #7c3aed; width: 18px; height: 18px;">
+                        <span data-i18n="extract_text">Extraer texto de la grabación</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label data-i18n="prompt_label_voice">Texto para la voz</label>
+                    <textarea id="voice-text" maxlength="1050" placeholder="Escribe lo que quieres que diga la IA..." style="height: 120px;"></textarea>
+                    <div style="text-align: right; font-size: 0.8rem; margin-top: 5px; opacity: 0.7;">
+                        <span data-i18n="char_count">Caracteres: </span><span id="char-count">0</span>/1050
+                    </div>
                 </div>
             </div>
 
-            <!-- Generic Text-to-Audio (Sound/Effect) -->
-            <div id="generic-interface" class="hidden">
-                <h2 id="interface-title">Prompt de Audio</h2>
-                <input type="text" id="audio-prompt" placeholder="Ej: Espada chocando contra metal..." style="width: 100%; padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;">
+            <!-- Sound/Effect Configuration -->
+            <div id="generic-config" class="hidden">
+                <h2 id="generic-title" class="stage-title">Personalización</h2>
 
-                <div id="duration-container" style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 10px;">
+                <div class="form-group">
+                    <label id="prompt-label">¿Qué tipo de música te gustaría?</label>
+                    <textarea id="audio-prompt" placeholder="Ej: Melodía épica de orquesta..." style="height: 80px;"></textarea>
+
+                    <div id="recommendation-container">
+                        <p style="font-size: 0.8rem; margin-bottom: 5px; text-align: center;" data-i18n="recommendations">Recomendaciones:</p>
+                        <div id="chips-container" class="recommendation-chips">
+                            <!-- Chips injected via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
                         <span data-i18n="duration">Duración: </span>
                         <span id="duration-value">10</span> <span data-i18n="seconds">segundos</span>
                     </label>
@@ -160,32 +301,43 @@
                 </div>
             </div>
 
-            <div style="text-align: center;">
-                <button type="button" id="generate-audio-btn" class="action-btn">
-                    <span data-i18n="generate">Generar ✨</span>
-                </button>
-            </div>
+            <button type="button" id="generate-audio-btn" class="action-btn">
+                <span data-i18n="generate">Generar ✨</span>
+            </button>
+        </div>
 
-            <!-- Progress & Result -->
-            <div id="processing-status" class="hidden" style="margin-top: 30px;">
+        <!-- Stage 3: Queue & Processing -->
+        <div id="stage-queue" class="audio-form-container hidden">
+            <h2 class="stage-title" data-i18n="stage_queue">Procesando...</h2>
+
+            <div id="processing-status">
                 <p id="status-text" style="text-align: center; margin-bottom: 10px;">Uniéndose a la cola...</p>
                 <p id="eta-text" style="text-align: center; font-size: 0.85rem; opacity: 0.7; margin-bottom: 10px;"></p>
                 <div class="progress-bar-container">
-                    <div id="audio-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
+                    <div id="audio-progress-bar" class="progress-bar-fill" style="width: 5%"></div>
                 </div>
+
                 <!-- Priority Actions in Queue -->
-                <div id="queue-priority-actions" class="hidden" style="margin-top: 20px; text-align: center; background: rgba(124, 58, 237, 0.1); padding: 15px; border-radius: 15px; border: 1px dashed #7c3aed;">
+                <div id="queue-priority-actions" class="hidden" style="margin-top: 25px; text-align: center; background: rgba(124, 58, 237, 0.1); padding: 15px; border-radius: 15px; border: 1px dashed #7c3aed;">
                     <p id="priority-balance-info" style="font-size: 0.9rem; margin-bottom: 10px;"></p>
                     <button type="button" id="use-priority-btn" class="pill-btn highlight-btn" style="margin: 0 auto; display: none;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
                         <span data-i18n="use_priority">Usar 1 Acceso Prioritario</span>
                     </button>
-                    <a href="codigos.html" id="get-priority-link" style="color: #7c3aed; font-size: 0.85rem; text-decoration: none;" data-i18n="get_priority_codes">Conseguir códigos prioritarios</a>
+                    <a href="codigos.html" style="color: #7c3aed; font-size: 0.85rem; text-decoration: none;" data-i18n="get_priority_codes">Conseguir códigos prioritarios</a>
+                </div>
+
+                <div style="text-align: center; margin-top: 30px;">
+                    <button type="button" onclick="goToConfig(selectedService)" class="text-button" data-i18n="back">Volver a configurar</button>
                 </div>
             </div>
+        </div>
 
-            <div id="audio-result" class="hidden" style="margin-top: 30px; text-align: center;">
-                <h3 data-i18n="result_audio">Resultado:</h3>
+        <!-- Stage 4: Result & Editor -->
+        <div id="stage-result" class="audio-form-container hidden">
+            <h2 class="stage-title" data-i18n="stage_result">Resultado</h2>
+
+            <div id="audio-result-view" style="text-align: center;">
                 <div class="custom-audio-player">
                     <button class="play-pause-btn" onclick="togglePlay()">
                         <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -195,15 +347,51 @@
                     </div>
                     <span id="audio-time">0:00</span>
                 </div>
-                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+
+                <!-- Editor / Trimmer (Only for music/effects) -->
+                <div id="audio-trimmer" class="trimmer-container hidden">
+                    <p style="font-size: 0.85rem; line-height: 1.4; color: var(--text-dim);" data-i18n="trim_instruction">
+                        Puedes recortar tu música en 2 partes específicas para tener una mejor calidad de audio evitando el sonido de inicio y fin.
+                    </p>
+                    <div class="trim-controls">
+                        <div class="trim-range-box">
+                            <div class="form-group">
+                                <label style="font-size: 0.7rem;">Inicio (s)</label>
+                                <input type="number" id="trim-start" step="0.1" value="0" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.7rem;">Fin (s)</label>
+                                <input type="number" id="trim-end" step="0.1" value="10">
+                            </div>
+                        </div>
+                        <button type="button" id="apply-trim" class="pill-btn highlight-btn" style="justify-content: center;">
+                            <span data-i18n="trim">Recortar</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="result-actions">
                     <button type="button" id="download-audio-btn" class="pill-btn highlight-btn">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         <span data-i18n="download">Descargar</span>
                     </button>
-                    <button type="button" onclick="resetAudioUI()" class="pill-btn">
-                        <span data-i18n="gen_another">Generar otro</span>
-                    </button>
+                    <div class="action-group-right">
+                        <button type="button" id="redo-btn" onclick="goToConfig(selectedService)" class="pill-btn">
+                            <span data-i18n="back">Volver a intentar</span>
+                        </button>
+                        <button type="button" onclick="resetToStart()" class="pill-btn">
+                            <span data-i18n="gen_another">Nuevo Audio</span>
+                        </button>
+                    </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Local History Section -->
+        <div id="local-history" class="history-section">
+            <h3 data-i18n="history">Recientes</h3>
+            <div id="history-list" class="history-grid">
+                <!-- Items injected via JS -->
             </div>
         </div>
     </div>
@@ -212,46 +400,196 @@
     <script src="script.js"></script>
     <script>
         let selectedService = 'voice';
+        let currentStage = 1;
         let mediaRecorder;
         let audioChunks = [];
         let recordedBlob;
         let currentJobId = null;
         let heartbeatInterval = null;
+        let positionTimer = null;
         let estimatedTotalTime = 0;
         let processingStartTime = 0;
         let progressInterval = null;
         let isSending = false;
+        let recognition;
         const mainAudio = new Audio();
 
-        function selectService(service) {
-            selectedService = service;
-            document.querySelectorAll('.service-card').forEach(c => c.classList.remove('active'));
-            document.getElementById(`service-${service}`).classList.add('active');
+        // IndexedDB History System
+        const dbName = "VidSpriHistory";
+        const dbVersion = 1;
+        let db;
 
-            document.getElementById('audio-interface').classList.remove('hidden');
-            document.getElementById('voice-interface').classList.add('hidden');
-            document.getElementById('generic-interface').classList.add('hidden');
-            document.getElementById('audio-result').classList.add('hidden');
-            document.getElementById('processing-status').classList.add('hidden');
+        const request = indexedDB.open(dbName, dbVersion);
+        request.onupgradeneeded = (e) => {
+            db = e.target.result;
+            if (!db.objectStoreNames.contains('history')) {
+                db.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
+            }
+        };
+        request.onsuccess = (e) => {
+            db = e.target.result;
+            loadHistory();
+        };
+
+        async function saveToHistory(type, data, prompt) {
+            const tx = db.transaction('history', 'readwrite');
+            const store = tx.objectStore('history');
+
+            // Get all items of this type
+            const items = await new Promise(resolve => {
+                const req = store.getAll();
+                req.onsuccess = () => resolve(req.result.filter(i => i.type === type));
+            });
+
+            // Maintain limit of 10
+            if (items.length >= 10) {
+                items.sort((a, b) => a.timestamp - b.timestamp);
+                store.delete(items[0].id);
+            }
+
+            store.add({
+                type,
+                data, // base64
+                prompt,
+                timestamp: Date.now(),
+                cols: type === 'sprite' ? localStorage.getItem('vidspri_last_cols') : null,
+                rows: type === 'sprite' ? localStorage.getItem('vidspri_last_rows') : null
+            });
+
+            tx.oncomplete = () => loadHistory();
+        }
+
+        let isLoadingHistory = false;
+        function loadHistory() {
+            if (!db || isLoadingHistory) return;
+            isLoadingHistory = true;
+            const tx = db.transaction('history', 'readonly');
+            const store = tx.objectStore('history');
+            const req = store.getAll();
+
+            req.onsuccess = () => {
+                isLoadingHistory = false;
+                const items = req.result.sort((a, b) => b.timestamp - a.timestamp);
+                const container = document.getElementById('history-list');
+                container.innerHTML = '';
+
+                items.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'history-item';
+                    const date = new Date(item.timestamp).toLocaleDateString();
+
+                    let icon = '🎵';
+                    if (item.type === 'voice') icon = '🗣️';
+                    if (item.type === 'effect') icon = '💥';
+                    if (item.type === 'sprite') icon = '🖼️';
+
+                    div.innerHTML = `
+                        <div style="font-weight: bold; color: #7c3aed; text-transform: uppercase; font-size: 0.65rem;">${icon} ${item.type}</div>
+                        <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 5px 0;">${item.prompt || 'Item'}</div>
+                        <div style="font-size: 0.6rem; opacity: 0.5;">${date}</div>
+                    `;
+                    div.onclick = () => {
+                        if (item.type === 'sprite') {
+                            localStorage.setItem('vidspri_last_sprite', item.data);
+                            localStorage.setItem('vidspri_last_cols', item.cols || 8);
+                            localStorage.setItem('vidspri_last_rows', item.rows || 1);
+                            window.location.href = 'previsualizacion.html';
+                        } else {
+                            displayAudioResult(item.data);
+                            showStage(4);
+                        }
+                    };
+                    container.appendChild(div);
+                });
+            };
+        }
+
+        // Initialize Speech Recognition
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = localStorage.getItem('vidspri_lang') === 'es' ? 'es-ES' : 'en-US';
+
+            recognition.onresult = (event) => {
+                if (!document.getElementById('extract-text-check').checked) return;
+
+                let finalTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    }
+                }
+                if (finalTranscript) {
+                    const voiceText = document.getElementById('voice-text');
+                    voiceText.value = (voiceText.value + ' ' + finalTranscript).trim().substring(0, 1050);
+                    voiceText.dispatchEvent(new Event('input'));
+                }
+            };
+        }
+
+        // Stage Management
+        function showStage(stageNum) {
+            currentStage = stageNum;
+            document.querySelectorAll('[id^="stage-"]').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`stage-${['selection', 'config', 'queue', 'result'][stageNum-1]}`).classList.remove('hidden');
+
+            // Update Stepper
+            document.querySelectorAll('.step').forEach((step, idx) => {
+                if (idx + 1 <= stageNum) step.classList.add('active');
+                else step.classList.remove('active');
+            });
+        }
+
+        function goToSelection() {
+            showStage(1);
+        }
+
+        function goToConfig(service) {
+            selectedService = service;
+            showStage(2);
+
+            document.getElementById('voice-config').classList.add('hidden');
+            document.getElementById('generic-config').classList.add('hidden');
 
             if (service === 'voice') {
-                document.getElementById('voice-interface').classList.remove('hidden');
+                document.getElementById('voice-config').classList.remove('hidden');
             } else {
-                document.getElementById('generic-interface').classList.remove('hidden');
-                document.getElementById('interface-title').textContent = (service === 'sound') ? 'Prompt de Música' : 'Prompt de Efectos';
-                document.getElementById('audio-prompt').placeholder = (service === 'sound') ? 'Ej: Melodía de piano triste y lenta...' : 'Ej: Pasos sobre hierba...';
+                document.getElementById('generic-config').classList.remove('hidden');
+                const isSound = service === 'sound';
+                document.getElementById('generic-title').textContent = isSound ? 'Configuración de Música' : 'Configuración de Efectos';
+                document.getElementById('prompt-label').textContent = isSound ? '¿Qué tipo de música te gustaría para tu videojuego?' : '¿Qué efectos de sonido necesitas?';
+                document.getElementById('audio-prompt').placeholder = isSound ? 'Ej: Melodía de piano épica...' : 'Ej: Pasos en la nieve...';
 
                 const slider = document.getElementById('audio-duration');
-                const valDisplay = document.getElementById('duration-value');
-                if (service === 'sound') {
-                    slider.max = 30;
-                    slider.value = 15;
-                } else {
-                    slider.max = 5;
-                    slider.value = 3;
-                }
-                valDisplay.textContent = slider.value;
+                slider.max = isSound ? 30 : 5;
+                slider.value = isSound ? 10 : 3;
+                document.getElementById('duration-value').textContent = slider.value;
+
+                renderChips(service);
             }
+        }
+
+        function renderChips(service) {
+            const container = document.getElementById('chips-container');
+            container.innerHTML = '';
+
+            const musicChips = ["Épica", "8-bit", "Terror", "Aventura", "Relajante", "Combate", "Misterio", "Cyberpunk"];
+            const effectChips = ["Explosión", "Pasos", "Espada", "Moneda", "Salto", "Puerta", "Láser", "Viento"];
+
+            const chips = (service === 'sound') ? musicChips : effectChips;
+
+            chips.forEach(text => {
+                const chip = document.createElement('div');
+                chip.className = 'chip';
+                chip.textContent = text;
+                chip.onclick = () => {
+                    const promptInput = document.getElementById('audio-prompt');
+                    promptInput.value += (promptInput.value ? ', ' : '') + text;
+                };
+                container.appendChild(chip);
+            });
         }
 
         document.getElementById('audio-duration').oninput = function() {
@@ -261,31 +599,52 @@
         document.getElementById('voice-text').oninput = function() {
             const count = this.value.length;
             document.getElementById('char-count').textContent = count;
-            if (count >= 650) {
+            if (count >= 1050) {
                 showToast("max_chars_reached", "error");
             }
         };
 
         // --- Recording Logic ---
         document.getElementById('start-record').onclick = async () => {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-            mediaRecorder.onstop = () => {
-                recordedBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                document.getElementById('voice-preview').classList.remove('hidden');
-                showToast("voice_ready", "success");
-            };
-            mediaRecorder.start();
-            document.getElementById('start-record').classList.add('hidden');
-            document.getElementById('stop-record').classList.remove('hidden');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    recordedBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    document.getElementById('voice-status-preview').classList.remove('hidden');
+                    document.getElementById('voice-status-text').textContent = "Voz grabada";
+                    showToast("voice_ready", "success");
+                };
+                mediaRecorder.start();
+
+                if (recognition && document.getElementById('extract-text-check').checked) {
+                    recognition.start();
+                }
+
+                document.getElementById('start-record').classList.add('hidden');
+                document.getElementById('stop-record').classList.remove('hidden');
+            } catch (err) {
+                showToast("Error al acceder al micrófono", "error", true);
+            }
         };
 
         document.getElementById('stop-record').onclick = () => {
-            mediaRecorder.stop();
+            if (mediaRecorder) mediaRecorder.stop();
+            if (recognition) recognition.stop();
             document.getElementById('start-record').classList.remove('hidden');
             document.getElementById('stop-record').classList.add('hidden');
+        };
+
+        document.getElementById('voice-upload').onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                recordedBlob = file;
+                document.getElementById('voice-status-preview').classList.remove('hidden');
+                document.getElementById('voice-status-text').textContent = file.name;
+                showToast("Audio cargado", "success");
+            }
         };
 
         // --- Generation Logic ---
@@ -297,6 +656,7 @@
 
             const prompt = document.getElementById('audio-prompt').value;
             const voiceText = document.getElementById('voice-text').value;
+
             if (selectedService !== 'voice' && !prompt) {
                 showToast("empty_prompt", "error");
                 return;
@@ -306,24 +666,21 @@
                 return;
             }
 
+            showStage(3); // Go to Queue stage
             document.getElementById('generate-audio-btn').disabled = true;
-            document.getElementById('processing-status').classList.remove('hidden');
             document.getElementById('audio-progress-bar').style.width = '0%';
             document.getElementById('eta-text').textContent = '';
             updateStatusText("joining");
 
             try {
                 console.log("Cancelling previous jobs for user:", userId);
-                // Attempt to cancel previous jobs, but don't fail if the update fails (non-critical)
                 try {
                     await supabaseClient
                         .from('processing_queue')
                         .update({ status: 'failed' })
                         .eq('user_id', userId)
                         .in('status', ['waiting', 'authorized', 'processing']);
-                } catch (cancelErr) {
-                    console.warn("Could not cancel previous jobs:", cancelErr);
-                }
+                } catch (cancelErr) {}
 
                 console.log("Inserting new job for type:", selectedService);
                 const { data: job, error } = await supabaseClient
@@ -337,17 +694,8 @@
                     .select()
                     .single();
 
-                if (error) {
-                    console.error("Supabase insert error:", error);
-                    // Provide detailed error feedback
-                    throw new Error(error.message || "Error al insertar en la cola");
-                }
+                if (error) throw error;
 
-                if (!job) {
-                    throw new Error("No job record returned from database");
-                }
-
-                console.log("Job created successfully:", job.id);
                 currentJobId = job.id;
                 isSending = false;
                 startHeartbeat(currentJobId);
@@ -355,11 +703,9 @@
 
             } catch (e) {
                 console.error("Queue join failed:", e);
-                const msg = e.message || "error_joining";
-                // If it's a literal error from Supabase, show it
-                showToast(msg, "error", true);
+                showToast(e.message || "error_joining", "error", true);
                 document.getElementById('generate-audio-btn').disabled = false;
-                document.getElementById('processing-status').classList.add('hidden');
+                showStage(2);
             }
         };
 
@@ -435,25 +781,19 @@
 
         async function checkPosition(jobId, jobData = null) {
             if (currentJobId !== jobId) return;
+            if (positionTimer) clearTimeout(positionTimer);
 
             try {
                 let job = jobData;
-                // If we don't have queue_number, we must fetch the full job record
                 if (!job || job.queue_number === undefined) {
                     const { data, error } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
-                    if (error || !data) {
-                        console.warn("Could not fetch job for position check", error);
-                        return;
-                    }
+                    if (error || !data) return;
                     job = data;
                 }
-
-                console.log("Checking position for job:", job.id, "Status:", job.status, "Queue No:", job.queue_number);
 
                 if (job.status !== 'waiting') {
                     document.getElementById('queue-priority-actions').classList.add('hidden');
                     if (job.status === 'authorized' && !isSending) {
-                        console.log("Job authorized detected in checkPosition");
                         isSending = true;
                         uploadData(job);
                     }
@@ -461,7 +801,7 @@
                 }
 
                 updatePriorityUI();
-                updateStatusText("waiting"); // Show "Waiting..." while we count exactly
+                updateStatusText("waiting");
 
                 let query = supabaseClient
                     .from('processing_queue')
@@ -470,50 +810,36 @@
                     .eq('job_type', selectedService);
 
                 if (job.is_priority) {
-                    // Only count priority jobs with smaller queue number
                     query = query.eq('is_priority', true).lt('queue_number', job.queue_number);
                 } else {
-                    // Count ALL priority jobs + non-priority jobs with smaller queue number
-                    // Simplified OR for better compatibility
                     query = query.or(`is_priority.eq.true,queue_number.lt.${job.queue_number}`);
                 }
 
                 const { count, error: countError } = await query;
-
                 const lang = localStorage.getItem('vidspri_lang') || 'es';
                 const dict = window.translations[lang] || window.translations['es'] || {};
 
-                if (countError) {
-                    console.error("Queue position query error:", countError);
-                    // Keep "Waiting..."
-                } else {
+                if (!countError) {
                     const position = (count || 0) + 1;
-                    console.log("Position in queue calculated:", position);
                     const statusEl = document.getElementById('status-text');
                     if (position === 1) {
                         statusEl.textContent = dict['your_turn'] || '¡Es tu turno!';
-
-                    // Proactive wake-up: Ping all servers of this type
-                    const { data: servers } = await supabaseClient.from('server_status').select('url').eq('service_type', selectedService);
-                    if (servers) {
-                        servers.forEach(s => fetch(s.url).catch(() => {}));
-                    }
+                        const { data: servers } = await supabaseClient.from('server_status').select('url').eq('service_type', selectedService);
+                        if (servers) servers.forEach(s => fetch(s.url).catch(() => {}));
                     } else {
                         statusEl.textContent = (dict['position'] || 'Posición en cola: ') + position;
                     }
                 }
 
-                // Small initial progress to show something is happening
                 const progressBar = document.getElementById('audio-progress-bar');
-                if (progressBar.style.width === '0%' || progressBar.style.width === '0px' || !progressBar.style.width) {
+                if (!progressBar.style.width || progressBar.style.width === '0%') {
                     progressBar.style.width = '5%';
                 }
             } catch (e) {
-                console.error("checkPosition exception:", e);
+                console.error("checkPosition error:", e);
             } finally {
-                // Only reschedule if we're still in this job and still waiting
                 if (currentJobId === jobId) {
-                    setTimeout(() => checkPosition(jobId), 3000);
+                    positionTimer = setTimeout(() => checkPosition(jobId), 4000);
                 }
             }
         }
@@ -595,6 +921,8 @@
 
                 const result = await response.json();
                 if (result.audio) {
+                    const promptText = selectedService === 'voice' ? (document.getElementById('voice-text').value || "Clonación") : document.getElementById('audio-prompt').value;
+                    saveToHistory(selectedService, result.audio, promptText);
                     displayAudioResult(result.audio);
                 }
             } catch (e) {
@@ -656,14 +984,26 @@
             mainAudio.src = url;
 
             setTimeout(() => {
-                document.getElementById('processing-status').classList.add('hidden');
-                document.getElementById('audio-result').classList.remove('hidden');
+                showStage(4); // Result Stage
                 document.getElementById('generate-audio-btn').disabled = false;
+
+                // Show Trimmer only for music/effects
+                const trimmer = document.getElementById('audio-trimmer');
+                if (selectedService !== 'voice') {
+                    trimmer.classList.remove('hidden');
+                    // Reset trim values
+                    mainAudio.onloadedmetadata = () => {
+                        document.getElementById('trim-start').value = 0;
+                        document.getElementById('trim-end').value = mainAudio.duration.toFixed(1);
+                    };
+                } else {
+                    trimmer.classList.add('hidden');
+                }
             }, 500);
 
             document.getElementById('download-audio-btn').onclick = () => {
                 const a = document.createElement('a');
-                a.href = url;
+                a.href = mainAudio.src;
                 a.download = `vidspri_${selectedService}_${Date.now()}.wav`;
                 a.click();
             };
@@ -689,12 +1029,117 @@
             }
         }
 
-        function resetAudioUI() {
-            document.getElementById('audio-result').classList.add('hidden');
-            document.getElementById('voice-preview').classList.add('hidden');
+        function resetToStart() {
+            showStage(1);
+            document.getElementById('voice-status-preview').classList.add('hidden');
             document.getElementById('audio-prompt').value = '';
             document.getElementById('voice-text').value = '';
             recordedBlob = null;
+            mainAudio.src = "";
+        }
+
+        // --- Trimmer Logic ---
+        document.getElementById('apply-trim').onclick = async () => {
+            const start = parseFloat(document.getElementById('trim-start').value);
+            const end = parseFloat(document.getElementById('trim-end').value);
+
+            if (isNaN(start) || isNaN(end) || start >= end || end > mainAudio.duration) {
+                showToast("Valores de recorte inválidos", "error", true);
+                return;
+            }
+
+            try {
+                showToast("Recortando...", "info");
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const response = await fetch(mainAudio.src);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+                const sampleRate = audioBuffer.sampleRate;
+                const startOffset = start * sampleRate;
+                const endOffset = end * sampleRate;
+                const frameCount = endOffset - startOffset;
+
+                const trimmedBuffer = audioCtx.createBuffer(
+                    audioBuffer.numberOfChannels,
+                    frameCount,
+                    sampleRate
+                );
+
+                for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+                    const channelData = audioBuffer.getChannelData(i);
+                    const trimmedChannelData = trimmedBuffer.getChannelData(i);
+                    for (let j = 0; j < frameCount; j++) {
+                        trimmedChannelData[j] = channelData[startOffset + j];
+                    }
+                }
+
+                // Convert AudioBuffer back to Blob/URL
+                const trimmedBlob = await audioBufferToWav(trimmedBuffer);
+                mainAudio.src = URL.createObjectURL(trimmedBlob);
+                showToast("Audio recortado con éxito", "success");
+            } catch (err) {
+                console.error("Trim error:", err);
+                showToast("Error al recortar el audio", "error", true);
+            }
+        };
+
+        // Helper to convert AudioBuffer to WAV blob
+        async function audioBufferToWav(buffer) {
+            const numChannels = buffer.numberOfChannels;
+            const sampleRate = buffer.sampleRate;
+            const format = 1; // PCM
+            const bitDepth = 16;
+
+            const bytesPerSample = bitDepth / 8;
+            const blockAlign = numChannels * bytesPerSample;
+
+            const bufferLength = buffer.length;
+            const dataSize = bufferLength * blockAlign;
+            const headerSize = 44;
+            const totalSize = headerSize + dataSize;
+
+            const arrayBuffer = new ArrayBuffer(totalSize);
+            const view = new DataView(arrayBuffer);
+
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            };
+
+            writeString(0, 'RIFF');
+            view.setUint32(4, totalSize - 8, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, format, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * blockAlign, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitDepth, true);
+            writeString(36, 'data');
+            view.setUint32(40, dataSize, true);
+
+            const offset = 44;
+            const channelDatas = [];
+            for (let i = 0; i < numChannels; i++) {
+                channelDatas.push(buffer.getChannelData(i));
+            }
+
+            let index = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                for (let channel = 0; channel < numChannels; channel++) {
+                    let sample = channelDatas[channel][i];
+                    sample = Math.max(-1, Math.min(1, sample));
+                    sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+                    view.setInt16(offset + index, sample, true);
+                    index += 2;
+                }
+            }
+
+            return new Blob([arrayBuffer], { type: 'audio/wav' });
         }
 
         // --- Audio Player Logic ---
@@ -728,7 +1173,9 @@
         }
 
         // Initialize default view
-        selectService('voice');
+        window.addEventListener('load', () => {
+            goToSelection();
+        });
     </script>
 </body>
 </html>

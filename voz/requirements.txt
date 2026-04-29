@@ -11,3 +11,4 @@ accelerate
 outetts>=0.1.0
 soundfile
 regex
+pocket-tts
