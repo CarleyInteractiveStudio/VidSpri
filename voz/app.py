@@ -10,22 +10,13 @@ import tempfile
 from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
+
+# --- OuteTTS ---
 try:
-    from transformers import WhisperProcessor, WhisperForConditionalGeneration
-    from pocket_tts import TTSModel
+    import outetts
     from supabase import create_client, Client
-except ImportError as e:
-    print(f"CRITICAL IMPORT ERROR: {e}")
-    # Try to re-install at runtime as a last resort
-    import subprocess
-    import sys
-    print("Attempting runtime install of pocket-tts...")
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "pocket-tts"])
-        from pocket_tts import TTSModel
-        from supabase import create_client, Client
-    except Exception as e2:
-        print(f"Runtime install failed: {e2}")
+except ImportError:
+    pass
 
 app = FastAPI()
 
@@ -48,32 +39,25 @@ SERVICE_TYPE = "voice"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Models Loading ---
-stt_model = None
-stt_processor = None
-tts_model = None
+model_interface = None
+load_error = None
 
 def load_models():
-    global stt_model, stt_processor, tts_model
-    # STT (Speech to Text)
-    stt_model_id = "openai/whisper-tiny"
+    global model_interface, load_error
     try:
-        print(f"Loading STT model {stt_model_id}...")
-        stt_processor = WhisperProcessor.from_pretrained(stt_model_id)
-        stt_model = WhisperForConditionalGeneration.from_pretrained(stt_model_id).to("cpu")
-        print("STT Model loaded successfully.")
+        print("Loading OuteTTS model (Apache 2.0)...")
+        # Initialize the model interface
+        model_config = outetts.GGUFModelConfig_v1(
+            model_path=None, # Downloads automatically
+            language="es",
+            n_gpu_layers=0 # CPU optimized
+        )
+        model_interface = outetts.InterfaceGGUF(model_config)
+        print("OuteTTS Model loaded successfully.")
+        load_error = None
     except Exception as e:
-        print(f"Error loading STT model: {e}")
-
-    # TTS (Text to Speech)
-    try:
-        print("Loading Pocket TTS model...")
-        # We can specify language='spanish' or leave it for default English
-        # For VidSpri, maybe we should detect language or use a default.
-        tts_model = TTSModel.load_model(language="spanish")
-        tts_model.to("cpu")
-        print("Pocket TTS Model loaded successfully.")
-    except Exception as e:
-        print(f"Error loading Pocket TTS model: {e}")
+        load_error = str(e)
+        print(f"Error loading OuteTTS model: {e}")
 
 is_processing = False
 
@@ -101,88 +85,80 @@ async def heartbeat_loop():
 
 @app.on_event("startup")
 async def startup_event():
-    # Load models in background to avoid startup timeouts
     asyncio.create_task(asyncio.to_thread(load_models))
     await update_status("free")
     asyncio.create_task(heartbeat_loop())
 
 @app.get("/")
 async def root():
-    return {"message": "VidSpri Voice Worker is running", "status": "ok"}
+    return {"message": "VidSpri Voice Worker (OuteTTS) is running", "status": "ok"}
 
 @app.post("/process-voice/{job_id}")
-async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_override: str = Form(None)):
-    global is_processing, tts_model, stt_model, stt_processor
+async def process_voice(job_id: str, audio_file: UploadFile = File(None), text_override: str = Form(None)):
+    global is_processing, model_interface, load_error
 
     if is_processing:
         raise HTTPException(status_code=503, detail="Server is busy")
 
+    if not model_interface:
+        msg = f"Voice model not loaded yet. Error: {load_error}" if load_error else "Model is still loading..."
+        raise HTTPException(status_code=500, detail=msg)
+
     await update_status("busy")
     supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
 
-    temp_input_path = None
+    temp_ref_path = None
     try:
-        # 1. Read input audio
-        audio_bytes = await audio_file.read()
+        text_to_speak = text_override or "Hola, bienvenido a VidSpri."
 
-        # Save to temp file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-            tmp.write(audio_bytes)
-            temp_input_path = tmp.name
+        # 1. Handle Voice Cloning if audio is provided
+        speaker = None
+        if audio_file:
+            # Save ref audio to temp
+            audio_bytes = await audio_file.read()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+                tmp.write(audio_bytes)
+                temp_ref_path = tmp.name
 
-        # 2. Extract Text (STT) if no override provided
-        if not text_override:
-            import librosa
-            def run_stt():
-                with torch.no_grad():
-                    audio_stt, sr = librosa.load(temp_input_path, sr=16000)
-                    input_features = stt_processor(audio_stt, sampling_rate=16000, return_tensors="pt").input_features
-                    predicted_ids = stt_model.generate(input_features)
-                    return stt_processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
-
-            text_to_speak = await asyncio.to_thread(run_stt)
-        else:
-            text_to_speak = text_override
-
-        # 3. Clone Voice and Generate Audio (TTS)
-        if tts_model is None:
-             raise Exception("TTS Model not loaded")
+            # Create speaker from audio
+            speaker = model_interface.create_speaker(temp_ref_path)
 
         def run_tts():
-            with torch.no_grad():
-                # Get voice embedding from the input audio
-                model_state_for_voice = tts_model.get_state_for_audio_prompt(Path(temp_input_path))
+            # Generate audio using the cloned speaker or default
+            output = model_interface.generate(
+                text=text_to_speak,
+                speaker=speaker,
+                temperature=0.1,
+                repetition_penalty=1.1
+            )
+            return output.audio_np, output.sample_rate
 
-                # Generate audio stream
-                audio_chunks = tts_model.generate_audio_stream(
-                    model_state=model_state_for_voice,
-                    text_to_generate=text_to_speak
-                )
+        audio_data, sample_rate = await asyncio.to_thread(run_tts)
 
-                # Combine chunks
-                return list(audio_chunks)
-
-        all_audio = await asyncio.to_thread(run_tts)
-
-        if not all_audio:
+        if audio_data is None:
             raise Exception("No audio generated")
 
-        combined_audio = np.concatenate(all_audio)
-        sample_rate = tts_model.config.mimi.sample_rate
+        # --- High Quality Audio Processing ---
+        audio_data = np.nan_to_num(audio_data)
 
-        # Clean audio data
-        combined_audio = np.nan_to_num(combined_audio)
+        # 1. Remove DC offset
+        if audio_data.size > 0:
+            audio_data = audio_data - np.mean(audio_data)
 
-        # Normalize audio
-        max_val = np.abs(combined_audio).max()
+        # 2. Soft-clipping/Limiting to prevent digital harshness
+        audio_data = np.tanh(audio_data * 1.5)
+
+        # 3. Final normalization with 0.9 headroom
+        max_val = np.abs(audio_data).max()
         if max_val > 0:
-            combined_audio = combined_audio / (max_val + 1e-6) * 0.95
+            audio_data = (audio_data / (max_val + 1e-6)) * 0.9
 
-        combined_audio = np.clip(combined_audio * 32767, -32768, 32767).astype(np.int16)
+        # Convert to 16-bit PCM
+        audio_data = np.clip(audio_data * 32767, -32768, 32767).astype(np.int16)
 
         # Write to buffer
         out_buf = io.BytesIO()
-        scipy.io.wavfile.write(out_buf, sample_rate, combined_audio)
+        scipy.io.wavfile.write(out_buf, sample_rate, audio_data)
         audio_result = base64.b64encode(out_buf.getvalue()).decode('utf-8')
 
         supabase.table("processing_queue").update({"status": "completed"}).eq("id", job_id).execute()
@@ -195,5 +171,5 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(...), text_ov
         supabase.table("processing_queue").update({"status": "failed"}).eq("id", job_id).execute()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        if temp_input_path and os.path.exists(temp_input_path):
-            os.remove(temp_input_path)
+        if temp_ref_path and os.path.exists(temp_ref_path):
+            os.remove(temp_ref_path)

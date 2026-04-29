@@ -1,13 +1,13 @@
---extra-index-url https://download.pytorch.org/whl/cpu
 fastapi
 uvicorn
 python-multipart
 torch
-transformers>=4.35.0
+transformers
 scipy
-librosa
-pocket-tts
 supabase
 gunicorn
 numpy
 accelerate
+outetts>=0.1.0
+soundfile
+regex

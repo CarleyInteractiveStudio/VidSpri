@@ -69,8 +69,17 @@ BEGIN
 
     -- 2. Only proceed if it has been more than 24 hours OR if there are NO auto codes
     IF last_refresh IS NULL OR last_refresh < NOW() - INTERVAL '24 hours' THEN
+        -- Failsafe: Manual delete of references in redeemed_codes before purging priority_codes
+        -- We do this with a subquery to target exactly what we are about to delete
+        BEGIN
+            DELETE FROM public.redeemed_codes WHERE code IN (SELECT code FROM public.priority_codes WHERE is_auto = TRUE);
+        EXCEPTION WHEN OTHERS THEN
+            -- If this fails for some reason, we still want to try the next step or at least not crash the whole transaction if possible
+            NULL;
+        END;
+
         -- Delete all previous auto-generated codes (used or expired) to start fresh
-        DELETE FROM priority_codes WHERE is_auto = TRUE;
+        DELETE FROM public.priority_codes WHERE is_auto = TRUE;
 
         -- Create exactly 7 new codes
         FOR i IN 1..7 LOOP
@@ -79,14 +88,12 @@ BEGIN
         END LOOP;
     END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger for immediate refresh is REMOVED as per requirements (must wait 24h)
 DROP TRIGGER IF EXISTS trigger_refresh_codes_on_use ON priority_codes;
 
 -- Run it once at the start
-SELECT refresh_priority_codes();
-
 -- Enable Realtime
 -- Enable REPLICA IDENTITY FULL for detailed payloads
 ALTER TABLE processing_queue REPLICA IDENTITY FULL;
@@ -168,7 +175,7 @@ BEGIN
     AND q.assigned_server_url = s.url
     AND s.status = 'offline';
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to assign the next job to a free server
 CREATE OR REPLACE FUNCTION assign_jobs()
@@ -216,7 +223,7 @@ BEGIN
 
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to free server when job ends
 CREATE OR REPLACE FUNCTION free_server_on_job_end()
@@ -229,7 +236,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_free_server_on_job_end ON processing_queue;
 CREATE TRIGGER trigger_free_server_on_job_end
@@ -374,10 +381,36 @@ END $$;
 CREATE TABLE IF NOT EXISTS redeemed_codes (
     id SERIAL PRIMARY KEY,
     user_id TEXT NOT NULL,
-    code TEXT REFERENCES priority_codes(code),
+    code TEXT REFERENCES priority_codes(code) ON DELETE CASCADE,
     redeemed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(user_id, code)
 );
+
+-- Migration: Ensure the foreign key constraint on redeemed_codes uses ON DELETE CASCADE
+-- This version is bulletproof and finds all potential constraints on the 'code' column
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT
+            tc.constraint_name
+        FROM
+            information_schema.table_constraints AS tc
+            JOIN information_schema.key_column_usage AS kcu
+              ON tc.constraint_name = kcu.constraint_name
+              AND tc.table_schema = kcu.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_name = 'redeemed_codes'
+          AND kcu.column_name = 'code'
+    ) LOOP
+        EXECUTE 'ALTER TABLE public.redeemed_codes DROP CONSTRAINT ' || quote_ident(r.constraint_name);
+    END LOOP;
+
+    ALTER TABLE public.redeemed_codes
+    ADD CONSTRAINT redeemed_codes_code_fkey
+    FOREIGN KEY (code) REFERENCES public.priority_codes(code) ON DELETE CASCADE;
+END $$;
 
 -- 4. Function to redeem a code
 CREATE OR REPLACE FUNCTION redeem_priority_code(user_id_param TEXT, code_param TEXT)
@@ -510,10 +543,14 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_priority_assignment ON processing_queue;
 CREATE TRIGGER trigger_priority_assignment
-AFTER UPDATE OF is_priority ON processing_queue
+AFTER UPDATE ON processing_queue
 FOR EACH ROW
+WHEN (OLD.is_priority IS DISTINCT FROM NEW.is_priority AND NEW.is_priority = TRUE)
 EXECUTE FUNCTION trigger_assign_on_priority_change();
+
+-- Run it once at the start, only after all tables and constraints are ready
+SELECT refresh_priority_codes();

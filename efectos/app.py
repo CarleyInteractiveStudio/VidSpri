@@ -33,17 +33,20 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Model Loading ---
 device = "cpu"
-model_id = "facebook/audiogen-small"
+model_id = "facebook/audiogen-medium"
 audio_pipe = None
+load_error = None
 is_processing = False
 
 def load_models():
-    global audio_pipe
+    global audio_pipe, load_error
     try:
         print(f"Loading model {model_id} via pipeline...")
         audio_pipe = pipeline("text-to-audio", model=model_id, device=device)
         print("Model loaded successfully.")
+        load_error = None
     except Exception as e:
+        load_error = str(e)
         print(f"Error loading model: {e}")
 
 async def update_status(status: str = None):
@@ -86,7 +89,8 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
     try:
         if not audio_pipe:
-            raise Exception("Model pipeline not loaded")
+            msg = f"Model pipeline not loaded. Error during startup: {load_error}" if load_error else "Model pipeline not loaded yet (still starting up?)"
+            raise Exception(msg)
 
         # AudioGen-small: 50 tokens ~ 1 second of audio
         max_tokens = min(int(duration) * 50, 250) # Max 5 seconds (250 tokens)
@@ -99,10 +103,10 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
                     forward_params={
                         "max_new_tokens": max_tokens,
                         "do_sample": True,
-                        "temperature": 0.8,
+                        "temperature": 1.0,
                         "top_k": 250,
                         "top_p": 0.99,
-                        "guidance_scale": 3.5
+                        "guidance_scale": 3.0
                     }
                 )
 
@@ -117,6 +121,13 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
         # Clean data and ensure CPU numpy array
         audio_data = np.nan_to_num(audio_data)
+
+        # Remove DC offset to eliminate "click" and constant hum
+        if audio_data.size > 0:
+            audio_data = audio_data - np.mean(audio_data)
+
+        # 2. Soft-clipping to prevent digital artifacts on saturation
+        audio_data = np.tanh(audio_data * 1.2)
 
         # Standardize shape
         if audio_data.ndim == 3:
