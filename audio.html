@@ -356,6 +356,7 @@
 
                     <!-- Visual Range Slider -->
                     <div class="range-slider-container">
+                        <canvas id="waveform-canvas"></canvas>
                         <div id="range-highlight"></div>
                         <input type="range" id="range-start" min="0" max="100" value="0" step="0.1">
                         <input type="range" id="range-end" min="0" max="100" value="100" step="0.1">
@@ -1008,33 +1009,35 @@
 
             const blob = base64ToBlob(base64, 'audio/wav');
             const url = URL.createObjectURL(blob);
+
+            // Set up metadata listener BEFORE setting src to avoid race condition
+            mainAudio.onloadedmetadata = () => {
+                const dur = mainAudio.duration;
+                document.getElementById('trim-start').value = 0;
+                document.getElementById('trim-end').value = dur.toFixed(1);
+
+                // Sync visual sliders
+                const rs = document.getElementById('range-start');
+                const re = document.getElementById('range-end');
+                rs.max = dur; re.max = dur;
+                rs.value = 0; re.value = dur;
+                updateRangeUI();
+            };
+
             mainAudio.src = url;
 
-            setTimeout(() => {
-                showStage(4); // Result Stage
-                document.getElementById('generate-audio-btn').disabled = false;
+            showStage(4); // Show result stage immediately so dimensions are available
+            document.getElementById('generate-audio-btn').disabled = false;
 
-                // Show Trimmer only for music/effects
-                const trimmer = document.getElementById('audio-trimmer');
-                if (selectedService !== 'voice') {
-                    trimmer.classList.remove('hidden');
-                    // Reset trim values
-                    mainAudio.onloadedmetadata = () => {
-                        const dur = mainAudio.duration;
-                        document.getElementById('trim-start').value = 0;
-                        document.getElementById('trim-end').value = dur.toFixed(1);
-
-                        // Sync visual sliders
-                        const rs = document.getElementById('range-start');
-                        const re = document.getElementById('range-end');
-                        rs.max = dur; re.max = dur;
-                        rs.value = 0; re.value = dur;
-                        updateRangeUI();
-                    };
-                } else {
-                    trimmer.classList.add('hidden');
-                }
-            }, 500);
+            // Show Trimmer only for music/effects
+            const trimmer = document.getElementById('audio-trimmer');
+            if (selectedService !== 'voice') {
+                trimmer.classList.remove('hidden');
+                // Draw waveform now that container is visible
+                drawWaveform(blob);
+            } else {
+                trimmer.classList.add('hidden');
+            }
 
             document.getElementById('download-audio-btn').onclick = () => {
                 const a = document.createElement('a');
@@ -1042,6 +1045,51 @@
                 a.download = `vidspri_${selectedService}_${Date.now()}.wav`;
                 a.click();
             };
+        }
+
+        async function drawWaveform(blob) {
+            const canvas = document.getElementById('waveform-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            let audioCtx;
+            try {
+                const arrayBuffer = await blob.arrayBuffer();
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+                // Set internal resolution
+                const displayWidth = canvas.offsetWidth || 600; // Fallback if still 0
+                const displayHeight = canvas.offsetHeight || 100;
+
+                canvas.width = displayWidth * window.devicePixelRatio;
+                canvas.height = displayHeight * window.devicePixelRatio;
+                ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+                const width = displayWidth;
+                const height = canvas.offsetHeight;
+                const data = audioBuffer.getChannelData(0);
+                const step = Math.ceil(data.length / width);
+                const amp = height / 2;
+
+                ctx.fillStyle = 'rgba(124, 58, 237, 0.6)';
+                ctx.clearRect(0, 0, width, height);
+
+                for (let i = 0; i < width; i++) {
+                    let min = 1.0;
+                    let max = -1.0;
+                    for (let j = 0; j < step; j++) {
+                        const datum = data[(i * step) + j];
+                        if (datum < min) min = datum;
+                        if (datum > max) max = datum;
+                    }
+                    ctx.fillRect(i, (1 + min) * amp, 1, Math.max(1, (max - min) * amp));
+                }
+            } catch (e) {
+                console.error("Waveform error:", e);
+            } finally {
+                if (audioCtx) audioCtx.close();
+            }
         }
 
         function base64ToBlob(base64, type) {
@@ -1099,18 +1147,26 @@
 
         let isPreviewing = false;
         document.getElementById('play-trim-preview').onclick = () => {
+            const btn = document.getElementById('play-trim-preview');
             const start = parseFloat(document.getElementById('trim-start').value);
             const end = parseFloat(document.getElementById('trim-end').value);
+
+            if (isPreviewing) {
+                mainAudio.pause();
+                return;
+            }
 
             mainAudio.currentTime = start;
             mainAudio.play();
             isPreviewing = true;
+            btn.classList.add('highlight-btn');
 
             const checkEnd = () => {
                 if (mainAudio.currentTime >= end || mainAudio.paused) {
                     mainAudio.pause();
                     mainAudio.removeEventListener('timeupdate', checkEnd);
                     isPreviewing = false;
+                    btn.classList.remove('highlight-btn');
                 }
             };
             mainAudio.addEventListener('timeupdate', checkEnd);
@@ -1125,17 +1181,18 @@
                 return;
             }
 
+            let audioCtx;
             try {
                 showToast("Recortando...", "info");
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const response = await fetch(mainAudio.src);
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
                 const sampleRate = audioBuffer.sampleRate;
-                const startOffset = start * sampleRate;
-                const endOffset = end * sampleRate;
-                const frameCount = endOffset - startOffset;
+                const startOffset = Math.floor(start * sampleRate);
+                const endOffset = Math.floor(end * sampleRate);
+                const frameCount = Math.max(1, endOffset - startOffset);
 
                 const trimmedBuffer = audioCtx.createBuffer(
                     audioBuffer.numberOfChannels,
@@ -1154,10 +1211,16 @@
                 // Convert AudioBuffer back to Blob/URL
                 const trimmedBlob = await audioBufferToWav(trimmedBuffer);
                 mainAudio.src = URL.createObjectURL(trimmedBlob);
+
+                // Redraw waveform for the new trimmed audio
+                drawWaveform(trimmedBlob);
+
                 showToast("Audio recortado con éxito", "success");
             } catch (err) {
                 console.error("Trim error:", err);
                 showToast("Error al recortar el audio", "error", true);
+            } finally {
+                if (audioCtx) audioCtx.close();
             }
         };
 
@@ -1220,10 +1283,20 @@
         }
 
         // --- Audio Player Logic ---
+        mainAudio.onplay = () => {
+            const icon = document.getElementById('play-icon');
+            if (icon) icon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+        };
+
+        mainAudio.onpause = () => {
+            const icon = document.getElementById('play-icon');
+            if (icon) icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+        };
+
         mainAudio.ontimeupdate = () => {
             const fill = document.getElementById('audio-fill');
             const time = document.getElementById('audio-time');
-            const progress = (mainAudio.currentTime / mainAudio.duration) * 100;
+            const progress = (mainAudio.currentTime / (mainAudio.duration || 1)) * 100;
             fill.style.width = `${progress}%`;
 
             const mins = Math.floor(mainAudio.currentTime / 60);
@@ -1232,13 +1305,10 @@
         };
 
         function togglePlay() {
-            const icon = document.getElementById('play-icon');
             if (mainAudio.paused) {
                 mainAudio.play();
-                icon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
             } else {
                 mainAudio.pause();
-                icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
             }
         }
 

@@ -183,10 +183,10 @@
 
         function resetUpload() {
             if (animInterval) clearInterval(animInterval);
-            document.getElementById('upload-stage').classList.remove('hidden');
-            document.getElementById('preview-stage').classList.add('hidden');
             localStorage.removeItem('vidspri_last_sprite');
-            spriteInput.value = '';
+            localStorage.removeItem('vidspri_last_cols');
+            localStorage.removeItem('vidspri_last_rows');
+            window.location.reload();
         }
 
         function applyTranslations(lang) {

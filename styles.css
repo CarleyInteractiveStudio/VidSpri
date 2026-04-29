@@ -905,12 +905,24 @@ footer {
 /* Dual Range Slider for Audio Trimmer */
 .range-slider-container {
     position: relative;
-    height: 40px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 10px;
-    margin: 25px 0;
-    overflow: visible !important; /* Allow handles to be seen slightly outside if needed */
-    border: 1px solid var(--glass-border);
+    height: 80px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 16px;
+    margin: 35px 0;
+    overflow: visible;
+    border: 2px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+}
+
+#waveform-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
 }
 
 .range-slider-container input[type=range] {
@@ -922,30 +934,31 @@ footer {
     position: absolute;
     margin: 0;
     top: 0;
-    bottom: 0;
+    left: 0;
+    height: 100%;
     background: none;
-    pointer-events: none; /* Crucial: clicks go through to handles */
+    pointer-events: none;
+    z-index: 10;
 }
 
 /* Chrome/Safari Thumbs */
 .range-slider-container input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    pointer-events: auto; /* Handle itself IS interactive */
-    height: 40px;
-    width: 18px;
-    background: var(--primary);
-    border: 2px solid #fff;
-    border-radius: 6px;
-    cursor: grab;
-    box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
-    position: relative;
+    pointer-events: auto;
+    height: 80px;
+    width: 6px;
+    background: #fff;
+    border: none;
+    border-radius: 10px;
+    cursor: ew-resize;
+    box-shadow: 0 0 10px rgba(124, 58, 237, 0.8);
     z-index: 20;
 }
 
 .range-slider-container input[type=range]::-webkit-slider-thumb:active {
     cursor: grabbing;
-    background: white;
+    background: #7c3aed;
 }
 
 /* Firefox Thumbs */
@@ -953,13 +966,13 @@ footer {
     -moz-appearance: none;
     appearance: none;
     pointer-events: auto;
-    height: 40px;
-    width: 18px;
-    background: var(--primary);
-    border: 2px solid #fff;
-    border-radius: 6px;
-    cursor: grab;
-    box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
+    height: 80px;
+    width: 6px;
+    background: #fff;
+    border: none;
+    border-radius: 10px;
+    cursor: ew-resize;
+    box-shadow: 0 0 10px rgba(124, 58, 237, 0.8);
     z-index: 20;
 }
 
@@ -977,10 +990,11 @@ footer {
 #range-highlight {
     position: absolute;
     height: 100%;
-    background: rgba(0, 242, 255, 0.25);
-    border-top: 1px solid rgba(0, 242, 255, 0.5);
-    border-bottom: 1px solid rgba(0, 242, 255, 0.5);
+    background: rgba(124, 58, 237, 0.3);
+    border-top: 2px solid #7c3aed;
+    border-bottom: 2px solid #7c3aed;
     pointer-events: none;
     z-index: 5;
-    border-radius: 8px;
+    left: 0;
+    right: 0;
 }
