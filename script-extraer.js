@@ -799,11 +799,19 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.height = finalHeight;
             const ctx = canvas.getContext('2d');
 
-            ctx.imageSmoothingEnabled = !pixelArtMode;
-            if (!pixelArtMode) {
-                ctx.imageSmoothingQuality = 'high';
+            // Force Nearest Neighbor for sharp scaling when pixelArtMode is on
+            if (pixelArtMode) {
+                ctx.imageSmoothingEnabled = false;
+                ctx.webkitImageSmoothingEnabled = false;
+                ctx.mozImageSmoothingEnabled = false;
+                ctx.msImageSmoothingEnabled = false;
+                ctx.imageSmoothingQuality = 'low';
             } else {
-                ctx.imageSmoothingQuality = 'low'; // Nearest neighbor
+                ctx.imageSmoothingEnabled = true;
+                ctx.webkitImageSmoothingEnabled = true;
+                ctx.mozImageSmoothingEnabled = true;
+                ctx.msImageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
             }
 
             ctx.drawImage(
@@ -920,7 +928,13 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = totalWidth;
         canvas.height = maxHeight;
         const ctx = canvas.getContext('2d');
+
+        // Ensure sharp rendering during sheet assembly
         ctx.imageSmoothingEnabled = false;
+        ctx.webkitImageSmoothingEnabled = false;
+        ctx.mozImageSmoothingEnabled = false;
+        ctx.msImageSmoothingEnabled = false;
+        ctx.imageSmoothingQuality = 'low';
 
         let x = 0;
         images.forEach(img => {

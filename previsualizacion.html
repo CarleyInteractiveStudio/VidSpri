@@ -40,7 +40,12 @@
             to { transform: rotate(360deg); }
         }
         #anim-canvas {
+            image-rendering: optimizeSpeed;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: -o-crisp-edges;
             image-rendering: pixelated;
+            -ms-interpolation-mode: nearest-neighbor;
             filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
             transition: transform 0.2s ease;
         }
@@ -204,6 +209,11 @@
             canvas.style.height = (frameH * scale) + 'px';
 
             ctx.imageSmoothingEnabled = false;
+            ctx.webkitImageSmoothingEnabled = false;
+            ctx.mozImageSmoothingEnabled = false;
+            ctx.msImageSmoothingEnabled = false;
+            ctx.imageSmoothingQuality = 'low';
+
             ctx.clearRect(0, 0, frameW, frameH);
             ctx.drawImage(spriteImg, col * frameW, row * frameH, frameW, frameH, 0, 0, frameW, frameH);
         }

@@ -686,8 +686,12 @@ input:focus, textarea:focus {
     width: 100%;
     height: 80px;
     object-fit: contain;
+    image-rendering: optimizeSpeed;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: -o-crisp-edges;
     image-rendering: pixelated;
-    image-rendering: crisp-edges;
+    -ms-interpolation-mode: nearest-neighbor;
 }
 
 .result-frame .check-badge {
@@ -795,8 +799,12 @@ input:focus, textarea:focus {
         linear-gradient(-45deg, transparent 75%, #1a1a1a 75%);
     background-size: 20px 20px;
     background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    image-rendering: optimizeSpeed;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: -o-crisp-edges;
     image-rendering: pixelated;
-    image-rendering: crisp-edges;
+    -ms-interpolation-mode: nearest-neighbor;
 }
 
 /* Toasts */
@@ -1059,8 +1067,12 @@ footer {
 }
 
 #final-sprite-preview-container img {
+    image-rendering: optimizeSpeed;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: -o-crisp-edges;
     image-rendering: pixelated;
-    image-rendering: crisp-edges;
+    -ms-interpolation-mode: nearest-neighbor;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     transition: transform 0.3s ease;
 }
