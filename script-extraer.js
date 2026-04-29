@@ -791,11 +791,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     localStorage.setItem('vidspri_last_sprite', reader.result);
                     localStorage.setItem('vidspri_last_cols', cols);
                     localStorage.setItem('vidspri_last_rows', rows);
+
+                    // Save to History (IndexedDB)
+                    saveSpriteToHistory(reader.result);
                 } catch (e) {
                     console.warn("Could not save to localStorage (quota exceeded?):", e);
                 }
             };
         }, 'image/png');
+
+    async function saveSpriteToHistory(dataUrl) {
+        const dbName = "VidSpriHistory";
+        const dbVersion = 1;
+        const request = indexedDB.open(dbName, dbVersion);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('history')) {
+                db.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
+            }
+        };
+        request.onsuccess = (e) => {
+            const db = e.target.result;
+            const tx = db.transaction('history', 'readwrite');
+            const store = tx.objectStore('history');
+            const countReq = store.getAll();
+            countReq.onsuccess = () => {
+                const items = countReq.result.filter(i => i.type === 'sprite');
+                if (items.length >= 10) {
+                    items.sort((a, b) => a.timestamp - b.timestamp);
+                    store.delete(items[0].id);
+                }
+                store.add({
+                    type: 'sprite',
+                    data: dataUrl,
+                    prompt: "Sprite Sheet",
+                    timestamp: Date.now()
+                });
+            };
+        };
+    }
     }
 
     function updateProgressBar(percentage) {
