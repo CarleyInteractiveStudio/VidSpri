@@ -3,11 +3,13 @@ fastapi
 uvicorn
 python-multipart
 torch
-transformers>=4.35.0
+transformers
 scipy
-librosa
-pocket-tts
 supabase
 gunicorn
 numpy
 accelerate
+kokoro>=0.7.13
+soundfile
+py38th-backport
+regex

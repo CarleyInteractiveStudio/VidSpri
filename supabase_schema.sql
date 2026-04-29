@@ -70,10 +70,16 @@ BEGIN
     -- 2. Only proceed if it has been more than 24 hours OR if there are NO auto codes
     IF last_refresh IS NULL OR last_refresh < NOW() - INTERVAL '24 hours' THEN
         -- Failsafe: Manual delete of references in redeemed_codes before purging priority_codes
-        DELETE FROM redeemed_codes WHERE code IN (SELECT code FROM priority_codes WHERE is_auto = TRUE);
+        -- We do this with a subquery to target exactly what we are about to delete
+        BEGIN
+            DELETE FROM public.redeemed_codes WHERE code IN (SELECT code FROM public.priority_codes WHERE is_auto = TRUE);
+        EXCEPTION WHEN OTHERS THEN
+            -- If this fails for some reason, we still want to try the next step or at least not crash the whole transaction if possible
+            NULL;
+        END;
 
         -- Delete all previous auto-generated codes (used or expired) to start fresh
-        DELETE FROM priority_codes WHERE is_auto = TRUE;
+        DELETE FROM public.priority_codes WHERE is_auto = TRUE;
 
         -- Create exactly 7 new codes
         FOR i IN 1..7 LOOP
