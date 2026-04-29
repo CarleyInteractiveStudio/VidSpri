@@ -43,6 +43,10 @@ def load_models():
     try:
         print(f"Loading model {model_id} via pipeline...")
         audio_pipe = pipeline("text-to-audio", model=model_id, device=device)
+
+        # Limit CPU threads to avoid memory/CPU spikes in free spaces
+        torch.set_num_threads(1)
+
         print("Model loaded successfully.")
         load_error = None
     except Exception as e:
@@ -97,7 +101,9 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
 
         # Run inference in a separate thread to avoid blocking heartbeats
         def run_inference():
+            # Force no_grad and limit threads again just in case
             with torch.no_grad():
+                torch.set_num_threads(1)
                 # Adjusted for less background sizzle while keeping musicality
                 return audio_pipe(
                     prompt,
