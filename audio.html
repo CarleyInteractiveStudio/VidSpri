@@ -851,9 +851,14 @@
                     const position = (count || 0) + 1;
                     const statusEl = document.getElementById('status-text');
                     if (position === 1) {
-                        statusEl.textContent = dict['your_turn'] || '¡Es tu turno!';
+                        statusEl.textContent = (dict['your_turn'] || '¡Es tu turno!') + " " + (dict['waking_server'] || 'Despertando servidor...');
                         const { data: servers } = await supabaseClient.from('server_status').select('url').eq('service_type', selectedService);
-                        if (servers) servers.forEach(s => fetch(s.url).catch(() => {}));
+                        if (servers) {
+                            servers.forEach(s => {
+                                console.log("Pinging server to wake up:", s.url);
+                                fetch(s.url).catch(() => {});
+                            });
+                        }
                     } else {
                         statusEl.textContent = (dict['position'] || 'Posición en cola: ') + position;
                     }

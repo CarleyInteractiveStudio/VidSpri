@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Global State ---
     let extractedFrames = [];
+    let processedFrameBlobs = []; // Store raw blobs from server for re-processing logic
     let isSecondPassMode = false;
     let currentJobId = null;
     let heartbeatInterval = null;
@@ -22,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoSection = document.getElementById('video-section');
     const editorSection = document.getElementById('editor-section');
     const framePreviewContainer = document.getElementById('frame-preview-container');
+    const resultContainer = document.getElementById('result-container');
     const stepperContainer = document.getElementById('stepper-container');
     const steps = document.querySelectorAll('.step');
 
@@ -32,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultContainer = document.getElementById('result-container');
     const spriteImage = document.getElementById('sprite-image');
     const downloadLink = document.getElementById('download-link');
+    const downloadLinkQuick = document.getElementById('download-link-quick');
     const previewAnimBtn = document.getElementById('preview-anim-btn');
     const reprocessBtn = document.getElementById('reprocess-btn');
     const resultFramesOutput = document.getElementById('result-frames-output');
@@ -152,10 +155,12 @@ document.addEventListener('DOMContentLoaded', () => {
         videoSection.classList.add('hidden');
         editorSection.classList.add('hidden');
         framePreviewContainer.classList.add('hidden');
+        resultContainer.classList.add('hidden');
 
         if (stepNumber === 1) videoSection.classList.remove('hidden');
         else if (stepNumber === 2) editorSection.classList.remove('hidden');
         else if (stepNumber === 3) framePreviewContainer.classList.remove('hidden');
+        else if (stepNumber === 4) resultContainer.classList.remove('hidden');
     }
 
     // --- Drag & Drop ---
@@ -264,7 +269,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     exportSizeSelect.addEventListener('change', () => {
         customSizeInputs.classList.toggle('hidden', exportSizeSelect.value !== 'custom');
+        updateFinalSpriteSheet();
     });
+
+    smartCropCheck.addEventListener('change', updateFinalSpriteSheet);
+    customWidthInput.addEventListener('change', updateFinalSpriteSheet);
+    customHeightInput.addEventListener('change', updateFinalSpriteSheet);
 
     // --- Frame Extraction ---
     document.getElementById('extract-frames-btn').addEventListener('click', async () => {
@@ -567,12 +577,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const position = (count || 0) + 1;
 
         if (position === 1) {
-            progressText.textContent = dict['your_turn'] || '¡Es tu turno! Preparando...';
+            progressText.textContent = (dict['your_turn'] || '¡Es tu turno! Preparando...') + " " + (dict['waking_server'] || 'Despertando servidor...');
 
             // Proactive wake-up: Ping all video servers
             const { data: servers } = await supabaseClient.from('server_status').select('url').eq('service_type', 'video');
             if (servers) {
-                servers.forEach(s => fetch(s.url).catch(() => {}));
+                servers.forEach(s => {
+                    console.log("Pinging server to wake up:", s.url);
+                    fetch(s.url).catch(() => {});
+                });
             }
         } else {
             progressText.textContent = (dict['position'] || 'Posición en cola: ') + position;
@@ -674,20 +687,27 @@ document.addEventListener('DOMContentLoaded', () => {
         updateProgressBar(100);
         etaText.textContent = '';
 
-        let blobs = frames.map(base64StringToBlob);
+        // Store the original blobs from the server
+        processedFrameBlobs = frames.map(base64StringToBlob);
 
-        // Apply Smart Crop and Resize Logic
-        blobs = await processSmartCropAndResize(blobs);
-
-        displayResultFrames(blobs);
-        await createSpriteSheet(blobs);
+        // Process UI
+        await updateFinalSpriteSheet();
 
         progressContainer.classList.add('hidden');
-        resultContainer.classList.remove('hidden');
-        framePreviewContainer.classList.add('hidden');
+        goToStep(4);
 
         // Reset mode after success
         isSecondPassMode = false;
+    }
+
+    async function updateFinalSpriteSheet() {
+        if (processedFrameBlobs.length === 0) return;
+
+        // Apply Smart Crop and Resize Logic to the original results
+        const finalBlobs = await processSmartCropAndResize(processedFrameBlobs);
+
+        displayResultFrames(finalBlobs);
+        await createSpriteSheet(finalBlobs);
     }
 
     async function processSmartCropAndResize(blobs) {
@@ -754,17 +774,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Add 1px padding
                 globalBounds.minX = Math.max(0, globalBounds.minX - 1);
                 globalBounds.minY = Math.max(0, globalBounds.minY - 1);
-                globalBounds.maxX = Math.min(images[0].width, globalBounds.maxX + 1);
-                globalBounds.maxY = Math.min(images[0].height, globalBounds.maxY + 1);
+                globalBounds.maxX = Math.min(images[0].width - 1, globalBounds.maxX + 1);
+                globalBounds.maxY = Math.min(images[0].height - 1, globalBounds.maxY + 1);
             } else {
-                globalBounds = { minX: 0, minY: 0, maxX: images[0].width, maxY: images[0].height };
+                globalBounds = { minX: 0, minY: 0, maxX: images[0].width - 1, maxY: images[0].height - 1 };
             }
         } else {
-            globalBounds = { minX: 0, minY: 0, maxX: images[0].width, maxY: images[0].height };
+            globalBounds = { minX: 0, minY: 0, maxX: images[0].width - 1, maxY: images[0].height - 1 };
         }
 
-        const cropWidth = globalBounds.maxX - globalBounds.minX;
-        const cropHeight = globalBounds.maxY - globalBounds.minY;
+        const cropWidth = globalBounds.maxX - globalBounds.minX + 1;
+        const cropHeight = globalBounds.maxY - globalBounds.minY + 1;
 
         // Process each image (crop and resize)
         const processedBlobs = await Promise.all(images.map(img => {
@@ -908,6 +928,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = URL.createObjectURL(blob);
             spriteImage.src = url;
             downloadLink.href = url;
+            if (downloadLinkQuick) downloadLinkQuick.href = url;
 
             // Save to localStorage for automatic loading in previsualizacion.html
             const reader = new FileReader();
