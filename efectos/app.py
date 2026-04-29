@@ -8,7 +8,11 @@ import numpy as np
 import scipy.io.wavfile
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import AutoProcessor, AudioGenForConditionalGeneration
+try:
+    from transformers import AutoProcessor, AudioGenForConditionalGeneration
+except ImportError:
+    # Fallback for some transformer versions or environment quirks
+    from transformers import AutoProcessor, AutoModel as AudioGenForConditionalGeneration
 from supabase import create_client, Client
 
 app = FastAPI()
@@ -42,14 +46,13 @@ is_processing = False
 def load_models():
     global processor, model, load_error
     try:
+        # Limit CPU threads BEFORE loading to avoid killing the container
+        torch.set_num_threads(1)
         print(f"Loading model {model_id}...")
         # Use explicit classes for better control on free CPU resources
         processor = AutoProcessor.from_pretrained(model_id)
         model = AudioGenForConditionalGeneration.from_pretrained(model_id)
         model.to(device)
-
-        # Limit CPU threads to avoid killing the container in free spaces
-        torch.set_num_threads(1)
 
         print("Model loaded successfully.")
         load_error = None

@@ -41,11 +41,10 @@ is_processing = False
 def load_models():
     global audio_pipe, load_error
     try:
+        # Limit CPU threads BEFORE loading to avoid memory/CPU spikes
+        torch.set_num_threads(1)
         print(f"Loading model {model_id} via pipeline...")
         audio_pipe = pipeline("text-to-audio", model=model_id, device=device)
-
-        # Limit CPU threads to avoid memory/CPU spikes in free spaces
-        torch.set_num_threads(1)
 
         print("Model loaded successfully.")
         load_error = None

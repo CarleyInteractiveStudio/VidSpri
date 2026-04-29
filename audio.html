@@ -406,6 +406,7 @@
         let recordedBlob;
         let currentJobId = null;
         let heartbeatInterval = null;
+        let positionTimer = null;
         let estimatedTotalTime = 0;
         let processingStartTime = 0;
         let progressInterval = null;
@@ -450,19 +451,24 @@
                 type,
                 data, // base64
                 prompt,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                cols: type === 'sprite' ? localStorage.getItem('vidspri_last_cols') : null,
+                rows: type === 'sprite' ? localStorage.getItem('vidspri_last_rows') : null
             });
 
             tx.oncomplete = () => loadHistory();
         }
 
+        let isLoadingHistory = false;
         function loadHistory() {
-            if (!db) return;
+            if (!db || isLoadingHistory) return;
+            isLoadingHistory = true;
             const tx = db.transaction('history', 'readonly');
             const store = tx.objectStore('history');
             const req = store.getAll();
 
             req.onsuccess = () => {
+                isLoadingHistory = false;
                 const items = req.result.sort((a, b) => b.timestamp - a.timestamp);
                 const container = document.getElementById('history-list');
                 container.innerHTML = '';
@@ -485,6 +491,8 @@
                     div.onclick = () => {
                         if (item.type === 'sprite') {
                             localStorage.setItem('vidspri_last_sprite', item.data);
+                            localStorage.setItem('vidspri_last_cols', item.cols || 8);
+                            localStorage.setItem('vidspri_last_rows', item.rows || 1);
                             window.location.href = 'previsualizacion.html';
                         } else {
                             displayAudioResult(item.data);
@@ -773,25 +781,19 @@
 
         async function checkPosition(jobId, jobData = null) {
             if (currentJobId !== jobId) return;
+            if (positionTimer) clearTimeout(positionTimer);
 
             try {
                 let job = jobData;
-                // If we don't have queue_number, we must fetch the full job record
                 if (!job || job.queue_number === undefined) {
                     const { data, error } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
-                    if (error || !data) {
-                        console.warn("Could not fetch job for position check", error);
-                        return;
-                    }
+                    if (error || !data) return;
                     job = data;
                 }
-
-                console.log("Checking position for job:", job.id, "Status:", job.status, "Queue No:", job.queue_number);
 
                 if (job.status !== 'waiting') {
                     document.getElementById('queue-priority-actions').classList.add('hidden');
                     if (job.status === 'authorized' && !isSending) {
-                        console.log("Job authorized detected in checkPosition");
                         isSending = true;
                         uploadData(job);
                     }
@@ -799,7 +801,7 @@
                 }
 
                 updatePriorityUI();
-                updateStatusText("waiting"); // Show "Waiting..." while we count exactly
+                updateStatusText("waiting");
 
                 let query = supabaseClient
                     .from('processing_queue')
@@ -808,50 +810,36 @@
                     .eq('job_type', selectedService);
 
                 if (job.is_priority) {
-                    // Only count priority jobs with smaller queue number
                     query = query.eq('is_priority', true).lt('queue_number', job.queue_number);
                 } else {
-                    // Count ALL priority jobs + non-priority jobs with smaller queue number
-                    // Simplified OR for better compatibility
                     query = query.or(`is_priority.eq.true,queue_number.lt.${job.queue_number}`);
                 }
 
                 const { count, error: countError } = await query;
-
                 const lang = localStorage.getItem('vidspri_lang') || 'es';
                 const dict = window.translations[lang] || window.translations['es'] || {};
 
-                if (countError) {
-                    console.error("Queue position query error:", countError);
-                    // Keep "Waiting..."
-                } else {
+                if (!countError) {
                     const position = (count || 0) + 1;
-                    console.log("Position in queue calculated:", position);
                     const statusEl = document.getElementById('status-text');
                     if (position === 1) {
                         statusEl.textContent = dict['your_turn'] || '¡Es tu turno!';
-
-                    // Proactive wake-up: Ping all servers of this type
-                    const { data: servers } = await supabaseClient.from('server_status').select('url').eq('service_type', selectedService);
-                    if (servers) {
-                        servers.forEach(s => fetch(s.url).catch(() => {}));
-                    }
+                        const { data: servers } = await supabaseClient.from('server_status').select('url').eq('service_type', selectedService);
+                        if (servers) servers.forEach(s => fetch(s.url).catch(() => {}));
                     } else {
                         statusEl.textContent = (dict['position'] || 'Posición en cola: ') + position;
                     }
                 }
 
-                // Small initial progress to show something is happening
                 const progressBar = document.getElementById('audio-progress-bar');
-                if (progressBar.style.width === '0%' || progressBar.style.width === '0px' || !progressBar.style.width) {
+                if (!progressBar.style.width || progressBar.style.width === '0%') {
                     progressBar.style.width = '5%';
                 }
             } catch (e) {
-                console.error("checkPosition exception:", e);
+                console.error("checkPosition error:", e);
             } finally {
-                // Only reschedule if we're still in this job and still waiting
                 if (currentJobId === jobId) {
-                    setTimeout(() => checkPosition(jobId), 3000);
+                    positionTimer = setTimeout(() => checkPosition(jobId), 4000);
                 }
             }
         }
@@ -1185,7 +1173,9 @@
         }
 
         // Initialize default view
-        selectService('voice');
+        window.addEventListener('load', () => {
+            goToSelection();
+        });
     </script>
 </body>
 </html>

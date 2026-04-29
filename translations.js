@@ -2,6 +2,7 @@ const translations = {
     ar: {
         about_desc: "VidSpri es una herramienta diseñada para desarrolladores de videojuegos indie, que utiliza IA para automatizar la creación de hojas de sprites a partir de video.",
         about_title: "Acerca de VidSpri",
+        access_denied: "Acceso denegado",
         account: "Cuenta",
         activate: "Activar Prioridad",
         already_redeemed: "You have already redeemed this code",
