@@ -75,6 +75,17 @@
                 </button>
             </div>
 
+            <div class="modern-card" style="margin-bottom: 20px;">
+                <h3 data-i18n="zoom">Zoom / Escala</h3>
+                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <button type="button" class="pill-btn zoom-btn active" data-zoom="auto">Auto</button>
+                    <button type="button" class="pill-btn zoom-btn" data-zoom="1">1x</button>
+                    <button type="button" class="pill-btn zoom-btn" data-zoom="2">2x</button>
+                    <button type="button" class="pill-btn zoom-btn" data-zoom="4">4x</button>
+                    <button type="button" class="pill-btn zoom-btn" data-zoom="8">8x</button>
+                </div>
+            </div>
+
             <div id="manual-adjust-card" class="modern-card">
                 <h3 data-i18n="manual_adjust">Ajuste Manual</h3>
                 <div class="controls-grid">
@@ -98,6 +109,7 @@
         const ctx = canvas.getContext('2d');
         let spriteImg = new Image();
         let cols = 1, rows = 1, currentFrame = 0;
+        let zoomLevel = 'auto';
         let animInterval;
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -165,6 +177,7 @@
         }
 
         function drawFrame() {
+            if (!spriteImg.complete) return;
             const frameW = spriteImg.width / cols;
             const frameH = spriteImg.height / rows;
             const col = currentFrame % cols;
@@ -173,27 +186,37 @@
             canvas.width = frameW;
             canvas.height = frameH;
 
-            // Scale logic: make sure the character looks big enough in the bubble
-            const maxDimension = 300;
             let scale = 1;
-            if (frameW > frameH) {
-                scale = maxDimension / frameW;
+            if (zoomLevel === 'auto') {
+                const maxDimension = 300;
+                let targetScale = 1;
+                if (frameW > frameH) {
+                    targetScale = maxDimension / frameW;
+                } else {
+                    targetScale = maxDimension / frameH;
+                }
+                // Use floor for integer scaling to avoid blurriness/artifacts
+                scale = Math.max(1, Math.floor(targetScale));
+                if (scale > 8) scale = 8;
             } else {
-                scale = maxDimension / frameH;
+                scale = parseFloat(zoomLevel);
             }
-
-            // Limit scale so tiny sprites don't get TOO blurry, but still big enough
-            if (scale > 8) scale = 8;
 
             canvas.style.width = (frameW * scale) + 'px';
             canvas.style.height = (frameH * scale) + 'px';
 
-            // Ensure pixelated rendering for the preview if it's small
             ctx.imageSmoothingEnabled = false;
-
             ctx.clearRect(0, 0, frameW, frameH);
             ctx.drawImage(spriteImg, col * frameW, row * frameH, frameW, frameH, 0, 0, frameW, frameH);
         }
+
+        document.querySelectorAll('.zoom-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.zoom-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                zoomLevel = btn.getAttribute('data-zoom');
+            };
+        });
 
         document.getElementById('apply-btn').onclick = () => {
             cols = parseInt(document.getElementById('cols-input').value) || 1;
