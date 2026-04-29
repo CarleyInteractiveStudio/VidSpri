@@ -547,8 +547,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_priority_assignment ON processing_queue;
 CREATE TRIGGER trigger_priority_assignment
-AFTER UPDATE OF is_priority ON processing_queue
+AFTER UPDATE ON processing_queue
 FOR EACH ROW
+WHEN (OLD.is_priority IS DISTINCT FROM NEW.is_priority AND NEW.is_priority = TRUE)
 EXECUTE FUNCTION trigger_assign_on_priority_change();
 
 -- Run it once at the start, only after all tables and constraints are ready
