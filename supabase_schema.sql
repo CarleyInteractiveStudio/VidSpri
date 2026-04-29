@@ -249,6 +249,7 @@ DROP TRIGGER IF EXISTS trigger_assign_on_server_update ON server_status;
 CREATE TRIGGER trigger_assign_on_server_update
 AFTER UPDATE ON server_status
 FOR EACH ROW
+WHEN (OLD.status IS DISTINCT FROM NEW.status AND NEW.status = 'free')
 EXECUTE FUNCTION assign_jobs();
 
 DROP TRIGGER IF EXISTS trigger_assign_on_new_job ON processing_queue;

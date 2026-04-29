@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let extractedFrames = [];
     let currentJobId = null;
     let heartbeatInterval = null;
+    let positionTimer = null;
     let isSending = false;
     let currentProcessingStep = 'idle'; // 'idle', 'waiting', 'uploading', 'processing'
     let userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
@@ -529,6 +530,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function checkPosition(jobId) {
+        if (currentJobId !== jobId) return;
+        if (positionTimer) clearTimeout(positionTimer);
+
         const { data: jobData } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
         if (!jobData) return;
 
@@ -574,7 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         updateProgressBar(10);
-        setTimeout(() => checkPosition(jobId), 3000);
+        positionTimer = setTimeout(() => checkPosition(jobId), 3500);
     }
 
     // Add window unload listener to cleanup on close
