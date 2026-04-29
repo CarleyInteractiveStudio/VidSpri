@@ -458,11 +458,13 @@
 
             store.add({
                 type,
-                data, // base64
+                dataUrl: data, // base64
                 prompt,
                 timestamp: Date.now(),
-                cols: type === 'sprite' ? localStorage.getItem('vidspri_last_cols') : null,
-                rows: type === 'sprite' ? localStorage.getItem('vidspri_last_rows') : null
+                metadata: type === 'sprite' ? {
+                    cols: parseInt(localStorage.getItem('vidspri_last_cols')) || 1,
+                    rows: parseInt(localStorage.getItem('vidspri_last_rows')) || 1
+                } : null
             });
 
             tx.oncomplete = () => loadHistory();
@@ -498,13 +500,15 @@
                         <div style="font-size: 0.6rem; opacity: 0.5;">${date}</div>
                     `;
                     div.onclick = () => {
+                        const dataUrl = item.dataUrl || item.data;
                         if (item.type === 'sprite') {
-                            localStorage.setItem('vidspri_last_sprite', item.data);
-                            localStorage.setItem('vidspri_last_cols', item.cols || 8);
-                            localStorage.setItem('vidspri_last_rows', item.rows || 1);
+                            const meta = item.metadata || (item.cols ? {cols: item.cols, rows: item.rows} : {cols:1, rows:1});
+                            localStorage.setItem('vidspri_last_sprite', dataUrl);
+                            localStorage.setItem('vidspri_last_cols', meta.cols);
+                            localStorage.setItem('vidspri_last_rows', meta.rows);
                             window.location.href = 'previsualizacion.html';
                         } else {
-                            displayAudioResult(item.data);
+                            displayAudioResult(dataUrl);
                             showStage(4);
                         }
                     };

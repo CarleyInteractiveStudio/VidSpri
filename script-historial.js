@@ -57,9 +57,10 @@ function createHistoryCard(item) {
     let previewContent = '';
     let typeLabel = item.type.toUpperCase();
 
+    const dataUrl = item.dataUrl || item.data;
     if (item.type === 'sprite') {
-        previewContent = `<img src="${item.dataUrl}" alt="Sprite Sheet">`;
-        const meta = item.metadata || {cols:1, rows:1};
+        previewContent = `<img src="${dataUrl}" alt="Sprite Sheet">`;
+        const meta = item.metadata || (item.cols ? {cols: item.cols, rows: item.rows} : {cols:1, rows:1});
         typeLabel = `SPRITE (${meta.cols}x${meta.rows})`;
     } else {
         previewContent = `
@@ -120,9 +121,10 @@ async function downloadItem(id) {
     });
 
     if (!item) return;
+    const dataUrl = item.dataUrl || item.data;
 
     const link = document.createElement('a');
-    link.href = item.dataUrl;
+    link.href = dataUrl;
     link.download = item.type === 'sprite' ? `vidspri_sheet_${id}.png` : `vidspri_audio_${id}.wav`;
     link.click();
 }
@@ -136,11 +138,12 @@ async function useSprite(id) {
     });
 
     if (!item) return;
+    const dataUrl = item.dataUrl || item.data;
 
-    localStorage.setItem('last_sprite_sheet', item.dataUrl);
-    if (item.metadata) {
-        localStorage.setItem('last_sprite_metadata', JSON.stringify(item.metadata));
-    }
+    localStorage.setItem('vidspri_last_sprite', dataUrl);
+    const meta = item.metadata || (item.cols ? {cols: item.cols, rows: item.rows} : {cols:1, rows:1});
+    localStorage.setItem('vidspri_last_cols', meta.cols);
+    localStorage.setItem('vidspri_last_rows', meta.rows);
     window.location.href = 'previsualizacion.html';
 }
 
@@ -159,7 +162,8 @@ async function playAudio(id) {
     });
 
     if (!item) return;
-    currentAudio = new Audio(item.dataUrl);
+    const dataUrl = item.dataUrl || item.data;
+    currentAudio = new Audio(dataUrl);
     currentAudio.play();
 }
 

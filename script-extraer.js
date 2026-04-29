@@ -802,6 +802,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.imageSmoothingEnabled = !pixelArtMode;
             if (!pixelArtMode) {
                 ctx.imageSmoothingQuality = 'high';
+            } else {
+                ctx.imageSmoothingQuality = 'low'; // Nearest neighbor
             }
 
             ctx.drawImage(
@@ -918,6 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = totalWidth;
         canvas.height = maxHeight;
         const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
 
         let x = 0;
         images.forEach(img => {
@@ -974,9 +977,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 store.add({
                     type: 'sprite',
-                    data: dataUrl,
+                    dataUrl: dataUrl,
                     prompt: "Sprite Sheet",
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    metadata: {
+                        cols: parseInt(localStorage.getItem('vidspri_last_cols')) || 1,
+                        rows: parseInt(localStorage.getItem('vidspri_last_rows')) || 1
+                    }
                 });
             };
         };
