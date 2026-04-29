@@ -24,10 +24,9 @@
             overflow: hidden;
         }
         #anim-canvas {
-            max-width: 100%;
-            max-height: 400px;
             image-rendering: pixelated;
             filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+            transition: transform 0.2s ease;
         }
         .controls-grid {
             display: grid;
@@ -76,16 +75,16 @@
                 </button>
             </div>
 
-            <div class="modern-card">
+            <div id="manual-adjust-card" class="modern-card">
                 <h3 data-i18n="manual_adjust">Ajuste Manual</h3>
                 <div class="controls-grid">
                     <div class="form-group">
                         <label data-i18n="cols">Columnas</label>
-                        <input type="number" id="cols-input" value="1" min="1">
+                        <input type="number" id="cols-input" value="1" min="1" style="width: 100%;">
                     </div>
                     <div class="form-group">
                         <label data-i18n="rows">Filas</label>
-                        <input type="number" id="rows-input" value="1" min="1">
+                        <input type="number" id="rows-input" value="1" min="1" style="width: 100%;">
                     </div>
                 </div>
                 <button type="button" class="action-btn" id="apply-btn" data-i18n="apply">Aplicar</button>
@@ -117,13 +116,15 @@
                     document.getElementById('cols-input').value = cols;
                     document.getElementById('rows-input').value = rows;
                     document.getElementById('download-sprite-link').href = savedSprite;
+
+                    // Hide manual adjustment if metadata is already present
+                    if (cols > 1 || rows > 1) {
+                        document.getElementById('manual-adjust-card').classList.add('hidden');
+                    }
+
                     startAnimation();
                 };
                 spriteImg.src = savedSprite;
-
-                // Clear after loading to avoid reusing it if user manually uploads something else later
-                // or refreshes to start over. Actually, maybe keep it until they leave?
-                // localStorage.removeItem('vidspri_last_sprite');
             }
         });
 
@@ -171,6 +172,22 @@
 
             canvas.width = frameW;
             canvas.height = frameH;
+
+            // Scale logic: make sure the character looks big enough in the bubble
+            const maxDimension = 300;
+            let scale = 1;
+            if (frameW > frameH) {
+                scale = maxDimension / frameW;
+            } else {
+                scale = maxDimension / frameH;
+            }
+
+            // Limit scale so tiny sprites don't get TOO blurry, but still big enough
+            if (scale > 8) scale = 8;
+
+            canvas.style.width = (frameW * scale) + 'px';
+            canvas.style.height = (frameH * scale) + 'px';
+
             ctx.clearRect(0, 0, frameW, frameH);
             ctx.drawImage(spriteImg, col * frameW, row * frameH, frameW, frameH, 0, 0, frameW, frameH);
         }

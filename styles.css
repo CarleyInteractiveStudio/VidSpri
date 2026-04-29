@@ -258,6 +258,35 @@ p {
     margin-bottom: 1.5rem;
 }
 
+.custom-select {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 12px;
+    outline: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+    padding-right: 35px;
+}
+
+.custom-select:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--primary);
+}
+
+.custom-select option {
+    background: #1a1a2e;
+    color: white;
+}
+
 .pill-btn {
     background: var(--card-bg);
     border: 1px solid var(--glass-border);
@@ -536,7 +565,7 @@ label {
     color: var(--text-dim);
 }
 
-input[type="number"], textarea {
+input[type="number"], textarea, select {
     width: 100%;
     background: rgba(0,0,0,0.3);
     border: 1px solid var(--glass-border);

@@ -927,7 +927,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = URL.createObjectURL(blob);
             spriteImage.src = url;
             downloadLink.href = url;
-            if (downloadLinkQuick) downloadLinkQuick.href = url;
 
             // Save to localStorage for automatic loading in previsualizacion.html
             const reader = new FileReader();
