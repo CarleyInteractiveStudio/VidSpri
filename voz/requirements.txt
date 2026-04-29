@@ -11,5 +11,4 @@ numpy
 accelerate
 kokoro>=0.7.13
 soundfile
-py38th-backport
 regex

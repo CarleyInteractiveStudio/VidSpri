@@ -107,7 +107,7 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
                         "temperature": 1.0,
                         "top_k": 250,
                         "top_p": 0.99,
-                        "guidance_scale": 3.0
+                        "guidance_scale": 2.5
                     }
                 )
 
