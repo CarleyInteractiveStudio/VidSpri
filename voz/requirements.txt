@@ -9,6 +9,6 @@ supabase
 gunicorn
 numpy
 accelerate
-kokoro>=0.7.13
+outetts>=0.1.0
 soundfile
 regex

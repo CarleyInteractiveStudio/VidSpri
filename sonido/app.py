@@ -33,7 +33,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Model Loading ---
 device = "cpu"
-model_id = "facebook/musicgen-medium"
+model_id = "facebook/musicgen-small"
 audio_pipe = None
 load_error = None
 is_processing = False
@@ -106,8 +106,8 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
                         "do_sample": True,
                         "temperature": 1.0,
                         "top_k": 250,
-                        "top_p": 0.99,
-                        "guidance_scale": 2.5
+                        "top_p": 0.95,
+                        "guidance_scale": 2.0
                     }
                 )
 
@@ -127,6 +127,9 @@ async def generate_sound(job_id: str, prompt: str = Form(...), duration: int = F
         # Remove DC offset to eliminate "click" and constant hum
         if audio_data.size > 0:
             audio_data = audio_data - np.mean(audio_data)
+
+        # Soft-clipping/Limiter to prevent model collapse feedback noise
+        audio_data = np.tanh(audio_data * 1.5)
 
         # Standardize shape to (samples,) or (channels, samples)
         # MusicGen usually returns [1, channels, samples]

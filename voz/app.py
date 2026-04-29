@@ -11,12 +11,11 @@ from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 
-# --- Kokoro TTS ---
+# --- OuteTTS ---
 try:
-    from kokoro import KPipeline
+    import outetts
     from supabase import create_client, Client
 except ImportError:
-    # Diagnostic message will be shown via load_error
     pass
 
 app = FastAPI()
@@ -40,20 +39,25 @@ SERVICE_TYPE = "voice"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Models Loading ---
-tts_pipeline = None
+model_interface = None
 load_error = None
 
 def load_models():
-    global tts_pipeline, load_error
+    global model_interface, load_error
     try:
-        print("Loading Kokoro TTS model (Apache 2.0)...")
-        # 'es' for Spanish, 'a' for American English
-        tts_pipeline = KPipeline(lang_code='es')
-        print("Kokoro Model loaded successfully.")
+        print("Loading OuteTTS model (Apache 2.0)...")
+        # Initialize the model interface
+        model_config = outetts.GGUFModelConfig_v1(
+            model_path=None, # Downloads automatically
+            language="es",
+            n_gpu_layers=0 # CPU optimized
+        )
+        model_interface = outetts.InterfaceGGUF(model_config)
+        print("OuteTTS Model loaded successfully.")
         load_error = None
     except Exception as e:
         load_error = str(e)
-        print(f"Error loading Kokoro model: {e}")
+        print(f"Error loading OuteTTS model: {e}")
 
 is_processing = False
 
@@ -87,63 +91,74 @@ async def startup_event():
 
 @app.get("/")
 async def root():
-    return {"message": "VidSpri Voice Worker (Kokoro) is running", "status": "ok"}
+    return {"message": "VidSpri Voice Worker (OuteTTS) is running", "status": "ok"}
 
 @app.post("/process-voice/{job_id}")
 async def process_voice(job_id: str, audio_file: UploadFile = File(None), text_override: str = Form(None)):
-    global is_processing, tts_pipeline, load_error
+    global is_processing, model_interface, load_error
 
     if is_processing:
         raise HTTPException(status_code=503, detail="Server is busy")
 
-    if not tts_pipeline:
+    if not model_interface:
         msg = f"Voice model not loaded yet. Error: {load_error}" if load_error else "Model is still loading..."
         raise HTTPException(status_code=500, detail=msg)
 
     await update_status("busy")
     supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
 
+    temp_ref_path = None
     try:
-        # For Kokoro, we mainly generate from text.
-        # If user provides audio, we ignore it for now as cloning is a restricted feature in many libs,
-        # but Kokoro provides high quality presets.
         text_to_speak = text_override or "Hola, bienvenido a VidSpri."
 
+        # 1. Handle Voice Cloning if audio is provided
+        speaker = None
+        if audio_file:
+            # Save ref audio to temp
+            audio_bytes = await audio_file.read()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+                tmp.write(audio_bytes)
+                temp_ref_path = tmp.name
+
+            # Create speaker from audio
+            speaker = model_interface.create_speaker(temp_ref_path)
+
         def run_tts():
-            # Voice choices: 'af_heart', 'af_bella', 'am_adam', 'es_male', 'es_female'
-            # 'es' language code supports specific voices
-            generator = tts_pipeline(
-                text_to_speak, voice='ef_dora', # Dora is a good Spanish female voice
-                speed=1, split_pattern=r'\n+'
+            # Generate audio using the cloned speaker or default
+            output = model_interface.generate(
+                text=text_to_speak,
+                speaker=speaker,
+                temperature=0.1,
+                repetition_penalty=1.1
             )
+            return output.audio_np, output.sample_rate
 
-            all_chunks = []
-            for _, _, audio in generator:
-                all_chunks.append(audio)
-            return np.concatenate(all_chunks) if all_chunks else None
+        audio_data, sample_rate = await asyncio.to_thread(run_tts)
 
-        combined_audio = await asyncio.to_thread(run_tts)
-
-        if combined_audio is None:
+        if audio_data is None:
             raise Exception("No audio generated")
 
-        # Clean audio data
-        combined_audio = np.nan_to_num(combined_audio)
+        # --- High Quality Audio Processing ---
+        audio_data = np.nan_to_num(audio_data)
 
-        # Remove DC offset
-        if combined_audio.size > 0:
-            combined_audio = combined_audio - np.mean(combined_audio)
+        # 1. Remove DC offset
+        if audio_data.size > 0:
+            audio_data = audio_data - np.mean(audio_data)
 
-        # Normalize audio with headroom
-        max_val = np.abs(combined_audio).max()
+        # 2. Soft-clipping/Limiting to prevent digital harshness
+        audio_data = np.tanh(audio_data * 1.5)
+
+        # 3. Final normalization with 0.9 headroom
+        max_val = np.abs(audio_data).max()
         if max_val > 0:
-            combined_audio = (combined_audio / (max_val + 1e-6)) * 0.9
+            audio_data = (audio_data / (max_val + 1e-6)) * 0.9
 
-        combined_audio = np.clip(combined_audio * 32767, -32768, 32767).astype(np.int16)
+        # Convert to 16-bit PCM
+        audio_data = np.clip(audio_data * 32767, -32768, 32767).astype(np.int16)
 
         # Write to buffer
         out_buf = io.BytesIO()
-        scipy.io.wavfile.write(out_buf, 24000, combined_audio) # Kokoro native rate is 24k
+        scipy.io.wavfile.write(out_buf, sample_rate, audio_data)
         audio_result = base64.b64encode(out_buf.getvalue()).decode('utf-8')
 
         supabase.table("processing_queue").update({"status": "completed"}).eq("id", job_id).execute()
@@ -155,3 +170,6 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(None), text_o
         await update_status("free")
         supabase.table("processing_queue").update({"status": "failed"}).eq("id", job_id).execute()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if temp_ref_path and os.path.exists(temp_ref_path):
+            os.remove(temp_ref_path)

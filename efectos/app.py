@@ -33,7 +33,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Model Loading ---
 device = "cpu"
-model_id = "facebook/audiogen-small"
+model_id = "facebook/audiogen-medium"
 audio_pipe = None
 load_error = None
 is_processing = False
@@ -125,6 +125,9 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
         # Remove DC offset to eliminate "click" and constant hum
         if audio_data.size > 0:
             audio_data = audio_data - np.mean(audio_data)
+
+        # 2. Soft-clipping to prevent digital artifacts on saturation
+        audio_data = np.tanh(audio_data * 1.2)
 
         # Standardize shape
         if audio_data.ndim == 3:
