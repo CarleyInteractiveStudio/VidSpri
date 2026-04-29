@@ -901,3 +901,86 @@ footer {
     color: #00f2ff;
     text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
 }
+
+/* Dual Range Slider for Audio Trimmer */
+.range-slider-container {
+    position: relative;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    margin: 25px 0;
+    overflow: visible !important; /* Allow handles to be seen slightly outside if needed */
+    border: 1px solid var(--glass-border);
+}
+
+.range-slider-container input[type=range] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 100%;
+    outline: none;
+    position: absolute;
+    margin: 0;
+    top: 0;
+    bottom: 0;
+    background: none;
+    pointer-events: none; /* Crucial: clicks go through to handles */
+}
+
+/* Chrome/Safari Thumbs */
+.range-slider-container input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    pointer-events: auto; /* Handle itself IS interactive */
+    height: 40px;
+    width: 18px;
+    background: var(--primary);
+    border: 2px solid #fff;
+    border-radius: 6px;
+    cursor: grab;
+    box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
+    position: relative;
+    z-index: 20;
+}
+
+.range-slider-container input[type=range]::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    background: white;
+}
+
+/* Firefox Thumbs */
+.range-slider-container input[type=range]::-moz-range-thumb {
+    -moz-appearance: none;
+    appearance: none;
+    pointer-events: auto;
+    height: 40px;
+    width: 18px;
+    background: var(--primary);
+    border: 2px solid #fff;
+    border-radius: 6px;
+    cursor: grab;
+    box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
+    z-index: 20;
+}
+
+/* Hide Track */
+.range-slider-container input[type=range]::-webkit-slider-runnable-track {
+    background: transparent;
+    border: none;
+}
+
+.range-slider-container input[type=range]::-moz-range-track {
+    background: transparent;
+    border: none;
+}
+
+#range-highlight {
+    position: absolute;
+    height: 100%;
+    background: rgba(0, 242, 255, 0.25);
+    border-top: 1px solid rgba(0, 242, 255, 0.5);
+    border-bottom: 1px solid rgba(0, 242, 255, 0.5);
+    pointer-events: none;
+    z-index: 5;
+    border-radius: 8px;
+}

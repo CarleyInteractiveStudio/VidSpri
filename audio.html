@@ -355,32 +355,11 @@
                     </p>
 
                     <!-- Visual Range Slider -->
-                    <div class="range-slider-container" style="position: relative; height: 40px; background: rgba(255,255,255,0.05); border-radius: 10px; margin: 20px 0; overflow: hidden;">
-                        <div id="range-highlight" style="position: absolute; height: 100%; background: rgba(124, 58, 237, 0.3); left: 0%; right: 0%;"></div>
-                        <input type="range" id="range-start" min="0" max="100" value="0" step="0.1" style="position: absolute; width: 100%; top: 0; pointer-events: none; -webkit-appearance: none; background: transparent;">
-                        <input type="range" id="range-end" min="0" max="100" value="100" step="0.1" style="position: absolute; width: 100%; top: 0; pointer-events: none; -webkit-appearance: none; background: transparent;">
+                    <div class="range-slider-container">
+                        <div id="range-highlight"></div>
+                        <input type="range" id="range-start" min="0" max="100" value="0" step="0.1">
+                        <input type="range" id="range-end" min="0" max="100" value="100" step="0.1">
                     </div>
-
-                    <style>
-                        /* Custom range slider styling for dual handles */
-                        .range-slider-container input[type=range]::-webkit-slider-thumb {
-                            pointer-events: auto;
-                            -webkit-appearance: none;
-                            height: 40px;
-                            width: 10px;
-                            background: #7c3aed;
-                            cursor: pointer;
-                            border-radius: 2px;
-                        }
-                        .range-slider-container input[type=range]::-moz-range-thumb {
-                            pointer-events: auto;
-                            height: 40px;
-                            width: 10px;
-                            background: #7c3aed;
-                            cursor: pointer;
-                            border-radius: 2px;
-                        }
-                    </style>
 
                     <div class="trim-controls">
                         <div style="display: flex; gap: 10px; justify-content: center;">
