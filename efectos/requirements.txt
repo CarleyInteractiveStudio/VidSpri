@@ -3,7 +3,7 @@ uvicorn
 python-multipart
 torch
 numpy
-transformers>=4.40.0
+transformers>=4.44.0
 scipy
 supabase
 gunicorn

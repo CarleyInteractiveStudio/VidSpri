@@ -8,11 +8,7 @@ import numpy as np
 import scipy.io.wavfile
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-try:
-    from transformers import AutoProcessor, AudioGenForConditionalGeneration
-except ImportError:
-    # Fallback for some transformer versions or environment quirks
-    from transformers import AutoProcessor, AutoModel as AudioGenForConditionalGeneration
+from transformers import pipeline
 from supabase import create_client, Client
 
 app = FastAPI()
@@ -38,21 +34,18 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- Model Loading ---
 device = "cpu"
 model_id = "facebook/audiogen-medium"
-processor = None
-model = None
+audio_pipe = None
 load_error = None
 is_processing = False
 
 def load_models():
-    global processor, model, load_error
+    global audio_pipe, load_error
     try:
         # Limit CPU threads BEFORE loading to avoid killing the container
         torch.set_num_threads(1)
-        print(f"Loading model {model_id}...")
-        # Use explicit classes for better control on free CPU resources
-        processor = AutoProcessor.from_pretrained(model_id)
-        model = AudioGenForConditionalGeneration.from_pretrained(model_id)
-        model.to(device)
+        print(f"Loading model {model_id} via pipeline...")
+        # Using pipeline as it handles processors and models more robustly
+        audio_pipe = pipeline("text-to-audio", model=model_id, device=device)
 
         print("Model loaded successfully.")
         load_error = None
@@ -99,7 +92,7 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
     supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
 
     try:
-        if model is None or processor is None:
+        if audio_pipe is None:
             msg = f"Model not loaded. Error during startup: {load_error}" if load_error else "Model is still starting up..."
             raise Exception(msg)
 
@@ -108,21 +101,22 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
         def run_inference():
             with torch.no_grad():
-                # Explicit generation for better control
-                inputs = processor(text=[prompt], return_tensors="pt")
-                audio_values = model.generate(
-                    **inputs.to(device),
-                    max_new_tokens=max_tokens,
-                    do_sample=True,
-                    temperature=1.0,
-                    top_k=250,
-                    top_p=0.99,
-                    guidance_scale=3.0
+                torch.set_num_threads(1)
+                return audio_pipe(
+                    prompt,
+                    forward_params={
+                        "max_new_tokens": max_tokens,
+                        "do_sample": True,
+                        "temperature": 1.0,
+                        "top_k": 250,
+                        "top_p": 0.99,
+                        "guidance_scale": 3.0
+                    }
                 )
-                return audio_values[0].cpu().numpy()
 
-        audio_data = await asyncio.to_thread(run_inference)
-        sampling_rate = model.config.audio_encoder.sampling_rate
+        result = await asyncio.to_thread(run_inference)
+        sampling_rate = result["sampling_rate"]
+        audio_data = result["audio"]
 
         # Ensure audio_data is a numpy array and has correct type for scipy
         if isinstance(audio_data, torch.Tensor):

@@ -8,7 +8,7 @@ supabase
 gunicorn
 numpy
 accelerate
-outetts>=0.1.0
+outetts>=0.2.2
 soundfile
 regex
 pocket-tts

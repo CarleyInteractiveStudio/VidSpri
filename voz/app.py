@@ -54,7 +54,8 @@ def load_models():
             language="es",
             n_gpu_layers=0 # CPU optimized
         )
-        model_interface = outetts.InterfaceGGUF(model_config)
+        # Using model_version "0.1" as per the current model usage
+        model_interface = outetts.InterfaceGGUF(model_version="0.1", cfg=model_config)
         print("OuteTTS Model loaded successfully.")
         load_error = None
     except Exception as e:
