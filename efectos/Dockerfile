@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.10
 
 # Install system dependencies for PyAV and Audiocraft
 RUN apt-get update && apt-get install -y \
@@ -11,7 +11,6 @@ RUN apt-get update && apt-get install -y \
     libswresample-dev \
     libavfilter-dev \
     ffmpeg \
-    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

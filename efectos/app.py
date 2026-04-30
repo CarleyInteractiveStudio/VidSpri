@@ -8,10 +8,7 @@ import numpy as np
 import scipy.io.wavfile
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-try:
-    from audiocraft.models import AudioGen
-except ImportError:
-    pass
+from audiocraft.models import AudioGen
 from supabase import create_client, Client
 
 app = FastAPI()
