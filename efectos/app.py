@@ -9,7 +9,7 @@ import scipy.io.wavfile
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 import transformers
-from transformers import AutoProcessor, AutoModelForConditionalGeneration as AudioGenForConditionalGeneration
+from transformers import AutoProcessor, AudioGenForConditionalGeneration
 from supabase import create_client, Client
 
 app = FastAPI()

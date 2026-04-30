@@ -892,7 +892,8 @@
             }
 
             document.getElementById('queue-priority-actions').classList.remove('hidden');
-            const dict = window.translations[localStorage.getItem('vidspri_lang') || 'es'];
+            const lang = localStorage.getItem('vidspri_lang') || 'es';
+            const dict = window.translations[lang] || window.translations['es'];
             const uses = (userP && userP.remaining_uses) || 0;
             const hasTimePriority = userP && userP.priority_until && new Date(userP.priority_until) > new Date();
 
@@ -937,6 +938,12 @@
             try {
                 const duration = document.getElementById('audio-duration').value || 10;
                 formData.append('duration', duration);
+
+                // Final safety check for recordedBlob
+                if (selectedService === 'voice' && recordedBlob && recordedBlob.size < 100) {
+                    console.log("Recorded blob too small, cleaning up formData");
+                    formData.delete('audio_file');
+                }
 
                 // Start progress before the fetch as it's a blocking call for generation
                 startProcessingProgress(duration);

@@ -121,12 +121,16 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(None), text_o
         if audio_file:
             # Save ref audio to temp
             audio_bytes = await audio_file.read()
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-                tmp.write(audio_bytes)
-                temp_ref_path = tmp.name
+            if len(audio_bytes) > 100: # Ensure we have actual audio data
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+                    tmp.write(audio_bytes)
+                    temp_ref_path = tmp.name
 
-            # Create speaker from audio
-            speaker = model_interface.create_speaker(temp_ref_path)
+                # Create speaker from audio
+                print(f"Creating speaker from {temp_ref_path}...")
+                speaker = model_interface.create_speaker(temp_ref_path)
+            else:
+                print("Audio file too small, skipping speaker creation")
 
         def run_tts():
             # Generate audio using the cloned speaker or default
