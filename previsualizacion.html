@@ -194,6 +194,16 @@
                                 <input type="number" id="custom-height" value="32" min="8" max="512" style="width: 60px; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 8px; color: white;">
                             </div>
                         </div>
+
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label for="export-scale" style="font-size: 0.8rem; margin-bottom: 5px; opacity: 0.8;" data-i18n="export_scale">Escala de exportación (Upscale):</label>
+                            <select id="export-scale" class="custom-select" style="width: 100%;">
+                                <option value="1">1x (Original)</option>
+                                <option value="2">2x</option>
+                                <option value="4">4x</option>
+                                <option value="8">8x</option>
+                            </select>
+                        </div>
                     </div>
                     <div style="display: flex; flex-direction: column; justify-content: center; height: 100%;">
                         <button type="button" id="final-download-btn" class="action-btn" style="margin: 0;">
@@ -369,17 +379,17 @@
                 if (scale > 10) scale = 10; // Cap it
             }
 
-            canvas.style.width = Math.round(frameW * scale) + 'px';
-            canvas.style.height = Math.round(frameH * scale) + 'px';
+            canvas.style.width = Math.floor(frameW * scale) + 'px';
+            canvas.style.height = Math.floor(frameH * scale) + 'px';
 
             ctx.imageSmoothingEnabled = false;
-            ctx.webkitImageSmoothingEnabled = false;
-            ctx.mozImageSmoothingEnabled = false;
-            ctx.msImageSmoothingEnabled = false;
             ctx.imageSmoothingQuality = 'low';
 
             ctx.clearRect(0, 0, frameW, frameH);
-            ctx.drawImage(spriteImg, col * frameW, row * frameH, frameW, frameH, 0, 0, frameW, frameH);
+            ctx.drawImage(spriteImg,
+                Math.floor(col * (spriteImg.width / cols)),
+                Math.floor(row * (spriteImg.height / rows)),
+                frameW, frameH, 0, 0, frameW, frameH);
         }
 
         document.getElementById('apply-btn').onclick = () => {
@@ -405,20 +415,24 @@
 
             const pixelArtMode = document.getElementById('pixel-art-check').checked;
             const sizeMode = document.getElementById('export-size').value;
+            const scale = parseInt(document.getElementById('export-scale').value) || 1;
 
-            const frameW = spriteImg.width / cols;
-            const frameH = spriteImg.height / rows;
+            const srcFrameW = spriteImg.width / cols;
+            const srcFrameH = spriteImg.height / rows;
 
-            let targetW = frameW;
-            let targetH = frameH;
+            let frameBaseW = srcFrameW;
+            let frameBaseH = srcFrameH;
 
-            if (sizeMode === '16') { targetW = 16; targetH = 16; }
-            else if (sizeMode === '32') { targetW = 32; targetH = 32; }
-            else if (sizeMode === '64') { targetW = 64; targetH = 64; }
+            if (sizeMode === '16') { frameBaseW = 16; frameBaseH = 16; }
+            else if (sizeMode === '32') { frameBaseW = 32; frameBaseH = 32; }
+            else if (sizeMode === '64') { frameBaseW = 64; frameBaseH = 64; }
             else if (sizeMode === 'custom') {
-                targetW = parseInt(document.getElementById('custom-width').value) || 32;
-                targetH = parseInt(document.getElementById('custom-height').value) || 32;
+                frameBaseW = parseInt(document.getElementById('custom-width').value) || 32;
+                frameBaseH = parseInt(document.getElementById('custom-height').value) || 32;
             }
+
+            const targetW = Math.round(frameBaseW * scale);
+            const targetH = Math.round(frameBaseH * scale);
 
             const exportCanvas = document.createElement('canvas');
             exportCanvas.width = targetW * cols;
@@ -427,48 +441,42 @@
 
             if (pixelArtMode) {
                 eCtx.imageSmoothingEnabled = false;
-                eCtx.webkitImageSmoothingEnabled = false;
-                eCtx.mozImageSmoothingEnabled = false;
-                eCtx.msImageSmoothingEnabled = false;
                 eCtx.imageSmoothingQuality = 'low';
-
-            targetW = Math.round(targetW);
-            targetH = Math.round(targetH);
             }
-
-            const srcFrameW = spriteImg.width / cols;
-            const srcFrameH = spriteImg.height / rows;
 
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
-                    if (sizeMode === 'original') {
+                    if (sizeMode === 'original' && scale === 1) {
                         eCtx.drawImage(
                             spriteImg,
                             c * srcFrameW, r * srcFrameH, srcFrameW, srcFrameH,
                             c * targetW, r * targetH, targetW, targetH
                         );
                     } else {
-                        // Centering logic for fixed sizes
-                        const destX = c * targetW + Math.floor((targetW - srcFrameW) / 2);
-                        const destY = r * targetH + Math.floor((targetH - srcFrameH) / 2);
+                        // Centering logic with Scale factor
+                        const scaledSrcW = Math.round(srcFrameW * scale);
+                        const scaledSrcH = Math.round(srcFrameH * scale);
 
-                        if (srcFrameW > targetW || srcFrameH > targetH) {
-                            // Scale down if exceeds bounds
-                            const ratio = Math.min(targetW / srcFrameW, targetH / srcFrameH);
-                            const scaledW = Math.round(srcFrameW * ratio);
-                            const scaledH = Math.round(srcFrameH * ratio);
-                            const offX = c * targetW + Math.floor((targetW - scaledW) / 2);
-                            const offY = r * targetH + Math.floor((targetH - scaledH) / 2);
+                        if (scaledSrcW > targetW || scaledSrcH > targetH) {
+                            // Scale down to fit the target frame box
+                            const ratio = Math.min(targetW / scaledSrcW, targetH / scaledSrcH);
+                            const finalW = Math.round(scaledSrcW * ratio);
+                            const finalH = Math.round(scaledSrcH * ratio);
+                            const offX = c * targetW + Math.floor((targetW - finalW) / 2);
+                            const offY = r * targetH + Math.floor((targetH - finalH) / 2);
                             eCtx.drawImage(
                                 spriteImg,
                                 c * srcFrameW, r * srcFrameH, srcFrameW, srcFrameH,
-                                offX, offY, scaledW, scaledH
+                                offX, offY, finalW, finalH
                             );
                         } else {
+                            // Center it
+                            const offX = c * targetW + Math.floor((targetW - scaledSrcW) / 2);
+                            const offY = r * targetH + Math.floor((targetH - scaledSrcH) / 2);
                             eCtx.drawImage(
                                 spriteImg,
                                 c * srcFrameW, r * srcFrameH, srcFrameW, srcFrameH,
-                                destX, destY, srcFrameW, srcFrameH
+                                offX, offY, scaledSrcW, scaledSrcH
                             );
                         }
                     }
@@ -476,9 +484,12 @@
             }
 
             const link = document.createElement('a');
-            link.download = `sprite_${targetW}x${targetH}.png`;
+            link.download = `sprite_${targetW}x${targetH}_${scale}x.png`;
             link.href = exportCanvas.toDataURL('image/png');
             link.click();
+
+            // Metadata download
+            downloadMetadataFile(frameBaseW, frameBaseH, cols, rows, scale);
         };
 
         async function updateHistoryMetadata(id, c, r) {
@@ -513,6 +524,25 @@
                 const key = el.getAttribute('data-i18n');
                 if (dict[key]) el.textContent = dict[key];
             });
+        }
+
+        function downloadMetadataFile(w, h, c, r, s) {
+            const content = `VidSpri - Sprite Metadata
+---------------------------
+Frame Width: ${w}
+Frame Height: ${h}
+Columns: ${c}
+Rows: ${r}
+Export Scale: ${s}x
+Final Frame Width: ${Math.round(w * s)}
+Final Frame Height: ${Math.round(h * s)}
+
+Generated by VidSpri.com`;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'README_SPRITE.txt';
+            link.click();
         }
     </script>
 </body>
