@@ -49,16 +49,12 @@ def load_models():
         torch.set_num_threads(1)
         print("Loading OuteTTS model (Apache 2.0)...")
 
-        # In outetts 0.2.x, the InterfaceHF or InterfaceGGUF handles downloading better
-        # For GGUF on CPU, we can try to use a local path if we had one, but let's try InterfaceHF
-        # as it's often more robust for auto-downloading in these environments.
-        # But the user asked for efficiency (GGUF is good).
-        # Let's fix the GGUF initialization by providing a specific model if needed.
-        # Actually, let's try InterfaceHF which is very efficient too with the 500M model.
-
+        # In outetts 0.2.x, providing a manual config helps avoid 'NoneType' errors
+        # in environments where automatic detection might fail.
+        # We use model_version="0.2" to get the latest efficient 500M model.
         model_config = outetts.HFModelConfig_v1(
             model_path="OuteAI/OuteTTS-0.2-500M",
-            language="en",
+            language="en" # Primary language for 0.2
         )
         model_interface = outetts.InterfaceHF(model_version="0.2", cfg=model_config)
 
