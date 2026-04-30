@@ -793,33 +793,58 @@ document.addEventListener('DOMContentLoaded', () => {
         const processedBlobs = await Promise.all(images.map(img => {
             const canvas = document.createElement('canvas');
 
-            const finalWidth = Math.round(targetWidth || cropWidth);
-            const finalHeight = Math.round(targetHeight || cropHeight);
+            const canvasWidth = Math.round(targetWidth || cropWidth);
+            const canvasHeight = Math.round(targetHeight || cropHeight);
 
-            canvas.width = finalWidth;
-            canvas.height = finalHeight;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
             const ctx = canvas.getContext('2d');
 
-            // Force Nearest Neighbor for sharp scaling when pixelArtMode is on
+            // Force Nearest Neighbor for sharp scaling
             if (pixelArtMode) {
                 ctx.imageSmoothingEnabled = false;
-                ctx.webkitImageSmoothingEnabled = false;
-                ctx.mozImageSmoothingEnabled = false;
-                ctx.msImageSmoothingEnabled = false;
                 ctx.imageSmoothingQuality = 'low';
             } else {
                 ctx.imageSmoothingEnabled = true;
-                ctx.webkitImageSmoothingEnabled = true;
-                ctx.mozImageSmoothingEnabled = true;
-                ctx.msImageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
             }
 
-            ctx.drawImage(
-                img,
-                globalBounds.minX, globalBounds.minY, cropWidth, cropHeight, // Source crop
-                0, 0, finalWidth, finalHeight // Destination resize
-            );
+            if (!targetWidth || (cropWidth === targetWidth && cropHeight === targetHeight)) {
+                // Mode "Original" or already matches target: Simple crop/copy
+                ctx.drawImage(
+                    img,
+                    globalBounds.minX, globalBounds.minY, cropWidth, cropHeight,
+                    0, 0, canvasWidth, canvasHeight
+                );
+            } else {
+                // Mode "C": Center the character in the target size without stretching
+                // This adds "vacios" (empty space) around the character if it's smaller
+                const destX = Math.floor((canvasWidth - cropWidth) / 2);
+                const destY = Math.floor((canvasHeight - cropHeight) / 2);
+
+                // If the character is larger than the target, we scale it down using nearest neighbor
+                // to maintain pixel art style as much as possible, or just center-crop it.
+                // Centering with scaling if it exceeds bounds:
+                if (cropWidth > canvasWidth || cropHeight > canvasHeight) {
+                    const ratio = Math.min(canvasWidth / cropWidth, canvasHeight / cropHeight);
+                    const scaledW = Math.round(cropWidth * ratio);
+                    const scaledH = Math.round(cropHeight * ratio);
+                    const offX = Math.floor((canvasWidth - scaledW) / 2);
+                    const offY = Math.floor((canvasHeight - scaledH) / 2);
+                    ctx.drawImage(
+                        img,
+                        globalBounds.minX, globalBounds.minY, cropWidth, cropHeight,
+                        offX, offY, scaledW, scaledH
+                    );
+                } else {
+                    // No scaling needed, just center
+                    ctx.drawImage(
+                        img,
+                        globalBounds.minX, globalBounds.minY, cropWidth, cropHeight,
+                        destX, destY, cropWidth, cropHeight
+                    );
+                }
+            }
 
             return new Promise(r => canvas.toBlob(r, 'image/png'));
         }));

@@ -305,11 +305,14 @@
         async function saveToHistory(dataUrl, c, r) {
             const dbName = "VidSpriHistory";
             const request = indexedDB.open(dbName, 1);
-            request.onsuccess = (e) => {
+            request.onupgradeneeded = (e) => {
                 const db = e.target.result;
                 if (!db.objectStoreNames.contains('history')) {
                     db.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
                 }
+            };
+            request.onsuccess = (e) => {
+                const db = e.target.result;
                 const tx = db.transaction('history', 'readwrite');
                 const store = tx.objectStore('history');
                 const addReq = store.add({
@@ -433,13 +436,42 @@
             targetH = Math.round(targetH);
             }
 
+            const srcFrameW = spriteImg.width / cols;
+            const srcFrameH = spriteImg.height / rows;
+
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
-                    eCtx.drawImage(
-                        spriteImg,
-                        c * frameW, r * frameH, frameW, frameH,
-                        c * targetW, r * targetH, targetW, targetH
-                    );
+                    if (sizeMode === 'original') {
+                        eCtx.drawImage(
+                            spriteImg,
+                            c * srcFrameW, r * srcFrameH, srcFrameW, srcFrameH,
+                            c * targetW, r * targetH, targetW, targetH
+                        );
+                    } else {
+                        // Centering logic for fixed sizes
+                        const destX = c * targetW + Math.floor((targetW - srcFrameW) / 2);
+                        const destY = r * targetH + Math.floor((targetH - srcFrameH) / 2);
+
+                        if (srcFrameW > targetW || srcFrameH > targetH) {
+                            // Scale down if exceeds bounds
+                            const ratio = Math.min(targetW / srcFrameW, targetH / srcFrameH);
+                            const scaledW = Math.round(srcFrameW * ratio);
+                            const scaledH = Math.round(srcFrameH * ratio);
+                            const offX = c * targetW + Math.floor((targetW - scaledW) / 2);
+                            const offY = r * targetH + Math.floor((targetH - scaledH) / 2);
+                            eCtx.drawImage(
+                                spriteImg,
+                                c * srcFrameW, r * srcFrameH, srcFrameW, srcFrameH,
+                                offX, offY, scaledW, scaledH
+                            );
+                        } else {
+                            eCtx.drawImage(
+                                spriteImg,
+                                c * srcFrameW, r * srcFrameH, srcFrameW, srcFrameH,
+                                destX, destY, srcFrameW, srcFrameH
+                            );
+                        }
+                    }
                 }
             }
 
