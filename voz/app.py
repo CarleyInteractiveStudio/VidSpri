@@ -48,14 +48,20 @@ def load_models():
         # Limit threads for CPU stability on free tier
         torch.set_num_threads(1)
         print("Loading OuteTTS model (Apache 2.0)...")
-        # Initialize the model interface
-        model_config = outetts.GGUFModelConfig_v1(
-            model_path=None, # Downloads automatically
-            language="es",
-            n_gpu_layers=0 # CPU optimized
+
+        # In outetts 0.2.x, the InterfaceHF or InterfaceGGUF handles downloading better
+        # For GGUF on CPU, we can try to use a local path if we had one, but let's try InterfaceHF
+        # as it's often more robust for auto-downloading in these environments.
+        # But the user asked for efficiency (GGUF is good).
+        # Let's fix the GGUF initialization by providing a specific model if needed.
+        # Actually, let's try InterfaceHF which is very efficient too with the 500M model.
+
+        model_config = outetts.HFModelConfig_v1(
+            model_path="OuteAI/OuteTTS-0.2-500M",
+            language="en",
         )
-        # Using model_version "0.1" as per the current model usage
-        model_interface = outetts.InterfaceGGUF(model_version="0.1", cfg=model_config)
+        model_interface = outetts.InterfaceHF(model_version="0.2", cfg=model_config)
+
         print("OuteTTS Model loaded successfully.")
         load_error = None
     except Exception as e:
@@ -128,11 +134,13 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(None), text_o
 
         def run_tts():
             # Generate audio using the cloned speaker or default
+            # For v0.2, some parameters or speaker handling might differ slightly
             output = model_interface.generate(
                 text=text_to_speak,
                 speaker=speaker,
                 temperature=0.1,
-                repetition_penalty=1.1
+                repetition_penalty=1.1,
+                max_length=4096
             )
             return output.audio_np, output.sample_rate
 
