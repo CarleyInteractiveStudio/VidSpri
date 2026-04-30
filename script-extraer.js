@@ -67,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const customSizeInputs = document.getElementById('custom-size-inputs');
     const customWidthInput = document.getElementById('custom-width');
     const customHeightInput = document.getElementById('custom-height');
+    const exportScaleSelect = document.getElementById('export-scale');
 
     // SSO bridge
     const bridgeIframe = document.getElementById('sso-bridge');
@@ -219,6 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ctx = canvas.getContext('2d');
         canvas.width = 160;
         canvas.height = 90;
+        ctx.imageSmoothingEnabled = false;
 
         for (let i = 0; i < thumbCount; i++) {
             video.currentTime = (duration / thumbCount) * i;
@@ -276,6 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
     pixelArtCheck.addEventListener('change', updateFinalSpriteSheet);
     customWidthInput.addEventListener('change', updateFinalSpriteSheet);
     customHeightInput.addEventListener('change', updateFinalSpriteSheet);
+    exportScaleSelect.addEventListener('change', updateFinalSpriteSheet);
 
     // --- Frame Extraction ---
     document.getElementById('extract-frames-btn').addEventListener('click', async () => {
@@ -785,32 +788,65 @@ document.addEventListener('DOMContentLoaded', () => {
             globalBounds = { minX: 0, minY: 0, maxX: images[0].width - 1, maxY: images[0].height - 1 };
         }
 
-        const cropWidth = globalBounds.maxX - globalBounds.minX + 1;
-        const cropHeight = globalBounds.maxY - globalBounds.minY + 1;
+        const cropWidth = Math.round(globalBounds.maxX - globalBounds.minX + 1);
+        const cropHeight = Math.round(globalBounds.maxY - globalBounds.minY + 1);
 
         // Process each image (crop and resize)
         const processedBlobs = await Promise.all(images.map(img => {
             const canvas = document.createElement('canvas');
 
-            const finalWidth = targetWidth || cropWidth;
-            const finalHeight = targetHeight || cropHeight;
+            const canvasWidth = Math.round(targetWidth || cropWidth);
+            const canvasHeight = Math.round(targetHeight || cropHeight);
 
-            canvas.width = finalWidth;
-            canvas.height = finalHeight;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
             const ctx = canvas.getContext('2d');
 
-            ctx.imageSmoothingEnabled = !pixelArtMode;
-            if (!pixelArtMode) {
-                ctx.imageSmoothingQuality = 'high';
+            // Force Nearest Neighbor for sharp scaling
+            if (pixelArtMode) {
+                ctx.imageSmoothingEnabled = false;
+                ctx.imageSmoothingQuality = 'low';
             } else {
-                ctx.imageSmoothingQuality = 'low'; // Nearest neighbor
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
             }
 
-            ctx.drawImage(
-                img,
-                globalBounds.minX, globalBounds.minY, cropWidth, cropHeight, // Source crop
-                0, 0, finalWidth, finalHeight // Destination resize
-            );
+            if (!targetWidth || (cropWidth === targetWidth && cropHeight === targetHeight)) {
+                // Mode "Original" or already matches target: Simple crop/copy
+                ctx.drawImage(
+                    img,
+                    globalBounds.minX, globalBounds.minY, cropWidth, cropHeight,
+                    0, 0, canvasWidth, canvasHeight
+                );
+            } else {
+                // Mode "C": Center the character in the target size without stretching
+                // This adds "vacios" (empty space) around the character if it's smaller
+                const destX = Math.floor((canvasWidth - cropWidth) / 2);
+                const destY = Math.floor((canvasHeight - cropHeight) / 2);
+
+                // If the character is larger than the target, we scale it down using nearest neighbor
+                // to maintain pixel art style as much as possible, or just center-crop it.
+                // Centering with scaling if it exceeds bounds:
+                if (cropWidth > canvasWidth || cropHeight > canvasHeight) {
+                    const ratio = Math.min(canvasWidth / cropWidth, canvasHeight / cropHeight);
+                    const scaledW = Math.round(cropWidth * ratio);
+                    const scaledH = Math.round(cropHeight * ratio);
+                    const offX = Math.floor((canvasWidth - scaledW) / 2);
+                    const offY = Math.floor((canvasHeight - scaledH) / 2);
+                    ctx.drawImage(
+                        img,
+                        globalBounds.minX, globalBounds.minY, cropWidth, cropHeight,
+                        offX, offY, scaledW, scaledH
+                    );
+                } else {
+                    // No scaling needed, just center
+                    ctx.drawImage(
+                        img,
+                        globalBounds.minX, globalBounds.minY, cropWidth, cropHeight,
+                        destX, destY, cropWidth, cropHeight
+                    );
+                }
+            }
 
             return new Promise(r => canvas.toBlob(r, 'image/png'));
         }));
@@ -875,6 +911,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = false;
                 const frames = [];
                 const duration = endTime - startTime;
                 const interval = duration / frameCount;
@@ -904,6 +941,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function createSpriteSheet(blobs) {
+        const scale = parseInt(exportScaleSelect.value) || 1;
         const images = await Promise.all(blobs.map(blob => {
             return new Promise(res => {
                 const img = new Image();
@@ -914,18 +952,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (images.length === 0) return;
 
-        const totalWidth = images.reduce((sum, img) => sum + img.width, 0);
-        const maxHeight = Math.max(...images.map(img => img.height));
+        const baseFrameW = images[0].width;
+        const baseFrameH = images[0].height;
+
+        const scaledFrameW = Math.round(baseFrameW * scale);
+        const scaledFrameH = Math.round(baseFrameH * scale);
+
+        const totalWidth = scaledFrameW * images.length;
+        const maxHeight = scaledFrameH;
+
         const canvas = document.createElement('canvas');
         canvas.width = totalWidth;
         canvas.height = maxHeight;
         const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = false;
 
-        let x = 0;
-        images.forEach(img => {
-            ctx.drawImage(img, x, 0);
-            x += img.width;
+        // Ensure sharp rendering during sheet assembly/upscaling
+        ctx.imageSmoothingEnabled = false;
+        ctx.imageSmoothingQuality = 'low';
+
+        images.forEach((img, index) => {
+            ctx.drawImage(img, index * scaledFrameW, 0, scaledFrameW, scaledFrameH);
         });
 
         const cols = images.length;
@@ -935,6 +981,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = URL.createObjectURL(blob);
             spriteImage.src = url;
             downloadLink.href = url;
+
+            // Add dimensions to download name if scaled
+            if (scale > 1) {
+                downloadLink.download = `sprite_${scaledFrameW}x${scaledFrameH}_${scale}x.png`;
+            }
 
             // Save to localStorage for automatic loading in previsualizacion.html
             const reader = new FileReader();
@@ -952,6 +1003,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
         }, 'image/png');
+
+        // Show metadata display
+        updateMetadataUI(baseFrameW, baseFrameH, cols, rows, scale);
     }
 
     async function saveSpriteToHistory(dataUrl) {
@@ -991,5 +1045,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateProgressBar(percentage) {
         progressBarInner.style.width = `${percentage}%`;
+    }
+
+    function updateMetadataUI(w, h, c, r, s) {
+        let metaDiv = document.getElementById('sprite-metadata-display');
+        if (!metaDiv) {
+            metaDiv = document.createElement('div');
+            metaDiv.id = 'sprite-metadata-display';
+            metaDiv.style.cssText = 'background: rgba(0,0,0,0.4); border-radius: 12px; padding: 15px; margin: 15px 0; text-align: left; font-size: 0.85rem; border: 1px solid var(--glass-border);';
+            const target = document.querySelector('.result-actions');
+            target.parentNode.insertBefore(metaDiv, target);
+        }
+
+        const dict = window.translations[currentLang] || window.translations['es'];
+        const frameSizeLabel = dict['frame_size'] || 'Tamaño de cuadro';
+
+        metaDiv.innerHTML = `
+            <div style="color: var(--primary); font-weight: bold; margin-bottom: 8px;">${frameSizeLabel}: ${w}x${h}</div>
+            <div style="opacity: 0.7;">Cols: ${c} | Rows: ${r} | Scale: ${s}x</div>
+            <button id="download-readme-btn" class="pill-btn" style="margin-top: 10px; width: 100%; justify-content: center; font-size: 0.75rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                ${dict['download_metadata'] || 'Descargar README'}
+            </button>
+        `;
+
+        document.getElementById('download-readme-btn').onclick = () => {
+            const content = `VidSpri - Sprite Metadata
+---------------------------
+Frame Width: ${w}
+Frame Height: ${h}
+Columns: ${c}
+Rows: ${r}
+Export Scale: ${s}x
+Final Frame Width: ${Math.round(w * s)}
+Final Frame Height: ${Math.round(h * s)}
+
+Generated by VidSpri.com`;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'README_SPRITE.txt';
+            link.click();
+        };
     }
 });
