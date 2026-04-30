@@ -51,12 +51,9 @@ def load_models():
 
         # In outetts 0.2.x, providing a manual config helps avoid 'NoneType' errors
         # in environments where automatic detection might fail.
-        # We use model_version="0.2" to get the latest efficient 500M model.
-        model_config = outetts.HFModelConfig_v1(
-            model_path="OuteAI/OuteTTS-0.2-500M",
-            language="en" # Primary language for 0.2
-        )
-        model_interface = outetts.InterfaceHF(model_version="0.2", cfg=model_config)
+        # For OuteTTS v0.2, InterfaceHF can be initialized more simply.
+        # If the manual config above failed with NoneType, let's use the standard way.
+        model_interface = outetts.InterfaceHF(model_version="0.2")
 
         print("OuteTTS Model loaded successfully.")
         load_error = None
