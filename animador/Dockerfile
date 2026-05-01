@@ -17,7 +17,8 @@ USER user
 
 # Set home and path
 ENV HOME=/home/user \
-    PATH=/home/user/.local/bin:$PATH
+    PATH=/home/user/.local/bin:$PATH \
+    PYTHONUNBUFFERED=1
 
 # Set working directory
 WORKDIR $HOME/app
@@ -33,5 +34,5 @@ COPY --chown=user . .
 EXPOSE 7860
 
 # Command to run the application
-# Using direct uvicorn for better log reporting in HF Spaces
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+# We use python directly to allow the script to handle uvicorn
+CMD ["python", "app.py"]
