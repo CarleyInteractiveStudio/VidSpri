@@ -11,6 +11,7 @@ const CONFIG = {
     SONIDO_URL: 'https://carley1234-vidsprisonido.hf.space',
     VOZ_URL: 'https://carley1234-voz.hf.space',
     EFECTOS_URL: 'https://carley1234-efectos.hf.space',
+    ANIMADOR_URL: 'https://carley1234-animador.hf.space',
 
     // SSO Config
     SSO_BRIDGE_URL: 'https://carleystudio.com/sso/vidspri'

@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+python-multipart
+torch
+transformers
+diffusers>=0.25.0
+accelerate
+safetensors
+numpy
+imageio
+imageio-ffmpeg
+supabase
+gunicorn
+Pillow

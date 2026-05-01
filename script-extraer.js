@@ -76,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     applyTranslations(currentLang);
     initSSO();
     cleanupPreviousJobs();
+    checkForPendingFrames();
 
     // --- Translation Logic ---
     function applyTranslations(lang) {
@@ -129,6 +130,36 @@ document.addEventListener('DOMContentLoaded', () => {
         if (bridgeIframe && bridgeIframe.contentWindow) {
             requestSessionCheck();
         }
+    }
+
+    // --- Pending Frames from AI Animation ---
+    function checkForPendingFrames() {
+        const request = indexedDB.open("VidSpriBuffer", 1);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('temp_frames')) {
+                db.createObjectStore('temp_frames', { keyPath: 'id', autoIncrement: true });
+            }
+        };
+        request.onsuccess = (e) => {
+            const db = e.target.result;
+            const tx = db.transaction('temp_frames', 'readwrite');
+            const store = tx.objectStore('temp_frames');
+            const getAll = store.getAll();
+            getAll.onsuccess = () => {
+                const frames = getAll.result;
+                if (frames && frames.length > 0) {
+                    extractedFrames = frames.map((item, index) => ({
+                        id: index,
+                        blob: base64StringToBlob(item.data.replace(/^data:image\/(png|jpeg);base64,/, ''))
+                    }));
+                    store.clear();
+                    displayFramePreviews();
+                    goToStep(3);
+                    showToast("frames_loaded_from_ai", "success");
+                }
+            };
+        };
     }
 
     // --- Toast Notifications ---

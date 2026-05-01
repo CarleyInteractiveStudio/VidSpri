@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animador de Personajes IA - VidSpri</title>
+    <script src="config.js"></script>
+    <script src="translations.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="logo.png" type="image/png">
+    <style>
+        .preview-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .preview-box {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 10px;
+            border: 2px dashed rgba(255,255,255,0.1);
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,0,0,0.2);
+        }
+        #image-preview {
+            max-width: 100%;
+            max-height: 380px;
+            border-radius: 5px;
+            display: none;
+        }
+        .frames-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .frame-item {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            aspect-ratio: 1;
+        }
+        .frame-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-actions">
+        <button type="button" onclick="window.location.href='index.html'" class="pill-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span data-i18n="back">Volver</span>
+        </button>
+    </div>
+
+    <div class="container">
+        <h1 data-i18n="gen_animation">Animador de Personaje IA</h1>
+        <p data-i18n="gen_animation_subtitle">Convierte una imagen estática en una animación 2D usando IA.</p>
+
+        <!-- Stepper -->
+        <div class="stepper">
+            <div class="step active" id="step-1">
+                <div class="step-icon">1</div>
+                <span data-i18n="step_upload">Subir</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" id="step-2">
+                <div class="step-icon">2</div>
+                <span data-i18n="stage_queue">Cola</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" id="step-3">
+                <div class="step-icon">3</div>
+                <span data-i18n="stage_result">Resultado</span>
+            </div>
+        </div>
+
+        <!-- Stage 1: Upload & Config -->
+        <div id="stage-upload" class="form-container">
+            <div class="upload-area" onclick="document.getElementById('file-input').click()">
+                <input type="file" id="file-input" accept="image/*" hidden>
+                <div id="upload-placeholder">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    <p data-i18n="drag_drop_image">Arrastra y suelta tu imagen aquí o haz clic</p>
+                </div>
+                <div class="preview-box">
+                    <img id="image-preview" src="" alt="Preview">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+                <label data-i18n="prompt_label_animation">¿Qué movimiento quieres que haga?</label>
+                <textarea id="anim-prompt" placeholder="Ej: caminando hacia la derecha, atacando con espada..."></textarea>
+            </div>
+
+            <button type="button" id="start-btn" class="action-btn" style="margin-top: 20px;">
+                <span data-i18n="animate_btn">Animar Imagen ✨</span>
+            </button>
+        </div>
+
+        <!-- Stage 2: Queue -->
+        <div id="stage-queue" class="form-container hidden">
+            <h2 class="stage-title" data-i18n="stage_queue">En cola...</h2>
+            <div id="status-box" style="text-align: center;">
+                <p id="status-text">Buscando servidor...</p>
+                <div class="progress-bar-container">
+                    <div id="progress-bar" class="progress-bar-fill" style="width: 5%"></div>
+                </div>
+                <p id="eta-text" style="font-size: 0.8rem; opacity: 0.7; margin-top: 10px;"></p>
+            </div>
+        </div>
+
+        <!-- Stage 3: Result -->
+        <div id="stage-result" class="form-container hidden">
+            <h2 class="stage-title" data-i18n="stage_result">Resultado</h2>
+            <div id="result-animation" class="preview-box" style="background: #000; min-height: 256px;">
+                <!-- Result will be shown here as a GIF or sequence -->
+            </div>
+
+            <div class="frames-grid" id="frames-output">
+                <!-- Individual frames for sprite extraction -->
+            </div>
+
+            <div class="action-group" style="margin-top: 30px; display: flex; gap: 10px; justify-content: center;">
+                <button type="button" id="use-in-tool" class="pill-btn highlight-btn">
+                    <span data-i18n="gen_video">Usar en herramienta de Sprites</span>
+                </button>
+                <button type="button" onclick="location.reload()" class="pill-btn">
+                    <span data-i18n="gen_another">Animar otra imagen</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+    <script src="script.js"></script>
+    <script>
+        const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+        let selectedFile = null;
+        let currentJobId = null;
+        let isSending = false;
+        let resultFrames = [];
+
+        document.getElementById('file-input').onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    document.getElementById('image-preview').src = ev.target.result;
+                    document.getElementById('image-preview').style.display = 'block';
+                    document.getElementById('upload-placeholder').style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        function showStage(stage) {
+            document.querySelectorAll('.form-container').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.step').forEach((el, i) => {
+                if (i + 1 <= stage) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+            if (stage === 1) document.getElementById('stage-upload').classList.remove('hidden');
+            if (stage === 2) document.getElementById('stage-queue').classList.remove('hidden');
+            if (stage === 3) document.getElementById('stage-result').classList.remove('hidden');
+        }
+
+        document.getElementById('start-btn').onclick = async () => {
+            if (!selectedFile) {
+                showToast("Por favor selecciona una imagen", "error", true);
+                return;
+            }
+            const prompt = document.getElementById('anim-prompt').value;
+            if (!prompt) {
+                showToast("Describe el movimiento", "error", true);
+                return;
+            }
+
+            const userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
+            localStorage.setItem('vidspri_user_id', userId);
+
+            showStage(2);
+
+            try {
+                const { data: job, error } = await supabaseClient
+                    .from('processing_queue')
+                    .insert({
+                        user_id: userId,
+                        job_type: 'video',
+                        status: 'waiting'
+                    })
+                    .select().single();
+
+                if (error) throw error;
+                currentJobId = job.id;
+                pollStatus(job.id);
+            } catch (e) {
+                showToast("Error al unirse a la cola", "error", true);
+                showStage(1);
+            }
+        };
+
+        async function pollStatus(jobId) {
+            const { data: job } = await supabaseClient.from('processing_queue').select('*').eq('id', jobId).single();
+            if (!job) return;
+
+            if (job.status === 'authorized' && !isSending) {
+                isSending = true;
+                uploadAndProcess(job);
+            } else if (job.status === 'completed') {
+                // Done handled in uploadAndProcess
+            } else if (job.status === 'failed') {
+                showToast("Error en el procesamiento", "error", true);
+                showStage(1);
+            } else {
+                // Update position
+                const { count } = await supabaseClient.from('processing_queue').select('*', {count:'exact', head:true}).eq('status', 'waiting').lt('queue_number', job.queue_number);
+                document.getElementById('status-text').textContent = "Posición en cola: " + ((count || 0) + 1);
+                setTimeout(() => pollStatus(jobId), 3000);
+            }
+        }
+
+        async function uploadAndProcess(job) {
+            document.getElementById('status-text').textContent = "Procesando animación...";
+            document.getElementById('progress-bar').style.width = '20%';
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('prompt', document.getElementById('anim-prompt').value);
+            formData.append('num_frames', 16);
+
+            try {
+                const response = await fetch(`${CONFIG.ANIMADOR_URL}/animate/${job.id}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error("Server error");
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    displayResult(result.frames);
+                }
+            } catch (e) {
+                showToast("Error al procesar", "error", true);
+                showStage(1);
+            }
+        }
+
+        function displayResult(frames) {
+            resultFrames = frames.map(f => `data:image/png;base64,${f}`);
+            showStage(3);
+            const grid = document.getElementById('frames-output');
+            grid.innerHTML = '';
+
+            resultFrames.forEach((src, i) => {
+                const div = document.createElement('div');
+                div.className = 'frame-item';
+                div.innerHTML = `<img src="${src}" alt="Frame ${i}">`;
+                grid.appendChild(div);
+            });
+
+            document.getElementById('use-in-tool').onclick = async () => {
+                showToast("Guardando frames para extracción...", "info");
+                try {
+                    await saveFramesToIndexedDB(resultFrames);
+                    window.location.href = 'extraer.html';
+                } catch (e) {
+                    showToast("Error al guardar frames", "error", true);
+                    console.error(e);
+                }
+            };
+        }
+
+        async function saveFramesToIndexedDB(frames) {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open("VidSpriBuffer", 1);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('temp_frames')) {
+                        db.createObjectStore('temp_frames', { keyPath: 'id', autoIncrement: true });
+                    }
+                };
+                request.onsuccess = (e) => {
+                    const db = e.target.result;
+                    const tx = db.transaction('temp_frames', 'readwrite');
+                    const store = tx.objectStore('temp_frames');
+                    store.clear().onsuccess = () => {
+                        frames.forEach((frame, i) => {
+                            store.add({ id: i, data: frame });
+                        });
+                    };
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                };
+                request.onerror = (e) => reject(request.error);
+            });
+        }
+    </script>
+</body>
+</html>
