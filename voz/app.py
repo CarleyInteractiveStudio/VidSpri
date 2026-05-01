@@ -64,11 +64,9 @@ def load_models():
 is_processing = False
 
 async def update_status(status: str = None):
-    global is_processing
     try:
-        if status:
-            is_processing = (status == "busy")
-        current_status = "busy" if is_processing else "free"
+        # Service is in maintenance mode
+        current_status = "maintenance"
         data = {
             "id": SERVER_ID,
             "url": SERVER_URL,
@@ -97,6 +95,11 @@ async def root():
 
 @app.post("/process-voice/{job_id}")
 async def process_voice(job_id: str, audio_file: UploadFile = File(None), text_override: str = Form(None)):
+    # Service under maintenance
+    await update_status()
+    supabase.table("processing_queue").update({"status": "failed"}).eq("id", job_id).execute()
+    raise HTTPException(status_code=503, detail="Service under maintenance")
+
     global is_processing, model_interface, load_error
 
     if is_processing:

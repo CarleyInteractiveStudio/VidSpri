@@ -59,11 +59,9 @@ def load_models():
         print(f"Error loading model: {e}")
 
 async def update_status(status: str = None):
-    global is_processing
     try:
-        if status:
-            is_processing = (status == "busy")
-        current_status = "busy" if is_processing else "free"
+        # Service is in maintenance mode
+        current_status = "maintenance"
         data = {
             "id": SERVER_ID,
             "url": SERVER_URL,
@@ -93,8 +91,10 @@ async def root():
 
 @app.post("/generate/{job_id}")
 async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = Form(3)):
-    await update_status("busy")
-    supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
+    # Immediately report maintenance and fail job
+    await update_status()
+    supabase.table("processing_queue").update({"status": "failed"}).eq("id", job_id).execute()
+    raise HTTPException(status_code=503, detail="Service under maintenance")
 
     try:
         if not audio_pipe:

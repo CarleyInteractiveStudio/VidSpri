@@ -29,10 +29,25 @@
             align-items: center;
             justify-content: center;
         }
-        .service-card:hover, .service-card.active {
+        .service-card:hover:not(.disabled), .service-card.active:not(.disabled) {
             background: rgba(124, 58, 237, 0.2);
             border-color: #7c3aed;
             transform: translateY(-5px);
+        }
+        .service-card.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            filter: grayscale(0.5);
+        }
+        .maintenance-badge {
+            background: #ef4444;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            margin-top: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
         }
         .service-card svg {
             margin-bottom: 15px;
@@ -211,20 +226,22 @@
 
         <!-- Stage 1: Selection -->
         <div id="stage-selection" class="audio-service-selector">
-            <div class="service-card" id="service-voice" onclick="goToConfig('voice')">
+            <div class="service-card disabled" id="service-voice" onclick="goToConfig('voice')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                 <h3 data-i18n="service_voice">Voz y Clonación</h3>
                 <p data-i18n="service_voice_desc">Habla y clona tu voz o usa una de defecto.</p>
+                <div class="maintenance-badge" data-i18n="maintenance">En Mantenimiento</div>
             </div>
             <div class="service-card" id="service-sound" onclick="goToConfig('sound')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
                 <h3 data-i18n="service_music">Música / Instrumentos</h3>
                 <p data-i18n="service_music_desc">Genera melodías y loops instrumentales.</p>
             </div>
-            <div class="service-card" id="service-effect" onclick="goToConfig('effect')">
+            <div class="service-card disabled" id="service-effect" onclick="goToConfig('effect')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12a10 10 0 1 0 20 0 10 10 0 1 0-20 0Z"></path><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
                 <h3 data-i18n="service_sfx">Efectos de Sonido</h3>
                 <p data-i18n="service_sfx_desc">Crea sonidos cortos como explosiones o pasos.</p>
+                <div class="maintenance-badge" data-i18n="maintenance">En Mantenimiento</div>
             </div>
         </div>
 
@@ -560,6 +577,10 @@
         }
 
         function goToConfig(service) {
+            if (service === 'voice' || service === 'effect') {
+                showToast("maintenance", "error");
+                return;
+            }
             selectedService = service;
             showStage(2);
 
