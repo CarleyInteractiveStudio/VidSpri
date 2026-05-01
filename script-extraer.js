@@ -155,8 +155,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     }));
                     store.clear();
                     displayFramePreviews();
-                    goToStep(3);
+                    goToStep(4);
                     showToast("frames_loaded_from_ai", "success");
+
+                    // Auto-process if flag is set
+                    if (localStorage.getItem('vidspri_auto_process') === 'true') {
+                        localStorage.removeItem('vidspri_auto_process');
+                        setTimeout(() => {
+                            const btn = document.getElementById('generate-sprite-btn');
+                            if (btn) btn.click();
+                        }, 500);
+                    }
                 }
             };
         };
@@ -190,9 +199,10 @@ document.addEventListener('DOMContentLoaded', () => {
         resultContainer.classList.add('hidden');
 
         if (stepNumber === 1) videoSection.classList.remove('hidden');
-        else if (stepNumber === 2) editorSection.classList.remove('hidden');
-        else if (stepNumber === 3) framePreviewContainer.classList.remove('hidden');
-        else if (stepNumber === 4) resultContainer.classList.remove('hidden');
+        else if (stepNumber === 2) { /* AI Animation step - skip in this page */ }
+        else if (stepNumber === 3) editorSection.classList.remove('hidden');
+        else if (stepNumber === 4) framePreviewContainer.classList.remove('hidden');
+        else if (stepNumber === 5) resultContainer.classList.remove('hidden');
     }
 
     // --- Drag & Drop ---
@@ -225,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
             videoPreview.onloadedmetadata = () => {
                 endTimeInput.value = videoPreview.duration.toFixed(2);
                 generateEditorThumbnails(file);
-                goToStep(2);
+                goToStep(3);
             };
         }
     }
@@ -333,7 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             extractedFrames = frames.map((blob, index) => ({ id: index, blob }));
             displayFramePreviews();
-            goToStep(3);
+            goToStep(4);
         } catch (e) {
             showToast(e.message, "error", true);
         } finally {
@@ -729,7 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await updateFinalSpriteSheet();
 
         progressContainer.classList.add('hidden');
-        goToStep(4);
+        goToStep(5);
 
         // Reset mode after success
         isSecondPassMode = false;

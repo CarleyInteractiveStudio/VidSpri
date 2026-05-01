@@ -1,5 +1,7 @@
 const translations = {
     ar: {
+        step_animate: "تحريك",
+        step_extract: "استخراج",
         gen_animation: "محرك الشخصيات (فيديو ذكاء اصطناعي)",
         gen_animation_subtitle: "حول صورة ثابتة إلى رسوم متحركة ثنائية الأبعاد باستخدام الذاء الاصطناعي.",
         animate_btn: "تحريك الصورة ✨",
@@ -137,6 +139,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     de: {
+        step_animate: "Animieren",
+        step_extract: "Extrahieren",
         gen_animation: "KI-Charakter-Animator (KI-Video)",
         gen_animation_subtitle: "Verwandle ein statisches Bild mit KI in eine 2D-Animation.",
         animate_btn: "Bild animieren ✨",
@@ -272,6 +276,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     en: {
+        step_animate: "Animate",
+        step_extract: "Extract",
         gen_animation: "Animate Character (AI Video)",
         gen_animation_subtitle: "Turn a static image into a 2D animation using AI.",
         animate_btn: "Animate Image ✨",
@@ -413,6 +419,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     es: {
+        step_animate: "Animar",
+        step_extract: "Extraer",
         gen_animation: "Animador Personaje (IA Video)",
         gen_animation_subtitle: "Convierte una imagen estática en una animación 2D usando IA.",
         animate_btn: "Animar Imagen ✨",
@@ -560,6 +568,8 @@ const translations = {
         your_turn: "¡Es tu turno! Preparando...",
     },
     fr: {
+        step_animate: "Animer",
+        step_extract: "Extraire",
         gen_animation: "Animateur de Personnage IA (Vidéo IA)",
         gen_animation_subtitle: "Transformez une image statique en une animation 2D à l\'aide de l\'IA.",
         animate_btn: "Animer l\'Image ✨",
@@ -695,6 +705,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     hi: {
+        step_animate: "एनिमेट",
+        step_extract: "निकालें",
         gen_animation: "एआई कैरेक्टर एनिमेटर (एआई वीडियो)",
         gen_animation_subtitle: "एआई का उपयोग करके एक स्थिर छवि को 2D एनीमेशन में बदलें।",
         animate_btn: "छवि एनिमेट کنید ✨",
@@ -830,6 +842,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     id: {
+        step_animate: "Animasikan",
+        step_extract: "Ekstrak",
         gen_animation: "Animator Karakter AI (Video AI)",
         gen_animation_subtitle: "Ubah gambar statis menjadi animasi 2D menggunakan AI.",
         animate_btn: "Animasikan Gambar ✨",
@@ -965,6 +979,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     it: {
+        step_animate: "Anima",
+        step_extract: "Estrai",
         gen_animation: "Animatore Personaggi IA (Video IA)",
         gen_animation_subtitle: "Trasforma un\'immagine statica in un\'animazione 2D utilizzando l\'IA.",
         animate_btn: "Anima Immagine ✨",
@@ -1100,6 +1116,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     jp: {
+        step_animate: "アニメーション",
+        step_extract: "抽出",
         gen_animation: "AIキャラクターアニメーター (AIビデオ)",
         gen_animation_subtitle: "AIを使用して静止画を2Dアニメーションに変換します。",
         animate_btn: "画像をアニメーション化 ✨",
@@ -1235,6 +1253,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     ko: {
+        step_animate: "애니메이션",
+        step_extract: "추출",
         gen_animation: "AI 캐릭터 애니메이터 (AI 비디오)",
         gen_animation_subtitle: "AI를 사용하여 정적인 이미지를 2D 애니메이션으로 변환하세요.",
         animate_btn: "이미지 애니메이션화 ✨",
@@ -1370,6 +1390,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     ms: {
+        step_animate: "Animasikan",
+        step_extract: "Ekstrak",
         gen_animation: "Animator Watak AI (Video AI)",
         gen_animation_subtitle: "Tukarkan imej statik kepada animasi 2D menggunakan AI.",
         animate_btn: "Animasikan Imej ✨",
@@ -1505,6 +1527,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     nl: {
+        step_animate: "Animeren",
+        step_extract: "Extraheren",
         gen_animation: "AI Personage Animator (AI Video)",
         gen_animation_subtitle: "Verander een statische afbeelding in een 2D-animatie met behulp van AI.",
         animate_btn: "Animeer Afbeelding ✨",
@@ -1640,6 +1664,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     pl: {
+        step_animate: "Animuj",
+        step_extract: "Wyodrębnij",
         gen_animation: "Animator Postaci AI (Wideo AI)",
         gen_animation_subtitle: "Zmień statyczny obraz w animację 2D za pomocą AI.",
         animate_btn: "Animuj Obraz ✨",
@@ -1775,6 +1801,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     pt: {
+        step_animate: "Animar",
+        step_extract: "Extrair",
         gen_animation: "Animador de Personagem IA (Vídeo IA)",
         gen_animation_subtitle: "Transforme uma imagem estática numa animação 2D usando IA.",
         animate_btn: "Animar Imagem ✨",
@@ -1909,6 +1937,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     pt_BR: {
+        step_animate: "Animar",
+        step_extract: "Extrair",
         gen_animation: "Animador de Personagem IA (Vídeo IA)",
         gen_animation_subtitle: "Transforme uma imagem estática em uma animação 2D usando IA.",
         animate_btn: "Animar Imagem ✨",
@@ -2044,6 +2074,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     ru: {
+        step_animate: "Анимировать",
+        step_extract: "Извлечь",
         gen_animation: "ИИ-аниматор персонажей (ИИ-видео)",
         gen_animation_subtitle: "Превратите статичное изображение в 2D-анимацию с помощью ИИ.",
         animate_btn: "Анимировать изображение ✨",
@@ -2179,6 +2211,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     th: {
+        step_animate: "สร้างแอนิเมชัน",
+        step_extract: "ดึงออก",
         gen_animation: "โปรแกรมสร้างแอนิเมชันตัวละคร AI (วิดีโอ AI)",
         gen_animation_subtitle: "เปลี่ยนภาพนิ่งให้เป็นแอนิเมชัน 2D โดยใช้ AI",
         animate_btn: "สร้างแอนิเมชันจากภาพ ✨",
@@ -2314,6 +2348,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     tr: {
+        step_animate: "Canlandır",
+        step_extract: "Çıkart",
         gen_animation: "AI Karakter Animasyoncu (AI Video)",
         gen_animation_subtitle: "Statik bir görüntüyü AI kullanarak 2D animasyona dönüştürün.",
         animate_btn: "Görüntüyü Canlandır ✨",
@@ -2449,6 +2485,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     vi: {
+        step_animate: "Hoạt hóa",
+        step_extract: "Trích xuất",
         gen_animation: "Trình tạo hoạt ảnh nhân vật AI (Video AI)",
         gen_animation_subtitle: "Biến một hình ảnh tĩnh thành hoạt ảnh 2D bằng AI.",
         animate_btn: "Hoạt hóa hình ảnh ✨",
@@ -2584,6 +2622,8 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     zh: {
+        step_animate: "动画",
+        step_extract: "提取",
         gen_animation: "AI角色动画器 (AI视频)",
         gen_animation_subtitle: "使用AI将静态图像转换为2D动画。",
         animate_btn: "动画化图像 ✨",
