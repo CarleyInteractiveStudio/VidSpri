@@ -33,4 +33,5 @@ COPY --chown=user . .
 EXPOSE 7860
 
 # Command to run the application
-CMD ["gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "app:app", "--bind", "0.0.0.0:7860", "--timeout", "600"]
+# Using direct uvicorn for better log reporting in HF Spaces
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]

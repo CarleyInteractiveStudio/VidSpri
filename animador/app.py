@@ -6,6 +6,7 @@ import datetime
 import torch
 import numpy as np
 from PIL import Image
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from diffusers import AnimateDiffVideoToVideoPipeline, MotionAdapter, EulerDiscreteScheduler
@@ -13,7 +14,33 @@ from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
 from supabase import create_client, Client
 
-app = FastAPI()
+# --- Supabase Configuration ---
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://tladrluezsmmhjbhupgb.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_zb8TGeURLnafHWDffG9DMg_PtFO_kmv")
+SERVER_ID = os.environ.get("SERVER_ID", "animador-worker")
+SERVER_URL = os.environ.get("SERVER_URL", "https://carley1234-animacion.hf.space")
+SERVICE_TYPE = "animacion"
+
+print(f"Initializing Supabase Client with URL: {SUPABASE_URL}", flush=True)
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    print(f"CRITICAL: Failed to initialize Supabase: {e}", flush=True)
+    supabase = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("Starting VidSpri Animation Worker...", flush=True)
+    asyncio.create_task(asyncio.to_thread(load_models))
+    if supabase:
+        await update_status("free")
+        asyncio.create_task(heartbeat_loop())
+    yield
+    # Shutdown
+    print("Shutting down...", flush=True)
+
+app = FastAPI(lifespan=lifespan)
 
 # --- CORS Configuration ---
 app.add_middleware(
@@ -23,16 +50,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# --- Supabase Configuration ---
-# Use environment variables with fallbacks
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://tladrluezsmmhjbhupgb.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_zb8TGeURLnafHWDffG9DMg_PtFO_kmv")
-SERVER_ID = os.environ.get("SERVER_ID", "animador-worker")
-SERVER_URL = os.environ.get("SERVER_URL", "https://carley1234-animacion.hf.space")
-SERVICE_TYPE = "animacion"
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Model Configuration ---
 device = "cpu"
@@ -52,7 +69,7 @@ def load_models():
     try:
         # Optimized for HF Spaces (usually 2 vCPUs)
         torch.set_num_threads(2)
-        print(f"Loading AnimateDiff-Lightning Video-to-Video with {anime_base}...")
+        print(f"Loading AnimateDiff-Lightning Video-to-Video with {anime_base}...", flush=True)
 
         adapter = MotionAdapter().to(device, dtype)
         adapter.load_state_dict(load_file(hf_hub_download(repo, ckpt), device=device))
@@ -73,14 +90,15 @@ def load_models():
         # Optimization for CPU/RAM
         pipe.enable_attention_slicing()
 
-        print("Model loaded successfully.")
+        print("Model loaded successfully.", flush=True)
         load_error = None
     except Exception as e:
         load_error = str(e)
-        print(f"Error loading models: {e}")
+        print(f"Error loading models: {e}", flush=True)
 
 async def update_status(status: str = None):
     global is_processing
+    if not supabase: return
     try:
         if status:
             is_processing = (status == "busy")
@@ -95,18 +113,12 @@ async def update_status(status: str = None):
         }
         supabase.table("server_status").upsert(data).execute()
     except Exception as e:
-        print(f"Error updating status: {e}")
+        print(f"Error updating status: {e}", flush=True)
 
 async def heartbeat_loop():
     while True:
         await update_status()
         await asyncio.sleep(20)
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(asyncio.to_thread(load_models))
-    await update_status("free")
-    asyncio.create_task(heartbeat_loop())
 
 @app.get("/")
 async def root():

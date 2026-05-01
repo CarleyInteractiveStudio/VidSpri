@@ -13,3 +13,4 @@ supabase
 gunicorn
 Pillow
 torchvision
+peft
