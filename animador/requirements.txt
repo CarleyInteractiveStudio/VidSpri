@@ -12,3 +12,4 @@ imageio-ffmpeg
 supabase
 gunicorn
 Pillow
+torchvision

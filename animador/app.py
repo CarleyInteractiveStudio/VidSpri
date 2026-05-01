@@ -26,8 +26,8 @@ app.add_middleware(
 
 # --- Supabase Configuration ---
 # Use environment variables with fallbacks
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://tladrluezsmmhjbhupgb.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_zb8TGeURLnafHWDffG9DMg_PtFO_kmv")
 SERVER_ID = os.environ.get("SERVER_ID", "animador-worker")
 SERVER_URL = os.environ.get("SERVER_URL", "https://carley1234-animacion.hf.space")
 SERVICE_TYPE = "animacion"
