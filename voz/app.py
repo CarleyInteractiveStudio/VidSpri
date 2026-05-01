@@ -139,7 +139,8 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(None), text_o
                 repetition_penalty=1.1,
                 max_length=4096
             )
-            return output.audio_np, output.sample_rate
+            # In OuteTTS 0.2.0+, attributes are .audio (Tensor) and .sr (int)
+            return output.audio.cpu().numpy(), output.sr
 
         audio_data, sample_rate = await asyncio.to_thread(run_tts)
 

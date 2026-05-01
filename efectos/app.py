@@ -8,7 +8,7 @@ import numpy as np
 import scipy.io.wavfile
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from audiocraft.models import AudioGen
+from transformers import pipeline
 from supabase import create_client, Client
 
 app = FastAPI()
@@ -34,19 +34,17 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- Model Loading ---
 device = "cpu"
 model_id = "facebook/audiogen-medium"
-model = None
+audio_pipe = None
 load_error = None
 is_processing = False
 
 def load_models():
-    global model, load_error
+    global audio_pipe, load_error
     try:
-        # Limit CPU threads BEFORE loading to avoid killing the container
+        # Limit CPU threads BEFORE loading to avoid memory/CPU spikes
         torch.set_num_threads(1)
-        print(f"Loading model {model_id} via Audiocraft...")
-
-        # Using the official Audiocraft way to load the model
-        model = AudioGen.get_pretrained(model_id)
+        print(f"Loading model {model_id} via pipeline...")
+        audio_pipe = pipeline("text-to-audio", model=model_id, device=device)
 
         print("Model loaded successfully.")
         load_error = None
@@ -93,27 +91,35 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
     supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
 
     try:
-        if model is None:
-            msg = f"Model not loaded. Error during startup: {load_error}" if load_error else "Model is still starting up..."
+        if not audio_pipe:
+            msg = f"Model pipeline not loaded. Error during startup: {load_error}" if load_error else "Model is still starting up..."
             raise Exception(msg)
 
-        # Audiocraft handles tokenization internally
+        # AudioGen: 50 tokens ~ 1 second of audio
+        max_tokens = min(int(duration) * 50, 250) # Max 5 seconds (250 tokens)
+
+        # Run inference in a separate thread to avoid blocking heartbeats
         def run_inference():
+            # Force no_grad and limit threads again just in case
             with torch.no_grad():
                 torch.set_num_threads(1)
-                model.set_generation_params(
-                    duration=min(int(duration), 5),
-                    use_sampling=True,
-                    temp=1.0,
-                    top_k=250,
-                    top_p=0.99,
-                    cfg_coef=3.0
+                return audio_pipe(
+                    prompt,
+                    generate_kwargs={
+                        "max_new_tokens": max_tokens,
+                        "do_sample": True,
+                        "temperature": 1.0,
+                        "top_k": 250,
+                        "top_p": 0.99,
+                        "guidance_scale": 3.0
+                    }
                 )
-                wav = model.generate([prompt])
-                return wav[0].cpu().numpy()
 
-        audio_data = await asyncio.to_thread(run_inference)
-        sampling_rate = model.sample_rate
+        result = await asyncio.to_thread(run_inference)
+
+        # Convert to WAV in memory
+        sampling_rate = result["sampling_rate"]
+        audio_data = result["audio"]
 
         # Ensure audio_data is a numpy array and has correct type for scipy
         if isinstance(audio_data, torch.Tensor):

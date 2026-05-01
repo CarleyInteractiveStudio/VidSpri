@@ -3,8 +3,8 @@ uvicorn
 python-multipart
 torch
 numpy
-audiocraft
-torchaudio
+transformers>=4.44.0
 scipy
 supabase
 gunicorn
+accelerate

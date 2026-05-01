@@ -1,17 +1,4 @@
-FROM python:3.10
-
-# Install system dependencies for PyAV and Audiocraft
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libavformat-dev \
-    libavcodec-dev \
-    libavdevice-dev \
-    libavutil-dev \
-    libswscale-dev \
-    libswresample-dev \
-    libavfilter-dev \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+FROM python:3.10-slim
 
 WORKDIR /app
 
