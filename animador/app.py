@@ -171,9 +171,10 @@ async def animate_image(
             img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
             processed_frames.append(img_str)
 
-            if (i + 1) % 4 == 0 or (i + 1) == len(frames):
+            if (i + 1) % 2 == 0 or (i + 1) == len(frames):
                 supabase.table("processing_queue").update({
-                    "processed_frames": i + 1
+                    "processed_frames": i + 1,
+                    "last_heartbeat": datetime.datetime.now(datetime.timezone.utc).isoformat()
                 }).eq("id", job_id).execute()
 
         supabase.table("processing_queue").update({"status": "completed"}).eq("id", job_id).execute()

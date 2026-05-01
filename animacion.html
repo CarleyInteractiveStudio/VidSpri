@@ -132,9 +132,9 @@
                 <!-- Individual frames for sprite extraction -->
             </div>
 
-            <div class="action-group" style="margin-top: 30px; display: flex; gap: 10px; justify-content: center;">
-                <button type="button" id="use-in-tool" class="pill-btn highlight-btn">
-                    <span data-i18n="gen_video">Usar en herramienta de Sprites</span>
+            <div class="action-group" style="margin-top: 30px; display: flex; flex-direction: column; align-items: center; gap: 15px;">
+                <button type="button" id="use-in-tool" class="action-btn" style="max-width: 300px;">
+                    <span data-i18n="process_btn">Quitar Fondo y Generar Sprite ✨</span>
                 </button>
                 <button type="button" onclick="location.reload()" class="pill-btn">
                     <span data-i18n="gen_another">Animar otra imagen</span>
@@ -242,22 +242,49 @@
             if (job.status === 'authorized' && !isSending) {
                 isSending = true;
                 uploadAndProcess(job);
+                pollStatus(jobId); // Continue polling for progress
+            } else if (job.status === 'processing') {
+                // Update progress bar and ETA
+                const total = job.total_frames || 16;
+                const current = job.processed_frames || 0;
+                const percent = Math.min(Math.round((current / total) * 100), 99);
+
+                document.getElementById('progress-bar').style.width = `${percent}%`;
+                const dict = window.translations[window.currentLang || 'es'];
+                const procText = dict.processing || "Procesando";
+                document.getElementById('status-text').textContent = `${procText}: ${percent}% (${current}/${total})`;
+
+                // ETA: Average 3s per frame on CPU
+                const remaining = total - current;
+                const etaSeconds = remaining * 3;
+                if (etaSeconds > 0) {
+                    const etaText = dict.eta_prefix || "Tiempo estimado: ";
+                    document.getElementById('eta-text').textContent = `${etaText} ~${etaSeconds}s`;
+                }
+
+                setTimeout(() => pollStatus(jobId), 2000);
             } else if (job.status === 'completed') {
-                // Done handled in uploadAndProcess
+                // uploadAndProcess will handle displayResult
             } else if (job.status === 'failed') {
                 showToast("Error en el procesamiento", "error", true);
                 showStage(1);
-            } else {
+            } else if (job.status === 'waiting' || job.status === 'queued') {
                 // Update position
                 const { count } = await supabaseClient.from('processing_queue').select('*', {count:'exact', head:true}).eq('status', 'waiting').lt('queue_number', job.queue_number);
-                document.getElementById('status-text').textContent = "Posición en cola: " + ((count || 0) + 1);
+                const pos = (count || 0) + 1;
+                const dict = window.translations[window.currentLang || 'es'];
+                const posText = dict.in_queue || "En cola... Delante: ";
+                document.getElementById('status-text').textContent = `${posText}${pos}`;
+                setTimeout(() => pollStatus(jobId), 3000);
+            } else {
                 setTimeout(() => pollStatus(jobId), 3000);
             }
         }
 
         async function uploadAndProcess(job) {
-            document.getElementById('status-text').textContent = "Procesando animación...";
-            document.getElementById('progress-bar').style.width = '20%';
+            const dict = window.translations[window.currentLang || 'es'];
+            document.getElementById('status-text').textContent = (dict.sending_data || "Enviando datos...");
+            document.getElementById('progress-bar').style.width = '10%';
 
             const formData = new FormData();
             formData.append('file', selectedFile);
@@ -285,6 +312,8 @@
         function displayResult(frames) {
             resultFrames = frames.map(f => `data:image/png;base64,${f}`);
             showStage(3);
+            document.getElementById('progress-bar').style.width = '100%';
+
             const grid = document.getElementById('frames-output');
             grid.innerHTML = '';
 
@@ -295,8 +324,11 @@
                 grid.appendChild(div);
             });
 
-            document.getElementById('use-in-tool').onclick = async () => {
-                showToast("Guardando frames para extracción...", "info");
+            // If we have frames, let's show a big CTA
+            const cta = document.getElementById('use-in-tool');
+            cta.onclick = async () => {
+                const dict = window.translations[window.currentLang || 'es'];
+                showToast(dict.sending_frames || "Enviando fotogramas...", "info", true);
                 try {
                     await saveFramesToIndexedDB(resultFrames);
                     window.location.href = 'extraer.html';
