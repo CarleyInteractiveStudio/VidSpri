@@ -162,6 +162,18 @@
     </div>
 
     <div id="toast-container"></div>
+
+    <div id="beta-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 data-i18n="beta_title">Fase Beta</h2>
+            <p data-i18n="beta_desc" style="font-size: 0.95rem; text-align: justify;">Esta herramienta está en una fase beta. Experimentar puede que tarde varios minutos en generarte un sprite y es probable que la calidad sea variable debido a que actualmente usamos espacios gratuitos de Hugging Face y modelos básicos. Puedes apoyar el crecimiento de nuestra herramienta para mejorar esto.</p>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+                <button type="button" onclick="closeBetaModal()" class="pill-btn highlight-btn">Entendido</button>
+                <a href="https://carleystudio.com/vid-spri.html#donations" target="_blank" class="pill-btn" style="text-decoration: none;">Donar</a>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
     <script>
         // supabaseClient is already declared in script.js
@@ -229,6 +241,17 @@
             if (stage === 3) document.getElementById('stage-result').classList.remove('hidden');
         }
 
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!localStorage.getItem('vidspri_beta_accepted')) {
+                document.getElementById('beta-modal').classList.remove('hidden');
+            }
+        });
+
+        function closeBetaModal() {
+            localStorage.setItem('vidspri_beta_accepted', 'true');
+            document.getElementById('beta-modal').classList.add('hidden');
+        }
+
         document.getElementById('start-btn').onclick = async () => {
             if (!selectedFile) {
                 showToast("Por favor selecciona una imagen", "error", true);
@@ -244,6 +267,7 @@
             localStorage.setItem('vidspri_user_id', userId);
 
             showStage(2);
+            document.getElementById('eta-text').textContent = (window.translations[window.currentLang || 'es'].eta_prefix || "Tiempo estimado: ") + " ~2:00m";
 
             try {
                 const { data: job, error } = await supabaseClient

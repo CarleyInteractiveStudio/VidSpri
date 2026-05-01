@@ -276,6 +276,11 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     en: {
+        experiment: "Experiment",
+        beta_title: "Beta Phase",
+        beta_desc: "This tool is in beta. Generating a sprite may take several minutes and quality may vary as we are currently using free Hugging Face spaces and basic models. You can support our growth to improve this.",
+        feedback_title: "Do you like VidSpri?",
+        feedback_desc: "You can give us your opinion and support the growth of our tool. We greatly appreciate your support, your opinion is very valuable to us.",
         step_animate: "Animate",
         step_extract: "Extract",
         gen_animation: "Animate Character (AI Video)",
@@ -419,6 +424,11 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     es: {
+        experiment: "Experimenta",
+        beta_title: "Fase Beta",
+        beta_desc: "Esta herramienta está en una fase beta. Experimentar puede que tarde varios minutos en generarte un sprite y es probable que la calidad sea variable debido a que actualmente usamos espacios gratuitos de Hugging Face y modelos básicos. Puedes apoyar el crecimiento de nuestra herramienta para mejorar esto.",
+        feedback_title: "¿Te ha gustado VidSpri?",
+        feedback_desc: "Puedes darnos tu opinión y apoyar al crecimiento de nuestra herramienta. Agradecemos mucho tu apoyo, tu opinión nos es muy valiosa.",
         step_animate: "Animar",
         step_extract: "Extraer",
         gen_animation: "Animador Personaje (IA Video)",

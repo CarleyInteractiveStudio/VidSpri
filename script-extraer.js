@@ -78,6 +78,20 @@ document.addEventListener('DOMContentLoaded', () => {
     cleanupPreviousJobs();
     checkForPendingFrames();
 
+    // Tracking downloads for feedback modal
+    downloadLink.addEventListener('click', () => {
+        let downloadCount = parseInt(localStorage.getItem('vidspri_download_count') || '0');
+        downloadCount++;
+        localStorage.setItem('vidspri_download_count', downloadCount);
+
+        if (downloadCount % 5 === 0) {
+            setTimeout(() => {
+                const modal = document.getElementById('feedback-modal');
+                if (modal) modal.classList.remove('hidden');
+            }, 1000);
+        }
+    });
+
     // --- Translation Logic ---
     function applyTranslations(lang) {
         currentLang = lang;
@@ -653,7 +667,11 @@ document.addEventListener('DOMContentLoaded', () => {
         processingStartTime = null; // Reset for processing phase
 
         // Wake up the server if it's sleeping (Hugging Face Spaces)
-        fetch(serverUrl).catch(() => {});
+        // Repeat ping for robust wake-up
+        for (let i = 0; i < 3; i++) {
+            fetch(serverUrl).catch(() => {});
+            if (i < 2) await new Promise(r => setTimeout(r, 1000));
+        }
 
         const formData = new FormData();
         extractedFrames.forEach(f => formData.append('images', f.blob, `frame_${f.id}.png`));
@@ -701,7 +719,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
 
-                xhr.onerror = () => reject(new Error("Error de conexión con el servidor"));
+                xhr.onerror = () => reject(new Error("Network error (404/503 - Server waking up?)"));
                 xhr.send(formData);
             });
 

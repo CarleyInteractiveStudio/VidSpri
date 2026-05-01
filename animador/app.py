@@ -20,7 +20,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://tladrluezsmmhjbhupgb.supa
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_zb8TGeURLnafHWDffG9DMg_PtFO_kmv")
 SERVER_ID = os.environ.get("SERVER_ID", "animador-worker")
 SERVER_URL = os.environ.get("SERVER_URL", "https://carley1234-animacion.hf.space")
-SERVICE_TYPE = "animacion"
+SERVICE_TYPE = "video"
 
 print(f"[{datetime.datetime.now()}] Initializing Supabase Client with URL: {SUPABASE_URL}", flush=True)
 try:
@@ -85,7 +85,7 @@ async def update_status(status: str = None):
             "id": SERVER_ID,
             "url": SERVER_URL,
             "status": current_status,
-            "service_type": "video",
+            "service_type": SERVICE_TYPE,
             "last_heartbeat": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
         supabase.table("server_status").upsert(data).execute()
