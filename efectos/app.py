@@ -8,7 +8,7 @@ import numpy as np
 import scipy.io.wavfile
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from audiocraft.models import AudioGen
+from transformers import pipeline, AutoProcessor, AudioGenForConditionalGeneration
 from supabase import create_client, Client
 
 app = FastAPI()
@@ -34,19 +34,23 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- Model Loading ---
 device = "cpu"
 model_id = "facebook/audiogen-medium"
-model = None
+audio_pipe = None
 load_error = None
 is_processing = False
 
 def load_models():
-    global model, load_error
+    global audio_pipe, load_error
     try:
-        # Limit CPU threads BEFORE loading to avoid killing the container
+        # Limit CPU threads BEFORE loading to avoid memory/CPU spikes
         torch.set_num_threads(1)
-        print(f"Loading model {model_id} via Audiocraft...")
+        print(f"Loading model {model_id} via explicit classes...")
 
-        # Native Audiocraft loading
-        model = AudioGen.get_pretrained(model_id)
+        # We load the classes explicitly to avoid 'Unrecognized model' errors in pipeline
+        processor = AutoProcessor.from_pretrained(model_id)
+        model = AudioGenForConditionalGeneration.from_pretrained(model_id)
+
+        # Then we wrap it in a pipeline for easy generation
+        audio_pipe = pipeline("text-to-audio", model=model, tokenizer=processor, device=device)
 
         print("Model loaded successfully.")
         load_error = None
@@ -93,26 +97,38 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
     supabase.table("processing_queue").update({"status": "processing"}).eq("id", job_id).execute()
 
     try:
-        if model is None:
-            msg = f"Model not loaded. Error during startup: {load_error}" if load_error else "Model is still starting up..."
+        if not audio_pipe:
+            msg = f"Model pipeline not loaded. Error during startup: {load_error}" if load_error else "Model is still starting up..."
             raise Exception(msg)
 
+        # AudioGen: 50 tokens ~ 1 second of audio
+        max_tokens = min(int(duration) * 50, 250) # Max 5 seconds (250 tokens)
+
+        # Run inference in a separate thread to avoid blocking heartbeats
         def run_inference():
             with torch.no_grad():
                 torch.set_num_threads(1)
-                model.set_generation_params(
-                    duration=min(int(duration), 5),
-                    use_sampling=True,
-                    temp=1.0,
-                    top_k=250,
-                    top_p=0.99,
-                    cfg_coef=3.0
+                return audio_pipe(
+                    prompt,
+                    generate_kwargs={
+                        "max_new_tokens": max_tokens,
+                        "do_sample": True,
+                        "temperature": 1.0,
+                        "top_k": 250,
+                        "top_p": 0.99,
+                        "guidance_scale": 3.0
+                    }
                 )
-                wav = model.generate([prompt])
-                return wav[0].cpu().numpy()
 
-        audio_data = await asyncio.to_thread(run_inference)
-        sampling_rate = model.sample_rate
+        result = await asyncio.to_thread(run_inference)
+
+        # Convert to WAV in memory
+        sampling_rate = result["sampling_rate"]
+        audio_data = result["audio"]
+
+        # Ensure audio_data is a numpy array and has correct type for scipy
+        if isinstance(audio_data, torch.Tensor):
+            audio_data = audio_data.cpu().numpy()
 
         # Clean data and ensure CPU numpy array
         audio_data = np.nan_to_num(audio_data)
@@ -121,7 +137,7 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
         if audio_data.size > 0:
             audio_data = audio_data - np.mean(audio_data)
 
-        # Soft-clipping/Limiter
+        # 2. Soft-clipping to prevent digital artifacts on saturation
         audio_data = np.tanh(audio_data * 1.2)
 
         # Standardize shape
@@ -133,18 +149,18 @@ async def generate_effect(job_id: str, prompt: str = Form(...), duration: int = 
 
         audio_data = audio_data.flatten()
 
-        # Fade out (0.2s)
+        # Fade out end of clip (0.2s for effects)
         fade_len = int(sampling_rate * 0.2)
         if len(audio_data) > fade_len:
             fade_window = np.linspace(1.0, 0.0, fade_len)
             audio_data[-fade_len:] *= fade_window
 
-        # Normalize with headroom
+        # Normalize audio with headroom
         max_val = np.abs(audio_data).max()
         if max_val > 0:
             audio_data = (audio_data / (max_val + 1e-6)) * 0.9
 
-        # Convert to 16-bit PCM
+        # Convert to 16-bit PCM with safety clamp
         audio_data = np.clip(audio_data * 32767, -32768, 32767).astype(np.int16)
 
         wav_buf = io.BytesIO()
