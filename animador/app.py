@@ -29,7 +29,7 @@ app.add_middleware(
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 SERVER_ID = os.environ.get("SERVER_ID", "animador-worker")
-SERVER_URL = os.environ.get("SERVER_URL", "https://carley1234-animador.hf.space")
+SERVER_URL = os.environ.get("SERVER_URL", "https://carley1234-animacion.hf.space")
 SERVICE_TYPE = "animacion"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
