@@ -63,6 +63,9 @@ def load_models():
         )
 
         pipe.enable_attention_slicing()
+        # VAE slicing to reduce memory spikes during frame decoding
+        if hasattr(pipe, "vae"):
+            pipe.vae.enable_slicing()
 
         print(f"[{datetime.datetime.now()}] Model loaded successfully.", flush=True)
         load_error = None
@@ -143,6 +146,17 @@ async def animate_image(
     await update_status("busy")
     supabase.table("processing_queue").update({"status": "processing", "total_frames": num_frames}).eq("id", job_id).execute()
 
+    # Heartbeat task for the job to prevent cleanup while processing
+    async def job_heartbeat():
+        while is_processing:
+            try:
+                supabase.rpc("heartbeat_job", {"job_id_param": job_id}).execute()
+            except:
+                pass
+            await asyncio.sleep(15)
+
+    heartbeat_task = asyncio.create_task(job_heartbeat())
+
     try:
         contents = await file.read()
         input_image = Image.open(io.BytesIO(contents)).convert("RGB")
@@ -151,7 +165,8 @@ async def animate_image(
 
         def run_inference():
             with torch.no_grad():
-                torch.set_num_threads(2)
+                # Use 1 thread for inference to leave room for heartbeats/OS
+                torch.set_num_threads(1)
                 output = pipe(
                     video=video_input,
                     prompt=prompt,
@@ -178,11 +193,13 @@ async def animate_image(
                 }).eq("id", job_id).execute()
 
         supabase.table("processing_queue").update({"status": "completed"}).eq("id", job_id).execute()
+        heartbeat_task.cancel()
         await update_status("free")
 
         return {"status": "success", "frames": processed_frames}
 
     except Exception as e:
+        heartbeat_task.cancel()
         print(f"[{datetime.datetime.now()}] Animation error: {e}", flush=True)
         await update_status("free")
         supabase.table("processing_queue").update({"status": "failed"}).eq("id", job_id).execute()
