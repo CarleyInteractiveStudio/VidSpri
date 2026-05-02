@@ -1,5 +1,8 @@
 const translations = {
     ar: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "تحريك",
         step_extract: "استخراج",
         gen_animation: "محرك الشخصيات (فيديو ذكاء اصطناعي)",
@@ -139,6 +142,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     de: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "Animieren",
         step_extract: "Extrahieren",
         gen_animation: "KI-Charakter-Animator (KI-Video)",
@@ -427,6 +433,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     es: {
+        license: "Licencia",
+        license_title: "Licencia de Uso",
+        license_desc: "Todo lo que crees con VidSpri (animaciones, sonidos, sprites) es 100% tuyo. Tienes derecho a usarlo para fines comerciales o personales. Solo te pedimos que incluyas créditos mencionando que fue creado con VidSpri.",
         experiment: "Experimenta",
         beta_title: "Fase Beta",
         feedback_title: "¿Te ha gustado VidSpri?",
@@ -579,6 +588,9 @@ const translations = {
         your_turn: "¡Es tu turno! Preparando...",
     },
     fr: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "Animer",
         step_extract: "Extraire",
         gen_animation: "Animateur de Personnage IA (Vidéo IA)",
@@ -716,6 +728,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     hi: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "एनिमेट",
         step_extract: "निकालें",
         gen_animation: "एआई कैरेक्टर एनिमेटर (एआई वीडियो)",
@@ -853,6 +868,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     id: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "Animasikan",
         step_extract: "Ekstrak",
         gen_animation: "Animator Karakter AI (Video AI)",
@@ -990,6 +1008,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     it: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "Anima",
         step_extract: "Estrai",
         gen_animation: "Animatore Personaggi IA (Video IA)",
@@ -1127,6 +1148,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     jp: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "アニメーション",
         step_extract: "抽出",
         gen_animation: "AIキャラクターアニメーター (AIビデオ)",
@@ -1264,6 +1288,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     ko: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "애니메이션",
         step_extract: "추출",
         gen_animation: "AI 캐릭터 애니메이터 (AI 비디오)",
@@ -1401,6 +1428,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     ms: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "Animasikan",
         step_extract: "Ekstrak",
         gen_animation: "Animator Watak AI (Video AI)",
@@ -1538,6 +1568,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     nl: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "Animeren",
         step_extract: "Extraheren",
         gen_animation: "AI Personage Animator (AI Video)",
@@ -1675,6 +1708,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     pl: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "Animuj",
         step_extract: "Wyodrębnij",
         gen_animation: "Animator Postaci AI (Wideo AI)",
@@ -1812,6 +1848,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     pt: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "Animar",
         step_extract: "Extrair",
         gen_animation: "Animador de Personagem IA (Vídeo IA)",
@@ -2085,6 +2124,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     ru: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "Анимировать",
         step_extract: "Извлечь",
         gen_animation: "ИИ-аниматор персонажей (ИИ-видео)",
@@ -2222,6 +2264,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     th: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "สร้างแอนิเมชัน",
         step_extract: "ดึงออก",
         gen_animation: "โปรแกรมสร้างแอนิเมชันตัวละคร AI (วิดีโอ AI)",
@@ -2359,6 +2404,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     tr: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "Canlandır",
         step_extract: "Çıkart",
         gen_animation: "AI Karakter Animasyoncu (AI Video)",
@@ -2496,6 +2544,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     vi: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "Hoạt hóa",
         step_extract: "Trích xuất",
         gen_animation: "Trình tạo hoạt ảnh nhân vật AI (Video AI)",
@@ -2633,6 +2684,9 @@ const translations = {
         your_turn: "It's your turn! Preparing...",
     },
     zh: {
+        license: "License",
+        license_title: "Usage License",
+        license_desc: "Everything you create with VidSpri (animations, sounds, sprites) is 100% yours. You have the right to use it for commercial or personal purposes. We only ask that you include credits mentioning it was created with VidSpri.",
         step_animate: "动画",
         step_extract: "提取",
         gen_animation: "AI角色动画器 (AI视频)",
