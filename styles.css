@@ -281,6 +281,34 @@ p {
     box-shadow: 0 0 10px rgba(0, 242, 255, 0.2);
 }
 
+.notif-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #ff4b4b;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-dark);
+}
+
+#notif-btn {
+    position: relative;
+}
+
+.notif-item {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+
+.notif-item.info { border-left: 4px solid var(--primary); }
+.notif-item.success { border-left: 4px solid #4CAF50; }
+.notif-item.warning { border-left: 4px solid #FFC107; }
+.notif-item.error { border-left: 4px solid #F44336; }
+
 .highlight-btn {
     background: linear-gradient(135deg, rgba(0, 242, 255, 0.1), rgba(112, 0, 255, 0.1));
     border-color: rgba(0, 242, 255, 0.3);
@@ -823,6 +851,26 @@ footer {
     color: var(--text-dim);
     font-size: 0.8rem;
     opacity: 0.6;
+}
+
+.result-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 2rem;
+}
+
+.result-actions .action-btn,
+.result-actions .pill-btn {
+    width: auto;
+    margin: 0;
+}
+
+.action-group-right {
+    display: flex;
+    gap: 12px;
 }
 
 @media (max-width: 480px) {

@@ -110,6 +110,7 @@ async def process_batch(job_id: str, images: list[UploadFile] = File(...)):
 
             # Update progress one by one
             supabase.table("processing_queue").update({
+                "status": "processing",
                 "processed_frames": i + 1
             }).eq("id", job_id).execute()
 

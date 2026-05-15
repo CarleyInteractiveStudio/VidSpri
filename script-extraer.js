@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentJobId = null;
     let heartbeatInterval = null;
     let isSending = false;
+    let currentProcessingStep = 'idle'; // 'idle', 'waiting', 'uploading', 'processing'
     let userId = localStorage.getItem('vidspri_user_id') || crypto.randomUUID();
     localStorage.setItem('vidspri_user_id', userId);
     let currentLang = localStorage.getItem('vidspri_lang') || 'es';
@@ -361,8 +362,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             currentJobId = data[0].id;
             isSending = false;
+            currentProcessingStep = 'waiting';
             startHeartbeat(currentJobId);
-            startQueueTracking(currentJobId);
+            startQueueTracking(currentJobId, data[0]);
 
             // Immediate check in case it was authorized instantly
             if (data[0].status === 'authorized') {
@@ -377,12 +379,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function startQueueTracking(jobId) {
+    function startQueueTracking(jobId, initialJob) {
+        let jobState = initialJob || { id: jobId, status: 'waiting' };
+
         const channel = supabaseClient
             .channel(`job-${jobId}`)
-            .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue', filter: `id=eq.${jobId}` }, payload => {
-                const job = payload.new;
-                const dict = window.translations[currentLang] || window.translations['es'];
+            .on('postgres_changes', { event: 'UPDATE', table: 'processing_queue' }, payload => {
+                if (payload.new.id !== jobId) return;
+
+                // Merge new data into local state to handle partial payloads
+                jobState = { ...jobState, ...payload.new };
+
+                const job = jobState;
+                console.log("Realtime Update for Job:", job.id, "Status:", job.status, "Progress:", job.processed_frames);
 
                 if (job.status === 'authorized' && !isSending) {
                     isSending = true;
@@ -408,13 +417,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateProcessingProgress(job) {
+        // Once we get a 'processing' update from the server, we switch to processing mode
+        currentProcessingStep = 'processing';
+
         const dict = window.translations[currentLang] || window.translations['es'];
-        const processed = job.processed_frames || 0;
-        const total = job.total_frames || extractedFrames.length;
+        const total = job.total_frames || extractedFrames.length || 1;
+        const processed = Math.min(job.processed_frames || 0, total);
         const remaining = total - processed;
         const percentage = Math.floor((processed / total) * 100);
 
-        progressText.textContent = `${dict['processing'] || 'Procesando'}... ${processed}/${total} (${percentage}%) - Faltan: ${remaining}`;
+        // Explicitly format the message
+        const label = dict['processing'] || (currentLang === 'es' ? 'Procesando' : 'Processing');
+        const unit = currentLang === 'es' ? 'fotogramas' : 'frames';
+        const ofText = currentLang === 'es' ? 'de' : 'of';
+
+        progressText.textContent = `${label}: ${processed} ${ofText} ${total} ${unit} (${percentage}%)`;
+
         updateProgressBar(percentage);
 
         if (processingStartTime && processed > 0) {
@@ -425,6 +443,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (!processingStartTime) {
             processingStartTime = Date.now();
         }
+
+        // Ensure progress container is visible and active
+        progressContainer.classList.remove('hidden');
+        progressContainer.style.opacity = '1';
     }
 
     async function checkPosition(jobId) {
@@ -437,6 +459,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 sendToProcessingServer(jobData.assigned_server_url, jobId);
             }
             return;
+        }
+
+        if (jobData.status === 'processing') {
+            updateProcessingProgress(jobData);
         }
 
         if (jobData.status !== 'waiting') return;
@@ -466,10 +492,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function sendToProcessingServer(serverUrl, jobId) {
+        currentProcessingStep = 'uploading';
         const dict = window.translations[currentLang] || window.translations['es'];
         progressText.textContent = (dict['sending_frames'] || 'Enviando fotogramas...') + ' (0%)';
         updateProgressBar(0);
         processingStartTime = null; // Reset for processing phase
+
+        // Wake up the server if it's sleeping (Hugging Face Spaces)
+        fetch(serverUrl).catch(() => {});
 
         const formData = new FormData();
         extractedFrames.forEach(f => formData.append('images', f.blob, `frame_${f.id}.png`));
@@ -480,13 +510,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 xhr.open('POST', `${serverUrl}/process-batch/${jobId}`);
 
                 xhr.upload.onprogress = (e) => {
-                    if (e.lengthComputable) {
+                    if (currentProcessingStep === 'uploading' && e.lengthComputable) {
                         const percent = Math.floor((e.loaded / e.total) * 100);
                         const totalFrames = extractedFrames.length;
                         const currentSent = Math.floor((e.loaded / e.total) * totalFrames);
                         progressText.textContent = `${dict['sending_frames'] || 'Enviando'}... ${currentSent}/${totalFrames} (${percent}%)`;
                         updateProgressBar(percent);
                     }
+                };
+
+                xhr.upload.onload = () => {
+                    // Switch to processing mode/message once upload is done
+                    currentProcessingStep = 'processing';
+                    const dict = window.translations[currentLang] || window.translations['es'];
+                    const totalFrames = extractedFrames.length;
+
+                    const label = dict['processing'] || (currentLang === 'es' ? 'Procesando' : 'Processing');
+                    const unit = currentLang === 'es' ? 'fotogramas' : 'frames';
+                    const ofText = currentLang === 'es' ? 'de' : 'of';
+
+                    progressText.textContent = `${label}: 0 ${ofText} ${totalFrames} ${unit} (0%)`;
+                    updateProgressBar(0);
                 };
 
                 xhr.onload = () => {
@@ -526,6 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleProcessingSuccess(frames) {
+        currentProcessingStep = 'idle';
         const dict = window.translations[currentLang] || window.translations['es'];
         progressText.textContent = dict['done'] || '¡Listo!';
         updateProgressBar(100);
@@ -637,10 +682,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const ctx = canvas.getContext('2d');
         let x = 0;
         images.forEach(img => { ctx.drawImage(img, x, 0); x += img.width; });
+
+        const cols = images.length;
+        const rows = 1;
+
         canvas.toBlob(blob => {
             const url = URL.createObjectURL(blob);
             spriteImage.src = url;
             downloadLink.href = url;
+
+            // Save to localStorage for automatic loading in previsualizacion.html
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = () => {
+                try {
+                    localStorage.setItem('vidspri_last_sprite', reader.result);
+                    localStorage.setItem('vidspri_last_cols', cols);
+                    localStorage.setItem('vidspri_last_rows', rows);
+                } catch (e) {
+                    console.warn("Could not save to localStorage (quota exceeded?):", e);
+                }
+            };
         }, 'image/png');
     }
 

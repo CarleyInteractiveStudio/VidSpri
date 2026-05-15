@@ -88,6 +88,10 @@ EXECUTE FUNCTION trigger_refresh_codes();
 SELECT refresh_priority_codes();
 
 -- Enable Realtime
+-- Enable REPLICA IDENTITY FULL for detailed payloads
+ALTER TABLE processing_queue REPLICA IDENTITY FULL;
+ALTER TABLE server_status REPLICA IDENTITY FULL;
+
 -- Enable Realtime safely
 DO $$
 BEGIN
@@ -197,6 +201,9 @@ BEGIN
             UPDATE server_status
             SET status = 'busy'
             WHERE id = free_server_id_found;
+
+            -- Attempt to wake up the server (requires pg_net extension usually, but we can't be sure)
+            -- This is a placeholder for where a database-side wake-up call would go.
         ELSE
             -- No more free servers, stop trying to assign for now
             EXIT;

@@ -11,6 +11,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DOM Elements ---
     const toastContainer = document.getElementById('toast-container');
     const bridgeIframe = document.getElementById('sso-bridge');
+    const notifBtn = document.getElementById('notif-btn');
+    const notifModal = document.getElementById('notif-modal');
+    const closeNotifModal = document.getElementById('close-notif-modal');
+    const notifList = document.getElementById('notif-list');
+    const notifBadge = document.querySelector('.notif-badge');
 
     // --- Initialization ---
     applyTranslations(currentLang);
@@ -57,12 +62,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
         const ssoToken = params.get('sso_token');
-        const ssoUserId = params.get('user_id');
 
-        if (ssoToken && ssoUserId) {
-            userId = ssoUserId;
-            localStorage.setItem('vidspri_user_id', userId);
+        if (ssoToken) {
+            console.log("¡Sesión iniciada con éxito!");
             localStorage.setItem('vidspri_sso_token', ssoToken);
+
+            // Trigger a check via bridge to get user details
+            if (bridgeIframe && bridgeIframe.contentWindow) {
+                bridgeIframe.contentWindow.postMessage({
+                    type: 'CHECK_SESSION',
+                    token: ssoToken
+                }, 'https://carleystudio.com');
+            }
+
             window.location.hash = "";
             showToast("¡Sesión iniciada con éxito!", "success", true);
         }
@@ -80,8 +92,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (bridgeIframe) {
             bridgeIframe.onload = () => {
+                const token = localStorage.getItem('vidspri_sso_token');
                 bridgeIframe.contentWindow.postMessage({
                     type: 'CHECK_SESSION',
+                    token: token,
                     requestId: 'initial-check'
                 }, 'https://carleystudio.com');
             };
@@ -104,12 +118,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Supabase Logic ---
-    function subscribeToGlobalNotifications() {
+    async function subscribeToGlobalNotifications() {
+        // Initial fetch
+        const { data } = await supabaseClient
+            .from('global_notifications')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+        if (data && data.length > 0) {
+            renderNotifications(data);
+        }
+
         supabaseClient
             .channel('global_notifications')
             .on('postgres_changes', { event: 'INSERT', table: 'global_notifications' }, payload => {
                 showToast(payload.new.message, payload.new.type, true);
+                if (notifBadge) notifBadge.classList.remove('hidden');
+                refreshNotifications();
             })
             .subscribe();
+    }
+
+    async function refreshNotifications() {
+        const { data } = await supabaseClient
+            .from('global_notifications')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(10);
+        if (data) renderNotifications(data);
+    }
+
+    function renderNotifications(notifs) {
+        if (!notifList) return;
+        notifList.innerHTML = '';
+        if (notifs.length === 0) {
+            notifList.innerHTML = '<p style="text-align: center; opacity: 0.6;">No hay notificaciones nuevas</p>';
+            return;
+        }
+
+        notifs.forEach(n => {
+            const div = document.createElement('div');
+            div.className = `notif-item ${n.type || 'info'}`;
+            div.innerHTML = `
+                <div style="font-size: 0.9rem; color: white;">${n.message}</div>
+                <div style="font-size: 0.75rem; opacity: 0.5; margin-top: 5px;">${new Date(n.created_at).toLocaleString()}</div>
+            `;
+            notifList.appendChild(div);
+        });
+    }
+
+    // --- Notification Modal ---
+    if (notifBtn) {
+        notifBtn.onclick = () => {
+            if (notifModal) notifModal.classList.remove('hidden');
+            if (notifBadge) notifBadge.classList.add('hidden');
+        };
+    }
+    if (closeNotifModal) {
+        closeNotifModal.onclick = () => notifModal.classList.add('hidden');
+    }
+    if (notifModal) {
+        window.addEventListener('click', (e) => {
+            if (e.target === notifModal) notifModal.classList.add('hidden');
+        });
     }
 });
