@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración - VidSpri</title>
+    <script src="config.js"></script>
+    <script src="translations.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="logo.png" type="image/png">
+</head>
+<body>
+    <div class="header-actions">
+        <button type="button" onclick="window.location.href='index.html'" class="pill-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span data-i18n="back">Volver</span>
+        </button>
+    </div>
+
+    <div class="container">
+        <h1 data-i18n="config_title">Configuración</h1>
+
+        <div class="modern-card">
+            <h3 data-i18n="account">Cuenta</h3>
+            <div id="auth-section">
+                <button type="button" id="login-btn" class="action-btn">
+                    <span data-i18n="login">Iniciar Sesión</span>
+                </button>
+                <div id="user-info" class="hidden">
+                    <p><span data-i18n="logged_as">Identificado como:</span> <strong id="user-email"></strong></p>
+                    <button type="button" id="logout-btn" class="pill-btn" style="margin: 0 auto;">Cerrar Sesión</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modern-card">
+            <h3 data-i18n="language">Idioma</h3>
+            <div class="lang-grid-large">
+                <button class="lang-opt-large" data-lang="es">Español</button>
+                <button class="lang-opt-large" data-lang="en">English</button>
+                <button class="lang-opt-large" data-lang="fr">Français</button>
+                <button class="lang-opt-large" data-lang="pt">Português</button>
+                <button class="lang-opt-large" data-lang="it">Italiano</button>
+                <button class="lang-opt-large" data-lang="de">Deutsch</button>
+                <button class="lang-opt-large" data-lang="jp">日本語</button>
+                <button class="lang-opt-large" data-lang="zh">中文</button>
+            </div>
+        </div>
+
+        <div class="modern-card">
+            <h3 data-i18n="premium_access">Acceso Premium</h3>
+            <p data-i18n="redeem_sub">Canjea un código para obtener prioridad permanente o temporal.</p>
+            <button type="button" onclick="window.location.href='codigos.html'" class="action-btn" data-i18n="go_to_redeem">Ir a Canjear</button>
+        </div>
+    </div>
+
+    <!-- SSO Bridge -->
+    <iframe id="sso-bridge" src="https://carleystudio.com/bridge.html" style="display:none;"></iframe>
+
+    <script>
+        // Minimal logic for the config page
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentLang = localStorage.getItem('vidspri_lang') || 'es';
+            applyTranslations(currentLang);
+
+            // SSO and Auth logic
+            const loginBtn = document.getElementById('login-btn');
+            const logoutBtn = document.getElementById('logout-btn');
+            const userInfo = document.getElementById('user-info');
+            const userEmailEl = document.getElementById('user-email');
+            const bridgeIframe = document.getElementById('sso-bridge');
+
+            window.addEventListener('message', (event) => {
+                if (event.origin !== 'https://carleystudio.com') return;
+                if (event.data.type === 'SESSION_RESPONSE') {
+                    const user = event.data.payload;
+                    if (user) {
+                        loginBtn.classList.add('hidden');
+                        userInfo.classList.remove('hidden');
+                        userEmailEl.textContent = user.email;
+                        localStorage.setItem('vidspri_user_id', user.id);
+                    }
+                }
+            });
+
+            loginBtn.onclick = () => {
+                const domain = window.location.hostname || "carleyinteractivestudio.github.io";
+                const redirectTo = window.location.href;
+                window.location.href = `https://carleystudio.com/sso.html?domain=${domain}&redirect_to=${encodeURIComponent(redirectTo)}`;
+            };
+
+            logoutBtn.onclick = () => {
+                // Simplified logout for now
+                localStorage.removeItem('vidspri_user_id');
+                location.reload();
+            };
+
+            // Language Selection
+            document.querySelectorAll('.lang-opt-large').forEach(btn => {
+                btn.onclick = () => {
+                    const lang = btn.getAttribute('data-lang');
+                    localStorage.setItem('vidspri_lang', lang);
+                    applyTranslations(lang);
+                    // Add visual feedback
+                    document.querySelectorAll('.lang-opt-large').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                };
+                if (btn.getAttribute('data-lang') === currentLang) btn.classList.add('active');
+            });
+        });
+
+        function applyTranslations(lang) {
+            const dict = window.translations[lang] || window.translations['es'];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) el.textContent = dict[key];
+            });
+        }
+    </script>
+</body>
+</html>

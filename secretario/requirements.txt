@@ -1,7 +1,9 @@
 fastapi
 uvicorn
-databases[aiosqlite]
-sqlalchemy
-httpx
 python-multipart
+rembg
+Pillow
 gunicorn
+onnxruntime
+httpx
+supabase
