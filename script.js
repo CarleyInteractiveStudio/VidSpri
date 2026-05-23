@@ -194,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 4. Action Handlers
         if (loginBtn) {
             loginBtn.onclick = () => {
-                const domain = "carleyinteractivestudio.github.io";
+                const domain = "vidspri.online";
                 const redirectTo = window.location.href.split('#')[0];
                 window.location.href = `https://carleystudio.com/sso.html?domain=${domain}&redirect_to=${encodeURIComponent(redirectTo)}`;
             };
