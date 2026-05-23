@@ -76,6 +76,21 @@ document.addEventListener('DOMContentLoaded', () => {
     applyTranslations(currentLang);
     initSSO();
     cleanupPreviousJobs();
+    checkForPendingFrames();
+
+    // Tracking downloads for feedback modal
+    downloadLink.addEventListener('click', () => {
+        let downloadCount = parseInt(localStorage.getItem('vidspri_download_count') || '0');
+        downloadCount++;
+        localStorage.setItem('vidspri_download_count', downloadCount);
+
+        if (downloadCount % 5 === 0) {
+            setTimeout(() => {
+                const modal = document.getElementById('feedback-modal');
+                if (modal) modal.classList.remove('hidden');
+            }, 1000);
+        }
+    });
 
     // --- Translation Logic ---
     function applyTranslations(lang) {
@@ -131,6 +146,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Pending Frames from AI Animation ---
+    function checkForPendingFrames() {
+        const request = indexedDB.open("VidSpriBuffer", 1);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('temp_frames')) {
+                db.createObjectStore('temp_frames', { keyPath: 'id', autoIncrement: true });
+            }
+        };
+        request.onsuccess = (e) => {
+            const db = e.target.result;
+            const tx = db.transaction('temp_frames', 'readwrite');
+            const store = tx.objectStore('temp_frames');
+            const getAll = store.getAll();
+            getAll.onsuccess = () => {
+                const frames = getAll.result;
+                if (frames && frames.length > 0) {
+                    extractedFrames = frames.map((item, index) => ({
+                        id: index,
+                        blob: base64StringToBlob(item.data.replace(/^data:image\/(png|jpeg);base64,/, ''))
+                    }));
+                    store.clear();
+                    displayFramePreviews();
+                    goToStep(4);
+                    showToast("frames_loaded_from_ai", "success");
+
+                    // Auto-process if flag is set
+                    if (localStorage.getItem('vidspri_auto_process') === 'true') {
+                        localStorage.removeItem('vidspri_auto_process');
+                        setTimeout(() => {
+                            const btn = document.getElementById('generate-sprite-btn');
+                            if (btn) btn.click();
+                        }, 500);
+                    }
+                }
+            };
+        };
+    }
+
     // --- Toast Notifications ---
     function showToast(messageKey, type = 'info', isLiteral = false) {
         const dict = window.translations[currentLang] || window.translations['es'];
@@ -159,9 +213,10 @@ document.addEventListener('DOMContentLoaded', () => {
         resultContainer.classList.add('hidden');
 
         if (stepNumber === 1) videoSection.classList.remove('hidden');
-        else if (stepNumber === 2) editorSection.classList.remove('hidden');
-        else if (stepNumber === 3) framePreviewContainer.classList.remove('hidden');
-        else if (stepNumber === 4) resultContainer.classList.remove('hidden');
+        else if (stepNumber === 2) { /* AI Animation step - skip in this page */ }
+        else if (stepNumber === 3) editorSection.classList.remove('hidden');
+        else if (stepNumber === 4) framePreviewContainer.classList.remove('hidden');
+        else if (stepNumber === 5) resultContainer.classList.remove('hidden');
     }
 
     // --- Drag & Drop ---
@@ -194,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
             videoPreview.onloadedmetadata = () => {
                 endTimeInput.value = videoPreview.duration.toFixed(2);
                 generateEditorThumbnails(file);
-                goToStep(2);
+                goToStep(3);
             };
         }
     }
@@ -302,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             extractedFrames = frames.map((blob, index) => ({ id: index, blob }));
             displayFramePreviews();
-            goToStep(3);
+            goToStep(4);
         } catch (e) {
             showToast(e.message, "error", true);
         } finally {
@@ -612,7 +667,11 @@ document.addEventListener('DOMContentLoaded', () => {
         processingStartTime = null; // Reset for processing phase
 
         // Wake up the server if it's sleeping (Hugging Face Spaces)
-        fetch(serverUrl).catch(() => {});
+        // Repeat ping for robust wake-up
+        for (let i = 0; i < 3; i++) {
+            fetch(serverUrl).catch(() => {});
+            if (i < 2) await new Promise(r => setTimeout(r, 1000));
+        }
 
         const formData = new FormData();
         extractedFrames.forEach(f => formData.append('images', f.blob, `frame_${f.id}.png`));
@@ -660,7 +719,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
 
-                xhr.onerror = () => reject(new Error("Error de conexión con el servidor"));
+                xhr.onerror = () => reject(new Error("Network error (404/503 - Server waking up?)"));
                 xhr.send(formData);
             });
 
@@ -698,7 +757,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await updateFinalSpriteSheet();
 
         progressContainer.classList.add('hidden');
-        goToStep(4);
+        goToStep(5);
 
         // Reset mode after success
         isSecondPassMode = false;
@@ -1089,3 +1148,26 @@ Generated by VidSpri.com`;
         };
     }
 });
+
+function showLicenseModal(e) {
+    if (e) e.preventDefault();
+    let modal = document.getElementById('license-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'license-modal';
+        modal.className = 'modal hidden';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h2 data-i18n="license_title">Licencia</h2>
+                <p data-i18n="license_desc" style="font-size: 0.95rem; text-align: justify;"></p>
+                <button type="button" onclick="document.getElementById('license-modal').classList.add('hidden')" class="pill-btn highlight-btn" style="margin: 20px auto 0;">Cerrar</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        // Using the locally scoped applyTranslations if available or global one
+        if (typeof applyTranslations === 'function') applyTranslations(localStorage.getItem('vidspri_lang') || 'es');
+    }
+    modal.classList.remove('hidden');
+}
+
+window.showLicenseModal = showLicenseModal;

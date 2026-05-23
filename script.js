@@ -316,3 +316,25 @@ document.addEventListener('DOMContentLoaded', () => {
     initSSO();
     cleanupStuckJobs();
 });
+
+function showLicenseModal(e) {
+    if (e) e.preventDefault();
+    let modal = document.getElementById('license-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'license-modal';
+        modal.className = 'modal hidden';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h2 data-i18n="license_title">Licencia</h2>
+                <p data-i18n="license_desc" style="font-size: 0.95rem; text-align: justify;"></p>
+                <button type="button" onclick="document.getElementById('license-modal').classList.add('hidden')" class="pill-btn highlight-btn" style="margin: 20px auto 0;">Cerrar</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        if (window.applyTranslations) window.applyTranslations(localStorage.getItem('vidspri_lang') || 'es');
+    }
+    modal.classList.remove('hidden');
+}
+
+window.showLicenseModal = showLicenseModal;

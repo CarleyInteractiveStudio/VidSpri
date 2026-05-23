@@ -33,15 +33,20 @@
             <div class="step-connector"></div>
             <div class="step" data-step="2">
                 <div class="step-icon"></div>
-                <span data-i18n="step_edit">Editar</span>
+                <span data-i18n="step_animate">Animar</span>
             </div>
             <div class="step-connector"></div>
             <div class="step" data-step="3">
                 <div class="step-icon"></div>
-                <span data-i18n="step_process">Procesar</span>
+                <span data-i18n="step_extract">Extraer</span>
             </div>
             <div class="step-connector"></div>
             <div class="step" data-step="4">
+                <div class="step-icon"></div>
+                <span data-i18n="step_process">Procesar</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" data-step="5">
                 <div class="step-icon"></div>
                 <span data-i18n="step_final">Finalizar</span>
             </div>
@@ -206,6 +211,19 @@
     </div>
 
     <div id="toast-container"></div>
+
+    <div id="feedback-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 data-i18n="feedback_title">¿Te ha gustado VidSpri?</h2>
+            <p data-i18n="feedback_desc" style="font-size: 0.95rem;">Puedes darnos tu opinión y apoyar al crecimiento de nuestra herramienta. Agradecemos mucho tu apoyo, tu opinión nos es muy valiosa.</p>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+                <a href="https://carleystudio.com/vid-spri.html#opinions" target="_blank" class="pill-btn highlight-btn" style="justify-content: center; text-decoration: none;">Opinar</a>
+                <a href="https://carleystudio.com/vid-spri.html#donations" target="_blank" class="pill-btn" style="justify-content: center; text-decoration: none;">Donar</a>
+                <button type="button" onclick="document.getElementById('feedback-modal').classList.add('hidden')" class="text-button">Más tarde</button>
+            </div>
+        </div>
+    </div>
+
     <iframe id="sso-bridge" src="https://carleystudio.com/bridge.html" style="display:none;"></iframe>
 
     <script src="script-extraer.js"></script>
@@ -214,6 +232,7 @@
             <a href="https://www.facebook.com/profile.php?id=61575555791348" target="_blank" data-i18n="community">Comunidad</a>
             <a href="https://carleystudio.com/vid-spri.html#donations" target="_blank" data-i18n="support">Apoyar</a>
             <a href="creditos.html" data-i18n="credits">Créditos</a>
+            <a href="#" onclick="showLicenseModal(event)" data-i18n="license">Licencia</a>
             <a href="privacidad.html" data-i18n="privacy">Privacidad</a>
         </div>
         <div class="copyright">
