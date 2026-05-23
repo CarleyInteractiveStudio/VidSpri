@@ -2,19 +2,16 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
-from torchvision import transforms
+from torchvision import transforms, utils
 from PIL import Image
 import os
 
-# --- MODELO LIGERO (TINY-PIXEL-DIFFUSION) ---
+# --- GENERADOR (El Artista) ---
 class TinyPixelGenerator(nn.Module):
-    """
-    Un modelo ultra-ligero diseñado para generar pixel art de 32x32.
-    """
     def __init__(self, latent_dim=100):
         super(TinyPixelGenerator, self).__init__()
         self.main = nn.Sequential(
-            # Entrada: Vector latente de ruido
+            # Entrada: Vector latente de ruido [batch, 100, 1, 1]
             nn.ConvTranspose2d(latent_dim, 256, 4, 1, 0, bias=False),
             nn.BatchNorm2d(256),
             nn.ReLU(True),
@@ -31,7 +28,34 @@ class TinyPixelGenerator(nn.Module):
 
             # 16x16 -> 32x32
             nn.ConvTranspose2d(64, 3, 4, 2, 1, bias=False),
-            nn.Tanh() # Salida normalizada [-1, 1]
+            nn.Tanh() # Salida [-1, 1]
+        )
+
+    def forward(self, input):
+        return self.main(input)
+
+# --- DISCRIMINADOR (El Crítico) ---
+class TinyPixelDiscriminator(nn.Module):
+    def __init__(self):
+        super(TinyPixelDiscriminator, self).__init__()
+        self.main = nn.Sequential(
+            # 32x32 -> 16x16
+            nn.Conv2d(3, 64, 4, 2, 1, bias=False),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            # 16x16 -> 8x8
+            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            # 8x8 -> 4x4
+            nn.Conv2d(128, 256, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            # 4x4 -> 1x1 (Salida: Probabilidad de que sea real)
+            nn.Conv2d(256, 1, 4, 1, 0, bias=False),
+            nn.Sigmoid()
         )
 
     def forward(self, input):
@@ -57,7 +81,7 @@ class SpriteDataset(Dataset):
         image = Image.open(img_path).convert('RGB')
         return self.transform(image)
 
-# --- LOOP DE ENTRENAMIENTO BÁSICO ---
+# --- LOOP DE ENTRENAMIENTO GAN ---
 def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Entrenando en: {device}")
@@ -65,35 +89,73 @@ def train():
     # Hiperparámetros
     batch_size = 64
     lr = 0.0002
-    epochs = 50
+    epochs = 100
     latent_dim = 100
 
     # Cargar datos
     if not os.path.exists("vidspri_dataset"):
-        print("Error: No se encontró la carpeta 'vidspri_dataset'. Ejecuta descargar_dataset.py primero.")
+        print("Error: No se encontró la carpeta 'vidspri_dataset'.")
         return
 
     dataset = SpriteDataset("vidspri_dataset", size=32)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-    # Inicializar modelo
+    # Inicializar modelos
     netG = TinyPixelGenerator(latent_dim).to(device)
-    optimizer = optim.Adam(netG.parameters(), lr=lr, betas=(0.5, 0.999))
+    netD = TinyPixelDiscriminator().to(device)
 
-    print("Iniciando entrenamiento...")
+    # Pérdida y optimizadores
+    criterion = nn.BCELoss()
+    optimizerD = optim.Adam(netD.parameters(), lr=lr, betas=(0.5, 0.999))
+    optimizerG = optim.Adam(netG.parameters(), lr=lr, betas=(0.5, 0.999))
+
+    fixed_noise = torch.randn(64, latent_dim, 1, 1, device=device)
+
+    print("🚀 Iniciando entrenamiento GAN...")
     for epoch in range(epochs):
-        for i, data in enumerate(dataloader):
-            # Aquí iría la lógica de entrenamiento (GAN o Diffusion)
-            # Por ahora es una estructura base para mostrar el proceso
-            pass
+        for i, real_images in enumerate(dataloader):
+            curr_batch_size = real_images.size(0)
+            real_images = real_images.to(device)
 
+            # --- 1. ENTRENAR DISCRIMINADOR ---
+            netD.zero_grad()
+            # Datos reales
+            label = torch.full((curr_batch_size,), 1.0, device=device)
+            output = netD(real_images).view(-1)
+            errD_real = criterion(output, label)
+            errD_real.backward()
+
+            # Datos falsos
+            noise = torch.randn(curr_batch_size, latent_dim, 1, 1, device=device)
+            fake_images = netG(noise)
+            label.fill_(0.0)
+            output = netD(fake_images.detach()).view(-1)
+            errD_fake = criterion(output, label)
+            errD_fake.backward()
+
+            optimizerD.step()
+
+            # --- 2. ENTRENAR GENERADOR ---
+            netG.zero_grad()
+            label.fill_(1.0) # Queremos que el discriminador piense que son reales
+            output = netD(fake_images).view(-1)
+            errG = criterion(output, label)
+            errG.backward()
+
+            optimizerG.step()
+
+        # Progreso cada época
+        print(f"[{epoch}/{epochs}] Loss_D: {errD_real+errD_fake:.4f} Loss_G: {errG:.4f}")
+
+        # Guardar muestras y checkpoints periódicamente
         if epoch % 10 == 0:
-            print(f"Epoch [{epoch}/{epochs}] completada.")
-            # Guardar checkpoint
-            torch.save(netG.state_dict(), f"checkpoint_pixel_{epoch}.pth")
+            with torch.no_grad():
+                fake = netG(fixed_noise).detach().cpu()
+            utils.save_image(fake, f"muestra_epoch_{epoch}.png", normalize=True)
+            torch.save(netG.state_dict(), f"generator_v1_{epoch}.pth")
 
-    print("Entrenamiento finalizado.")
+    print("✅ Entrenamiento finalizado. El archivo 'generator_v1_final.pth' está listo.")
+    torch.save(netG.state_dict(), "generator_v1_final.pth")
 
 if __name__ == "__main__":
-    # train() # Descomentar para ejecutar
-    print("Script de entrenamiento cargado. Configurado para 32x32 pixel art.")
+    train()
