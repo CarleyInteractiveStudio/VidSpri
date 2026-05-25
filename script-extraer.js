@@ -242,8 +242,23 @@ document.addEventListener('DOMContentLoaded', () => {
     videoFileInput.addEventListener('change', handleVideoSelection);
 
     async function handleVideoSelection() {
-        const file = videoFileInput.files[0];
-        if (file) {
+        const files = Array.from(videoFileInput.files);
+        if (files.length === 0) return;
+
+        // Check if all/any are images
+        const imageFiles = files.filter(f => f.type.startsWith('image/'));
+        const videoFiles = files.filter(f => f.type.startsWith('video/'));
+
+        if (imageFiles.length > 0 && videoFiles.length === 0) {
+            // Direct Background Removal mode
+            extractedFrames = imageFiles.map((blob, index) => ({ id: index, blob }));
+            displayFramePreviews();
+            goToStep(4);
+            return;
+        }
+
+        const file = files[0];
+        if (file && file.type.startsWith('video/')) {
             const url = URL.createObjectURL(file);
             videoPreview.src = url;
             videoPreview.onloadedmetadata = () => {
@@ -660,6 +675,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function sendToProcessingServer(serverUrl, jobId, isSecondPass = false) {
+        if (!serverUrl || serverUrl === 'undefined') {
+            console.error("Invalid server URL received");
+            showToast("Error: No se ha asignado un servidor válido. Reintentando...", "error", true);
+            setTimeout(() => checkPosition(jobId), 3000);
+            return;
+        }
+
         currentProcessingStep = 'uploading';
         const dict = window.translations[currentLang] || window.translations['es'];
         progressText.textContent = (isSecondPass ? 'Segunda pasada: ' : '') + (dict['sending_frames'] || 'Enviando fotogramas...') + ' (0%)';
@@ -714,6 +736,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         } catch (e) {
                             reject(new Error("Error al procesar respuesta del servidor"));
                         }
+                    } else if (xhr.status === 404) {
+                        reject(new Error("Servidor no listo (404). El servidor podría estar despertando o hubo un error de ruta. Por favor, reintenta en unos segundos."));
+                    } else if (xhr.status === 503) {
+                        reject(new Error("Servidor en mantenimiento o sobrecargado (503). Por favor, intenta de nuevo en un momento."));
                     } else {
                         reject(new Error("Error en el servidor: " + xhr.status));
                     }

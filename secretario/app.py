@@ -45,6 +45,7 @@ async def update_status(status: str = None):
             "id": SERVER_ID,
             "url": SERVER_URL,
             "status": current_status,
+            "service_type": "video",
             "last_heartbeat": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
 

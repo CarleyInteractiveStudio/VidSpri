@@ -20,7 +20,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://tladrluezsmmhjbhupgb.supa
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_zb8TGeURLnafHWDffG9DMg_PtFO_kmv")
 SERVER_ID = os.environ.get("SERVER_ID", "animador-worker")
 SERVER_URL = os.environ.get("SERVER_URL", "https://carley1234-animacion.hf.space")
-SERVICE_TYPE = "video"
+SERVICE_TYPE = "animation"
 
 print(f"[{datetime.datetime.now()}] Initializing Supabase Client with URL: {SUPABASE_URL}", flush=True)
 try:
