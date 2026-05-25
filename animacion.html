@@ -50,6 +50,18 @@
             image-rendering: pixelated;
         }
     </style>
+
+    <!-- Social Media Metadata -->
+    <meta property="og:title" content="Animador de Personajes IA - VidSpri">
+    <meta property="og:description" content="VidSpri: Crea hojas de sprites y animaciones para tus videojuegos en segundos">
+    <meta property="og:image" content="https://vidspri.online/logo.png">
+    <meta property="og:url" content="https://vidspri.online/animacion.html">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Animador de Personajes IA - VidSpri">
+    <meta name="twitter:description" content="VidSpri: Crea hojas de sprites y animaciones para tus videojuegos en segundos">
+    <meta name="twitter:image" content="https://vidspri.online/logo.png">
+    <!-- End Social Media Metadata -->
 </head>
 <body>
     <div class="header-actions">
@@ -286,7 +298,7 @@
                     .from('processing_queue')
                     .insert({
                         user_id: userId,
-                        job_type: 'video',
+                        job_type: 'animation',
                         status: 'waiting'
                     })
                     .select().single();
@@ -351,13 +363,14 @@
             document.getElementById('status-text').textContent = (dict.sending_data || "Enviando datos...");
             document.getElementById('progress-bar').style.width = '10%';
 
+            const serverUrl = job.assigned_server_url || CONFIG.ANIMADOR_URL;
             const formData = new FormData();
             formData.append('file', selectedFile);
             formData.append('prompt', document.getElementById('anim-prompt').value);
             formData.append('num_frames', 16);
 
             try {
-                const response = await fetch(`${CONFIG.ANIMADOR_URL}/animate/${job.id}`, {
+                const response = await fetch(`${serverUrl}/animate/${job.id}`, {
                     method: 'POST',
                     body: formData
                 });

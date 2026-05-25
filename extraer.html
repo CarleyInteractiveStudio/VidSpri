@@ -9,6 +9,18 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="logo.png" type="image/png">
+
+    <!-- Social Media Metadata -->
+    <meta property="og:title" content="Extraer Fotogramas - VidSpri">
+    <meta property="og:description" content="VidSpri: Crea hojas de sprites y animaciones para tus videojuegos en segundos">
+    <meta property="og:image" content="https://vidspri.online/logo.png">
+    <meta property="og:url" content="https://vidspri.online/extraer.html">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Extraer Fotogramas - VidSpri">
+    <meta name="twitter:description" content="VidSpri: Crea hojas de sprites y animaciones para tus videojuegos en segundos">
+    <meta name="twitter:image" content="https://vidspri.online/logo.png">
+    <!-- End Social Media Metadata -->
 </head>
 <body>
     <div class="header-actions">
@@ -21,7 +33,6 @@
     <div class="container">
         <h1>
             <img src="logo.png" alt="VidSpri Logo" class="logo">
-            <span data-i18n="gen_video">Generar Sprite a partir de Video</span>
         </h1>
 
         <!-- Stepper -->
@@ -54,13 +65,14 @@
 
         <!-- Step 1: Upload -->
         <section id="video-section">
-            <h2 data-i18n="step_upload">Subir Video</h2>
+            <h2 data-i18n="step_upload">Subir Video o Imágenes</h2>
             <div id="drag-drop-area-video" class="drag-drop-area">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-upload-cloud"><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path></svg>
-                <p id="file-status" data-i18n="drag_drop">Arrastra y suelta tu video aquí o haz clic</p>
+                <p id="file-status" data-i18n="drag_drop_video">Arrastra y suelta tu video o imágenes aquí o haz clic</p>
                 <button type="button" id="custom-file-btn" class="pill-btn" data-i18n="choose_file">Seleccionar Archivo</button>
-                <input type="file" id="video-file" name="video_file" accept="video/*" class="hidden" required>
+                <input type="file" id="video-file" name="video_file" accept="video/*,image/*" multiple class="hidden" required>
             </div>
+            <p class="small-text" style="text-align: center; margin-top: 10px; opacity: 0.6;">Formatos soportados: MP4, WEBM, PNG, JPG (Máx. 10MB)</p>
         </section>
 
         <!-- Step 2: Edit -->
