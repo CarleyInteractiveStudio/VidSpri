@@ -28,7 +28,10 @@
                     <span data-i18n="login">Iniciar Sesión</span>
                 </button>
                 <div id="user-info" class="hidden">
-                    <p><span data-i18n="logged_as">Identificado como:</span> <strong id="user-email"></strong></p>
+                    <div id="welcome-msg" class="welcome-banner" style="margin-bottom: 1.5rem;">
+                        <span data-i18n="welcome">Bienvenido</span>, <strong id="welcome-name"></strong>
+                    </div>
+                    <p style="margin-bottom: 1rem;"><span data-i18n="logged_as">Identificado como:</span> <strong id="user-email"></strong></p>
                     <button type="button" id="logout-btn" class="pill-btn" style="margin: 0 auto;">Cerrar Sesión</button>
                 </div>
             </div>
@@ -36,11 +39,34 @@
 
         <div class="modern-card">
             <h3 data-i18n="priority_access">Más configuraciones</h3>
-            <div style="display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap;">
-                <button type="button" onclick="window.location.href='codigos.html'" class="pill-btn" data-i18n="go_to_redeem" style="height: 46px; white-space: nowrap; flex: 1; min-width: 140px;">Canjear Código</button>
-                <button type="button" id="open-lang-modal" class="pill-btn" style="height: 46px; white-space: nowrap; flex: 1; min-width: 140px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <button type="button" onclick="window.location.href='codigos.html'" class="pill-btn" data-i18n="go_to_redeem" style="height: 46px; width: 100%; justify-content: center;">Canjear Código</button>
+                <button type="button" id="open-lang-modal" class="pill-btn" style="height: 46px; width: 100%; justify-content: center;">
                     <span id="current-lang-name">Español</span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-globe"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                </button>
+
+                <button type="button" onclick="window.location.href='ayuda.html'" class="pill-btn" style="height: 46px; width: 100%; justify-content: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    <span data-i18n="help">Ayuda</span>
+                </button>
+                <button type="button" onclick="window.location.href='privacidad.html'" class="pill-btn" style="height: 46px; width: 100%; justify-content: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-shield"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    <span data-i18n="privacy">Privacidad</span>
+                </button>
+
+                <button type="button" onclick="window.location.href='https://carleystudio.com/vid-spri.html#donations'" class="pill-btn highlight-btn" style="height: 46px; width: 100%; justify-content: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-heart"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    <span data-i18n="support">Donar</span>
+                </button>
+                <button type="button" onclick="window.location.href='https://carleystudio.com/vid-spri.html#claims'" class="pill-btn" style="height: 46px; width: 100%; justify-content: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-alert-circle"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <span data-i18n="claims">Reclamaciones</span>
+                </button>
+
+                <button type="button" onclick="window.location.href='https://carleystudio.com/vid-spri.html#credits'" class="pill-btn" style="height: 46px; width: 100%; justify-content: center; grid-column: span 2;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-users"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    <span data-i18n="credits">Créditos</span>
                 </button>
             </div>
         </div>
@@ -82,14 +108,17 @@
         // Minimal logic for the config page
         document.addEventListener('DOMContentLoaded', () => {
             const bridgeIframe = document.getElementById('sso-bridge');
-            if (bridgeIframe) {
-                bridgeIframe.onload = () => {
-                    const token = localStorage.getItem('vidspri_sso_token');
+
+            function requestSessionCheck() {
+                if (bridgeIframe && bridgeIframe.contentWindow) {
                     bridgeIframe.contentWindow.postMessage({
-                        type: 'CHECK_SESSION',
-                        token: token
-                    }, 'https://carleystudio.com');
-                };
+                        type: 'CHECK_SESSION'
+                    }, '*');
+                }
+            }
+
+            if (bridgeIframe) {
+                bridgeIframe.onload = requestSessionCheck;
             }
 
             const currentLang = localStorage.getItem('vidspri_lang') || 'es';
@@ -111,40 +140,98 @@
             const userEmailEl = document.getElementById('user-email');
 
             window.addEventListener('message', (event) => {
-                if (event.origin !== 'https://carleystudio.com') return;
+                const isAuthorizedOrigin = event.origin === 'https://carleystudio.com' || event.origin === 'https://www.carleystudio.com';
+                if (!isAuthorizedOrigin) return;
+
+                if (event.data.type === 'BRIDGE_READY') {
+                    requestSessionCheck();
+                }
+
                 if (event.data.type === 'SESSION_RESPONSE') {
-                    const user = event.data.payload;
-                    if (user) {
-                        loginBtn.classList.add('hidden');
-                        userInfo.classList.remove('hidden');
-                        // Use display_name if available, otherwise email
-                        userEmailEl.textContent = user.display_name || user.username || user.email;
-                        localStorage.setItem('vidspri_user_id', user.id);
+                    const session = event.data.payload;
+                    if (session && session.user) {
+                        handleUserFound(session.user);
+                    } else {
+                        console.log("Standard session check returned null, trying profile fallback...");
+                        requestProfileFallback();
+                    }
+                }
+
+                if (event.data.type === 'SUPABASE_RESPONSE') {
+                    const { data } = event.data.payload;
+                    if (data && data[0]) {
+                        handleUserFound(data[0]);
                     }
                 }
             });
+
+            function handleUserFound(user) {
+                if (!user || !user.id) return;
+
+                loginBtn.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+
+                const meta = user.user_metadata || user;
+                const displayName = meta.username || meta.display_name || meta.full_name || user.email || user.id;
+
+                userEmailEl.textContent = displayName;
+                document.getElementById('welcome-name').textContent = displayName;
+                localStorage.setItem('vidspri_user_id', user.id);
+                localStorage.setItem('vidspri_user_name', displayName);
+            }
+
+            function requestProfileFallback() {
+                const savedId = localStorage.getItem('vidspri_user_id');
+                if (!savedId || !bridgeIframe || !bridgeIframe.contentWindow) {
+                    // Only show login button if we don't have a locally saved user
+                    if (!localStorage.getItem('vidspri_user_name')) {
+                        loginBtn.classList.remove('hidden');
+                        userInfo.classList.add('hidden');
+                    }
+                    return;
+                }
+
+                bridgeIframe.contentWindow.postMessage({
+                    type: 'SUPABASE_CALL',
+                    payload: {
+                        table: 'profiles',
+                        method: 'select',
+                        query: '*',
+                        filter: { id: savedId }
+                    }
+                }, '*');
+            }
+
+            const savedName = localStorage.getItem('vidspri_user_name');
+            if (savedName) {
+                loginBtn.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+                userEmailEl.textContent = savedName;
+                document.getElementById('welcome-name').textContent = savedName;
+            }
 
             // Capture SSO token from URL hash
             const hash = window.location.hash.substring(1);
             const params = new URLSearchParams(hash);
             const token = params.get('sso_token');
+            const userIdFromHash = params.get('user_id');
+
             if (token) {
                 console.log("¡Sesión iniciada con éxito!");
                 localStorage.setItem('vidspri_sso_token', token);
+                if (userIdFromHash) {
+                    localStorage.setItem('vidspri_user_id', userIdFromHash);
+                }
+                window.location.hash = ""; // Clean URL
 
-                // Trigger a bridge check to get user details
-                if (bridgeIframe && bridgeIframe.contentWindow) {
-                    bridgeIframe.contentWindow.postMessage({
-                        type: 'CHECK_SESSION',
-                        token: token
-                    }, 'https://carleystudio.com');
+                // Show UI immediately if we have a name
+                const savedName = localStorage.getItem('vidspri_user_name');
+                if (savedName) {
+                    loginBtn.classList.add('hidden');
+                    userInfo.classList.remove('hidden');
                 }
 
-                // Optional: show a success message immediately
-                loginBtn.classList.add('hidden');
-                userInfo.classList.remove('hidden');
-
-                window.location.hash = ""; // Clean URL
+                requestSessionCheck();
             }
 
             loginBtn.onclick = () => {
@@ -154,8 +241,9 @@
             };
 
             logoutBtn.onclick = () => {
-                // Simplified logout for now
                 localStorage.removeItem('vidspri_user_id');
+                localStorage.removeItem('vidspri_user_name');
+                localStorage.removeItem('vidspri_sso_token');
                 location.reload();
             };
 

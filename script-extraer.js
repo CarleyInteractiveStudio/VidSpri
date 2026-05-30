@@ -34,6 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const reprocessBtn = document.getElementById('reprocess-btn');
     const resultFramesOutput = document.getElementById('result-frames-output');
     const toastContainer = document.getElementById('toast-container');
+    const priorityActions = document.getElementById('queue-priority-actions');
+    const priorityBalanceInfo = document.getElementById('priority-balance-info');
+    const usePriorityBtn = document.getElementById('use-priority-btn');
+    const getPriorityLink = document.getElementById('get-priority-link');
 
     const generateBtn = document.getElementById('generate-sprite-btn');
 
@@ -83,20 +87,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- SSO Logic (Basic) ---
     function initSSO() {
+        function requestSessionCheck() {
+            if (bridgeIframe && bridgeIframe.contentWindow) {
+                bridgeIframe.contentWindow.postMessage({ type: 'CHECK_SESSION' }, '*');
+            }
+        }
+
         window.addEventListener('message', (event) => {
-            if (event.origin !== 'https://carleystudio.com') return;
+            const isAuthorizedOrigin = event.origin === 'https://carleystudio.com' || event.origin === 'https://www.carleystudio.com';
+            if (!isAuthorizedOrigin) return;
+
+            if (event.data.type === 'BRIDGE_READY') {
+                requestSessionCheck();
+            }
+
             if (event.data.type === 'SESSION_RESPONSE') {
-                const user = event.data.payload;
-                if (user) {
-                    userId = user.id;
+                const session = event.data.payload;
+                if (session && session.user) {
+                    userId = session.user.id;
+                    localStorage.setItem('vidspri_user_id', userId);
+                }
+            }
+
+            if (event.data.type === 'SUPABASE_RESPONSE') {
+                const { data } = event.data.payload;
+                if (data && data[0]) {
+                    userId = data[0].id;
                     localStorage.setItem('vidspri_user_id', userId);
                 }
             }
         });
+
         if (bridgeIframe) {
-            bridgeIframe.onload = () => {
-                bridgeIframe.contentWindow.postMessage({ type: 'CHECK_SESSION' }, 'https://carleystudio.com');
-            };
+            bridgeIframe.onload = requestSessionCheck;
+        }
+
+        // Fallback
+        if (bridgeIframe && bridgeIframe.contentWindow) {
+            requestSessionCheck();
         }
     }
 
@@ -341,8 +369,6 @@ document.addEventListener('DOMContentLoaded', () => {
         progressText.textContent = dict['joining'] || 'Conectando...';
         updateProgressBar(5);
 
-        const isPriority = localStorage.getItem('vidspri_priority_active') === 'true';
-
         try {
             // First, cancel any previous jobs from this user
             await cleanupPreviousJobs();
@@ -351,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .from('processing_queue')
                 .insert([{
                     user_id: userId,
-                    is_priority: isPriority,
+                    is_priority: false, // Default to false, user will decide in queue
                     total_frames: extractedFrames.length,
                     processed_frames: 0,
                     last_heartbeat: new Date().toISOString()
@@ -378,6 +404,68 @@ document.addEventListener('DOMContentLoaded', () => {
             stopHeartbeat();
         }
     });
+
+    usePriorityBtn.onclick = async () => {
+        if (!currentJobId) return;
+        usePriorityBtn.disabled = true;
+        const { data, error } = await supabaseClient.rpc('use_priority_credit', {
+            user_id_param: userId,
+            job_id_param: currentJobId
+        });
+
+        if (error) {
+            showToast(error.message, "error", true);
+        } else if (!data.success) {
+            showToast(data.message, "error");
+        } else {
+            showToast("priority_active", "success");
+            updatePriorityUI();
+        }
+        usePriorityBtn.disabled = false;
+    };
+
+    async function updatePriorityUI() {
+        if (currentProcessingStep !== 'waiting') {
+            priorityActions.classList.add('hidden');
+            return;
+        }
+
+        const { data: userP } = await supabaseClient
+            .from('user_priorities')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+
+        const { data: jobP } = await supabaseClient
+            .from('processing_queue')
+            .select('is_priority')
+            .eq('id', currentJobId)
+            .single();
+
+        if (jobP && jobP.is_priority) {
+            priorityActions.classList.add('hidden');
+            return;
+        }
+
+        priorityActions.classList.remove('hidden');
+        const dict = window.translations[currentLang] || window.translations['es'];
+        const uses = (userP && userP.remaining_uses) || 0;
+        const hasTimePriority = userP && userP.priority_until && new Date(userP.priority_until) > new Date();
+
+        if (hasTimePriority) {
+            priorityBalanceInfo.textContent = dict['priority_active'];
+            usePriorityBtn.style.display = 'flex';
+            getPriorityLink.classList.add('hidden');
+        } else if (uses > 0) {
+            priorityBalanceInfo.textContent = (dict['priority_uses'] || 'Uses: ') + uses;
+            usePriorityBtn.style.display = 'flex';
+            getPriorityLink.classList.add('hidden');
+        } else {
+            priorityBalanceInfo.textContent = (dict['priority_uses'] || 'Uses: ') + 0;
+            usePriorityBtn.style.display = 'none';
+            getPriorityLink.classList.remove('hidden');
+        }
+    }
 
     function startQueueTracking(jobId, initialJob) {
         let jobState = initialJob || { id: jobId, status: 'waiting' };
@@ -465,7 +553,12 @@ document.addEventListener('DOMContentLoaded', () => {
             updateProcessingProgress(jobData);
         }
 
-        if (jobData.status !== 'waiting') return;
+        if (jobData.status !== 'waiting') {
+            priorityActions.classList.add('hidden');
+            return;
+        }
+
+        updatePriorityUI();
 
         const { count } = await supabaseClient
             .from('processing_queue')
@@ -571,6 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleProcessingSuccess(frames) {
         currentProcessingStep = 'idle';
+        priorityActions.classList.add('hidden');
         const dict = window.translations[currentLang] || window.translations['es'];
         progressText.textContent = dict['done'] || '¡Listo!';
         updateProgressBar(100);

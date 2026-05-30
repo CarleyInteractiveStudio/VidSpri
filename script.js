@@ -59,46 +59,119 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- SSO Logic ---
     function initSSO() {
-        const hash = window.location.hash.substring(1);
-        const params = new URLSearchParams(hash);
-        const ssoToken = params.get('sso_token');
+        let sessionReceived = false;
 
-        if (ssoToken) {
-            console.log("¡Sesión iniciada con éxito!");
-            localStorage.setItem('vidspri_sso_token', ssoToken);
+        // 1. Listen for bridge responses
+        window.addEventListener('message', (event) => {
+            const isAuthorizedOrigin = event.origin === 'https://carleystudio.com' || event.origin === 'https://www.carleystudio.com';
+            if (!isAuthorizedOrigin) return;
 
-            // Trigger a check via bridge to get user details
-            if (bridgeIframe && bridgeIframe.contentWindow) {
-                bridgeIframe.contentWindow.postMessage({
-                    type: 'CHECK_SESSION',
-                    token: ssoToken
-                }, 'https://carleystudio.com');
+            if (event.data.type === 'BRIDGE_READY') {
+                requestSessionCheck();
             }
 
-            window.location.hash = "";
-            showToast("¡Sesión iniciada con éxito!", "success", true);
-        }
-
-        window.addEventListener('message', (event) => {
-            if (event.origin !== 'https://carleystudio.com') return;
             if (event.data.type === 'SESSION_RESPONSE') {
-                const user = event.data.payload;
-                if (user) {
-                    userId = user.id;
-                    localStorage.setItem('vidspri_user_id', userId);
+                sessionReceived = true;
+                const session = event.data.payload;
+                if (session && session.user) {
+                    handleUserFound(session.user);
+                } else {
+                    console.log("Standard session check returned null, trying profile fallback...");
+                    requestProfileFallback();
+                }
+            }
+
+            if (event.data.type === 'SUPABASE_RESPONSE') {
+                const { data, error } = event.data.payload;
+                if (data && data[0]) {
+                    handleUserFound(data[0], true);
                 }
             }
         });
 
-        if (bridgeIframe) {
-            bridgeIframe.onload = () => {
-                const token = localStorage.getItem('vidspri_sso_token');
+        function handleUserFound(user, isFromProfile = false) {
+            if (!user || !user.id) return;
+
+            userId = user.id;
+            localStorage.setItem('vidspri_user_id', userId);
+
+            // Extract display name with multiple fallbacks
+            const meta = user.user_metadata || user;
+            const displayName = meta.username || meta.display_name || meta.full_name || user.email || (isFromProfile ? null : user.id);
+
+            if (displayName) {
+                localStorage.setItem('vidspri_user_name', displayName);
+                updateWelcomeMessage(displayName);
+            }
+        }
+
+        function requestSessionCheck() {
+            if (bridgeIframe && bridgeIframe.contentWindow) {
                 bridgeIframe.contentWindow.postMessage({
                     type: 'CHECK_SESSION',
-                    token: token,
-                    requestId: 'initial-check'
-                }, 'https://carleystudio.com');
-            };
+                    requestId: 'poll-' + Date.now()
+                }, '*');
+            }
+        }
+
+        function requestProfileFallback() {
+            const savedId = localStorage.getItem('vidspri_user_id');
+            if (!savedId || !bridgeIframe || !bridgeIframe.contentWindow) return;
+
+            bridgeIframe.contentWindow.postMessage({
+                type: 'SUPABASE_CALL',
+                payload: {
+                    table: 'profiles',
+                    method: 'select',
+                    query: '*',
+                    filter: { id: savedId }
+                },
+                requestId: 'fallback-' + Date.now()
+            }, '*');
+        }
+
+        // 2. Handle incoming data from URL redirect (fast-path)
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const ssoToken = params.get('sso_token');
+        const userIdFromHash = params.get('user_id');
+
+        if (ssoToken) {
+            localStorage.setItem('vidspri_sso_token', ssoToken);
+            if (userIdFromHash) {
+                userId = userIdFromHash;
+                localStorage.setItem('vidspri_user_id', userId);
+            }
+            window.location.hash = "";
+            showToast("¡Sesión iniciada con éxito!", "success", true);
+        }
+
+        // 3. Robust initialization
+        if (bridgeIframe) {
+            bridgeIframe.onload = requestSessionCheck;
+        }
+
+        // Poll for a short time to ensure we catch the bridge readiness
+        let pollCount = 0;
+        const pollInterval = setInterval(() => {
+            if (sessionReceived || pollCount > 5) {
+                clearInterval(pollInterval);
+                return;
+            }
+            requestSessionCheck();
+            pollCount++;
+        }, 1000);
+
+        const savedName = localStorage.getItem('vidspri_user_name');
+        if (savedName) updateWelcomeMessage(savedName);
+    }
+
+    function updateWelcomeMessage(name) {
+        const welcomeMsg = document.getElementById('welcome-msg');
+        const welcomeName = document.getElementById('welcome-name');
+        if (welcomeMsg && welcomeName) {
+            welcomeName.textContent = name || "Usuario";
+            welcomeMsg.classList.remove('hidden');
         }
     }
 
