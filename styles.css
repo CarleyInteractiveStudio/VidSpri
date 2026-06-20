@@ -258,6 +258,35 @@ p {
     margin-bottom: 1.5rem;
 }
 
+.custom-select {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 12px;
+    outline: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+    padding-right: 35px;
+}
+
+.custom-select:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--primary);
+}
+
+.custom-select option {
+    background: #1a1a2e;
+    color: white;
+}
+
 .pill-btn {
     background: var(--card-bg);
     border: 1px solid var(--glass-border);
@@ -536,7 +565,7 @@ label {
     color: var(--text-dim);
 }
 
-input[type="number"], textarea {
+input[type="number"], textarea, select {
     width: 100%;
     background: rgba(0,0,0,0.3);
     border: 1px solid var(--glass-border);
@@ -657,6 +686,8 @@ input:focus, textarea:focus {
     width: 100%;
     height: 80px;
     object-fit: contain;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
 }
 
 .result-frame .check-badge {
@@ -900,4 +931,140 @@ footer {
 .welcome-banner strong {
     color: #00f2ff;
     text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+}
+
+/* Dual Range Slider for Audio Trimmer */
+.range-slider-container {
+    position: relative;
+    height: 80px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 16px;
+    margin: 35px 0;
+    overflow: visible;
+    border: 2px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+}
+
+#waveform-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.range-slider-container input[type=range] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 100%;
+    outline: none;
+    position: absolute;
+    margin: 0;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: none;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Chrome/Safari Thumbs */
+.range-slider-container input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    pointer-events: auto;
+    height: 80px;
+    width: 6px;
+    background: #fff;
+    border: none;
+    border-radius: 10px;
+    cursor: ew-resize;
+    box-shadow: 0 0 10px rgba(124, 58, 237, 0.8);
+    z-index: 20;
+}
+
+.range-slider-container input[type=range]::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    background: #7c3aed;
+}
+
+/* Firefox Thumbs */
+.range-slider-container input[type=range]::-moz-range-thumb {
+    -moz-appearance: none;
+    appearance: none;
+    pointer-events: auto;
+    height: 80px;
+    width: 6px;
+    background: #fff;
+    border: none;
+    border-radius: 10px;
+    cursor: ew-resize;
+    box-shadow: 0 0 10px rgba(124, 58, 237, 0.8);
+    z-index: 20;
+}
+
+/* Hide Track */
+.range-slider-container input[type=range]::-webkit-slider-runnable-track {
+    background: transparent;
+    border: none;
+}
+
+.range-slider-container input[type=range]::-moz-range-track {
+    background: transparent;
+    border: none;
+}
+
+#range-highlight {
+    position: absolute;
+    height: 100%;
+    background: rgba(124, 58, 237, 0.3);
+    border-top: 2px solid #7c3aed;
+    border-bottom: 2px solid #7c3aed;
+    pointer-events: none;
+    z-index: 5;
+    left: 0;
+    right: 0;
+}
+
+.custom-select {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--glass-border);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 12px;
+    outline: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2300f2ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 40px;
+}
+
+.custom-select:hover {
+    border-color: var(--primary);
+    box-shadow: 0 0 10px rgba(0, 242, 255, 0.1);
+}
+
+.custom-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+}
+
+#final-sprite-preview-container img {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    transition: transform 0.3s ease;
+}
+
+#final-sprite-preview-container img:hover {
+    transform: scale(1.05);
 }

@@ -10,24 +10,39 @@
     <link rel="icon" href="logo.png" type="image/png">
     <style>
         .preview-area {
-            background: rgba(0,0,0,0.4);
-            border-radius: 24px;
-            padding: 3rem;
-            margin-bottom: 2rem;
-            min-height: 400px;
+            background: radial-gradient(circle at center, rgba(112, 0, 255, 0.1) 0%, rgba(0, 0, 0, 0.6) 100%);
+            border-radius: 32px;
+            padding: 4rem;
+            margin-bottom: 2.5rem;
+            min-height: 450px;
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
-            border: 1px solid var(--glass-border);
-            box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            box-shadow:
+                inset 0 0 80px rgba(0,0,0,0.8),
+                0 10px 40px rgba(0,0,0,0.4);
             overflow: hidden;
+            backdrop-filter: blur(20px);
+        }
+        .preview-area::before {
+            content: '';
+            position: absolute;
+            width: 150%;
+            height: 150%;
+            background: conic-gradient(from 0deg at 50% 50%, transparent, rgba(0, 242, 255, 0.05), transparent);
+            animation: rotate 10s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
         #anim-canvas {
-            max-width: 100%;
-            max-height: 400px;
             image-rendering: pixelated;
             filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+            transition: transform 0.2s ease;
         }
         .controls-grid {
             display: grid;
@@ -69,16 +84,24 @@
                 </a>
             </div>
 
-            <div class="modern-card">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <button type="button" class="pill-btn" onclick="resetUpload()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-upload"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    Cargar otro Sprite
+                </button>
+            </div>
+
+
+            <div id="manual-adjust-card" class="modern-card">
                 <h3 data-i18n="manual_adjust">Ajuste Manual</h3>
                 <div class="controls-grid">
                     <div class="form-group">
                         <label data-i18n="cols">Columnas</label>
-                        <input type="number" id="cols-input" value="1" min="1">
+                        <input type="number" id="cols-input" value="1" min="1" style="width: 100%;">
                     </div>
                     <div class="form-group">
                         <label data-i18n="rows">Filas</label>
-                        <input type="number" id="rows-input" value="1" min="1">
+                        <input type="number" id="rows-input" value="1" min="1" style="width: 100%;">
                     </div>
                 </div>
                 <button type="button" class="action-btn" id="apply-btn" data-i18n="apply">Aplicar</button>
@@ -110,13 +133,15 @@
                     document.getElementById('cols-input').value = cols;
                     document.getElementById('rows-input').value = rows;
                     document.getElementById('download-sprite-link').href = savedSprite;
+
+                    // Hide manual adjustment if metadata is already present
+                    if (cols > 1 || rows > 1) {
+                        document.getElementById('manual-adjust-card').classList.add('hidden');
+                    }
+
                     startAnimation();
                 };
                 spriteImg.src = savedSprite;
-
-                // Clear after loading to avoid reusing it if user manually uploads something else later
-                // or refreshes to start over. Actually, maybe keep it until they leave?
-                // localStorage.removeItem('vidspri_last_sprite');
             }
         });
 
@@ -157,6 +182,7 @@
         }
 
         function drawFrame() {
+            if (!spriteImg.complete) return;
             const frameW = spriteImg.width / cols;
             const frameH = spriteImg.height / rows;
             const col = currentFrame % cols;
@@ -164,6 +190,20 @@
 
             canvas.width = frameW;
             canvas.height = frameH;
+
+            // Automatic clean integer scaling
+            const maxDimension = 400; // slightly bigger for better presence
+            let scale = 1;
+            if (frameW > 0 && frameH > 0) {
+                const targetScale = Math.min(maxDimension / frameW, maxDimension / frameH);
+                scale = Math.max(1, Math.floor(targetScale));
+                if (scale > 10) scale = 10; // Cap it
+            }
+
+            canvas.style.width = (frameW * scale) + 'px';
+            canvas.style.height = (frameH * scale) + 'px';
+
+            ctx.imageSmoothingEnabled = false;
             ctx.clearRect(0, 0, frameW, frameH);
             ctx.drawImage(spriteImg, col * frameW, row * frameH, frameW, frameH, 0, 0, frameW, frameH);
         }
@@ -173,6 +213,14 @@
             rows = parseInt(document.getElementById('rows-input').value) || 1;
             currentFrame = 0;
         };
+
+        function resetUpload() {
+            if (animInterval) clearInterval(animInterval);
+            localStorage.removeItem('vidspri_last_sprite');
+            localStorage.removeItem('vidspri_last_cols');
+            localStorage.removeItem('vidspri_last_rows');
+            window.location.reload();
+        }
 
         function applyTranslations(lang) {
             const dict = window.translations[lang] || window.translations['es'];

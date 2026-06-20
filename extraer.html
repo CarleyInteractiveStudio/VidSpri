@@ -40,6 +40,11 @@
                 <div class="step-icon"></div>
                 <span data-i18n="step_process">Procesar</span>
             </div>
+            <div class="step-connector"></div>
+            <div class="step" data-step="4">
+                <div class="step-icon"></div>
+                <span data-i18n="step_final">Finalizar</span>
+            </div>
         </div>
 
         <!-- Step 1: Upload -->
@@ -62,13 +67,11 @@
                     <div id="timeline-marker" class="timeline-marker"></div>
                 </div>
 
-                <div class="timeline-container">
-                    <div id="thumbnails-track" class="thumbnails-track"></div>
-                    <div id="range-selector" class="range-selector">
-                        <div class="range-handle left" id="handle-start"></div>
-                        <div class="range-highlight"></div>
-                        <div class="range-handle right" id="handle-end"></div>
-                    </div>
+                <div class="range-slider-container" style="height: 60px; margin: 15px 0 25px 0;">
+                    <div id="thumbnails-track" class="thumbnails-track" style="position: absolute; width: 100%; height: 100%; pointer-events: none;"></div>
+                    <div id="range-highlight"></div>
+                    <input type="range" id="range-start-video" min="0" max="100" value="0" step="0.1" style="height: 100%;">
+                    <input type="range" id="range-end-video" min="0" max="100" value="100" step="0.1" style="height: 100%;">
                 </div>
 
                 <div class="editor-controls">
@@ -122,17 +125,60 @@
             </div>
         </section>
 
+        <!-- Step 4: Finalize -->
         <section id="result-container" class="hidden">
-            <h2 data-i18n="done">¡Listo!</h2>
+            <h2 data-i18n="step_final">Finalizar</h2>
+
             <div class="result-frames-grid" id="result-frames-output"></div>
             <p class="small-text" style="text-align: center; margin-bottom: 10px; opacity: 0.8;" data-i18n="reprocess_tip">Haz clic en los cuadros que aún tienen fondo para volver a procesarlos.</p>
+
             <div style="text-align: center; margin-bottom: 20px;">
-                <button type="button" id="reprocess-btn" class="pill-btn highlight-btn hidden">
+                <button type="button" id="reprocess-btn" class="pill-btn highlight-btn hidden" style="margin: 0 auto;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                    Re-procesar Seleccionados
+                    <span data-i18n="reprocess_selected">Re-procesar Seleccionados</span>
                 </button>
             </div>
-            <img id="sprite-image" src="" alt="Sprite Sheet">
+
+            <div class="modern-card" style="text-align: left; margin-bottom: 25px; padding: 20px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
+                    <div style="flex: 1; min-width: 250px;">
+                        <h3 style="font-size: 1rem; color: var(--primary); margin-bottom: 10px;">Ajustes de Exportación</h3>
+                        <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                            <input type="checkbox" id="smart-crop-check" checked style="width: 20px; height: 20px; accent-color: var(--primary);">
+                            <label for="smart-crop-check" style="margin: 0; color: white; font-size: 0.9rem;" data-i18n="smart_crop">Recorte Inteligente (Ajustar personaje)</label>
+                        </div>
+
+                        <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                            <input type="checkbox" id="pixel-art-check" checked style="width: 20px; height: 20px; accent-color: var(--primary);">
+                            <label for="pixel-art-check" style="margin: 0; color: white; font-size: 0.9rem;" data-i18n="pixel_art_mode">Modo Pixel Art (Escalado nítido)</label>
+                        </div>
+
+                        <div class="export-size-control">
+                            <label for="export-size" style="display: block; font-size: 0.8rem; margin-bottom: 5px; opacity: 0.8;">Tamaño por cuadro:</label>
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                <select id="export-size" class="custom-select" style="flex: 1; min-width: 100px;">
+                                    <option value="original">Original</option>
+                                    <option value="16">16 x 16</option>
+                                    <option value="32" selected>32 x 32</option>
+                                    <option value="64">64 x 64</option>
+                                    <option value="custom">Personalizado</option>
+                                </select>
+                                <div id="custom-size-inputs" class="hidden" style="display: flex; gap: 5px; align-items: center;">
+                                    <input type="number" id="custom-width" value="32" min="8" max="512" style="width: 55px; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 8px; color: white;">
+                                    <span style="color: white; opacity: 0.5;">x</span>
+                                    <input type="number" id="custom-height" value="32" min="8" max="512" style="width: 55px; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 8px; color: white;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="final-sprite-preview-container" style="flex: 1; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                        <img id="sprite-image" src="" alt="Sprite Sheet" style="max-width: 100%; border: 1px dashed var(--primary); border-radius: 5px; padding: 5px; background: rgba(255,255,255,0.05);">
+                        <span style="font-size: 0.7rem; opacity: 0.5; margin-top: 5px;">Vista previa del Sprite Sheet</span>
+                    </div>
+                </div>
+            </div>
+
             <div class="result-actions">
                 <button type="button" onclick="location.reload()" class="pill-btn">Procesar otro</button>
                 <div class="action-group-right">

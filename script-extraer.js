@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Global State ---
     let extractedFrames = [];
+    let processedFrameBlobs = []; // Store raw blobs from server for re-processing logic
+    let isSecondPassMode = false;
     let currentJobId = null;
     let heartbeatInterval = null;
     let positionTimer = null;
@@ -21,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoSection = document.getElementById('video-section');
     const editorSection = document.getElementById('editor-section');
     const framePreviewContainer = document.getElementById('frame-preview-container');
+    const resultContainer = document.getElementById('result-container');
     const stepperContainer = document.getElementById('stepper-container');
     const steps = document.querySelectorAll('.step');
 
@@ -28,9 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressText = document.getElementById('progress-text');
     const etaText = document.getElementById('eta-text');
     const progressBarInner = document.getElementById('progress-bar-inner');
-    const resultContainer = document.getElementById('result-container');
     const spriteImage = document.getElementById('sprite-image');
     const downloadLink = document.getElementById('download-link');
+    const downloadLinkQuick = document.getElementById('download-link-quick');
     const previewAnimBtn = document.getElementById('preview-anim-btn');
     const reprocessBtn = document.getElementById('reprocess-btn');
     const resultFramesOutput = document.getElementById('result-frames-output');
@@ -49,14 +52,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Editor Elements
     const thumbnailsTrack = document.getElementById('thumbnails-track');
-    const rangeHighlight = document.querySelector('.range-highlight');
-    const handleStart = document.getElementById('handle-start');
-    const handleEnd = document.getElementById('handle-end');
+    const rangeHighlight = document.getElementById('range-highlight');
+    const rangeStartInput = document.getElementById('range-start-video');
+    const rangeEndInput = document.getElementById('range-end-video');
     const timelineMarker = document.getElementById('timeline-marker');
     const manualInputToggle = document.getElementById('manual-input-toggle');
     const manualTimeInputs = document.getElementById('manual-time-inputs');
     const startTimeInput = document.getElementById('start-time');
     const endTimeInput = document.getElementById('end-time');
+
+    const smartCropCheck = document.getElementById('smart-crop-check');
+    const pixelArtCheck = document.getElementById('pixel-art-check');
+    const exportSizeSelect = document.getElementById('export-size');
+    const customSizeInputs = document.getElementById('custom-size-inputs');
+    const customWidthInput = document.getElementById('custom-width');
+    const customHeightInput = document.getElementById('custom-height');
 
     // SSO bridge
     const bridgeIframe = document.getElementById('sso-bridge');
@@ -145,10 +155,12 @@ document.addEventListener('DOMContentLoaded', () => {
         videoSection.classList.add('hidden');
         editorSection.classList.add('hidden');
         framePreviewContainer.classList.add('hidden');
+        resultContainer.classList.add('hidden');
 
         if (stepNumber === 1) videoSection.classList.remove('hidden');
         else if (stepNumber === 2) editorSection.classList.remove('hidden');
         else if (stepNumber === 3) framePreviewContainer.classList.remove('hidden');
+        else if (stepNumber === 4) resultContainer.classList.remove('hidden');
     }
 
     // --- Drag & Drop ---
@@ -194,6 +206,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         await new Promise(r => video.onloadedmetadata = r);
         const duration = video.duration;
+
+        rangeStartInput.max = duration;
+        rangeEndInput.max = duration;
+        rangeStartInput.value = 0;
+        rangeEndInput.value = duration;
+        startTimeInput.value = 0;
+        endTimeInput.value = duration.toFixed(2);
+
         const thumbCount = 10;
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -206,52 +226,34 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const img = document.createElement('img');
             img.src = canvas.toDataURL('image/jpeg', 0.5);
+            img.style.width = `${100 / thumbCount}%`;
             thumbnailsTrack.appendChild(img);
         }
         updateRangeUI();
     }
 
-    let isDraggingStart = false;
-    let isDraggingEnd = false;
-
-    function getPercentageFromX(x) {
-        const rect = thumbnailsTrack.getBoundingClientRect();
-        let p = (x - rect.left) / rect.width;
-        return Math.max(0, Math.min(1, p));
-    }
-
     function updateRangeUI() {
-        const startP = parseFloat(startTimeInput.value) / videoPreview.duration;
-        const endP = parseFloat(endTimeInput.value) / videoPreview.duration;
+        const dur = videoPreview.duration || 1;
+        let start = parseFloat(rangeStartInput.value);
+        let end = parseFloat(rangeEndInput.value);
 
-        handleStart.style.left = `${startP * 100}%`;
-        handleEnd.style.left = `${endP * 100}%`;
-        rangeHighlight.style.left = `${startP * 100}%`;
-        rangeHighlight.style.width = `${(endP - startP) * 100}%`;
+        if (start > end) [start, end] = [end, start];
+
+        startTimeInput.value = start.toFixed(2);
+        endTimeInput.value = end.toFixed(2);
+
+        rangeHighlight.style.left = `${(start / dur) * 100}%`;
+        rangeHighlight.style.right = `${100 - (end / dur) * 100}%`;
     }
 
-    handleStart.onmousedown = () => isDraggingStart = true;
-    handleEnd.onmousedown = () => isDraggingEnd = true;
-
-    window.addEventListener('mousemove', (e) => {
-        if (!isDraggingStart && !isDraggingEnd) return;
-        const p = getPercentageFromX(e.clientX);
-        const time = p * videoPreview.duration;
-
-        if (isDraggingStart) {
-            startTimeInput.value = Math.min(time, parseFloat(endTimeInput.value) - 0.1).toFixed(2);
-            videoPreview.currentTime = parseFloat(startTimeInput.value);
-        } else if (isDraggingEnd) {
-            endTimeInput.value = Math.max(time, parseFloat(startTimeInput.value) + 0.1).toFixed(2);
-            videoPreview.currentTime = parseFloat(endTimeInput.value);
-        }
+    rangeStartInput.oninput = () => {
         updateRangeUI();
-    });
-
-    window.addEventListener('mouseup', () => {
-        isDraggingStart = false;
-        isDraggingEnd = false;
-    });
+        videoPreview.currentTime = parseFloat(rangeStartInput.value);
+    };
+    rangeEndInput.oninput = () => {
+        updateRangeUI();
+        videoPreview.currentTime = parseFloat(rangeEndInput.value);
+    };
 
     videoPreview.addEventListener('timeupdate', () => {
         const p = videoPreview.currentTime / videoPreview.duration;
@@ -264,6 +266,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     startTimeInput.addEventListener('change', updateRangeUI);
     endTimeInput.addEventListener('change', updateRangeUI);
+
+    exportSizeSelect.addEventListener('change', () => {
+        customSizeInputs.classList.toggle('hidden', exportSizeSelect.value !== 'custom');
+        updateFinalSpriteSheet();
+    });
+
+    smartCropCheck.addEventListener('change', updateFinalSpriteSheet);
+    pixelArtCheck.addEventListener('change', updateFinalSpriteSheet);
+    customWidthInput.addEventListener('change', updateFinalSpriteSheet);
+    customHeightInput.addEventListener('change', updateFinalSpriteSheet);
 
     // --- Frame Extraction ---
     document.getElementById('extract-frames-btn').addEventListener('click', async () => {
@@ -358,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
         generateBtn.disabled = true;
         progressContainer.classList.remove('hidden');
         const dict = window.translations[currentLang] || window.translations['es'];
-        progressText.textContent = dict['joining'] || 'Conectando...';
+        progressText.textContent = (isSecondPassMode ? 'Segunda pasada: ' : '') + (dict['joining'] || 'Conectando...');
         updateProgressBar(5);
 
         try {
@@ -387,7 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Immediate check in case it was authorized instantly
             if (data[0].status === 'authorized') {
                 isSending = true;
-                sendToProcessingServer(data[0].assigned_server_url, currentJobId);
+                sendToProcessingServer(data[0].assigned_server_url, currentJobId, isSecondPassMode);
             }
         } catch (e) {
             showToast(e.message, "error", true);
@@ -475,7 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (job.status === 'authorized' && !isSending) {
                     isSending = true;
-                    sendToProcessingServer(job.assigned_server_url, jobId);
+                    sendToProcessingServer(job.assigned_server_url, jobId, isSecondPassMode);
                 } else if (job.status === 'processing') {
                     updateProcessingProgress(job);
                 } else if (job.status === 'completed') {
@@ -539,7 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (jobData.status === 'authorized') {
             if (!isSending) {
                 isSending = true;
-                sendToProcessingServer(jobData.assigned_server_url, jobId);
+                sendToProcessingServer(jobData.assigned_server_url, jobId, isSecondPassMode);
             }
             return;
         }
@@ -566,12 +578,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const position = (count || 0) + 1;
 
         if (position === 1) {
-            progressText.textContent = dict['your_turn'] || '¡Es tu turno! Preparando...';
+            progressText.textContent = (dict['your_turn'] || '¡Es tu turno! Preparando...') + " " + (dict['waking_server'] || 'Despertando servidor...');
 
             // Proactive wake-up: Ping all video servers
             const { data: servers } = await supabaseClient.from('server_status').select('url').eq('service_type', 'video');
             if (servers) {
-                servers.forEach(s => fetch(s.url).catch(() => {}));
+                servers.forEach(s => {
+                    console.log("Pinging server to wake up:", s.url);
+                    fetch(s.url).catch(() => {});
+                });
             }
         } else {
             progressText.textContent = (dict['position'] || 'Posición en cola: ') + position;
@@ -586,10 +601,10 @@ document.addEventListener('DOMContentLoaded', () => {
         stopHeartbeat();
     });
 
-    async function sendToProcessingServer(serverUrl, jobId) {
+    async function sendToProcessingServer(serverUrl, jobId, isSecondPass = false) {
         currentProcessingStep = 'uploading';
         const dict = window.translations[currentLang] || window.translations['es'];
-        progressText.textContent = (dict['sending_frames'] || 'Enviando fotogramas...') + ' (0%)';
+        progressText.textContent = (isSecondPass ? 'Segunda pasada: ' : '') + (dict['sending_frames'] || 'Enviando fotogramas...') + ' (0%)';
         updateProgressBar(0);
         processingStartTime = null; // Reset for processing phase
 
@@ -598,6 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formData = new FormData();
         extractedFrames.forEach(f => formData.append('images', f.blob, `frame_${f.id}.png`));
+        if (isSecondPass) formData.append('second_pass', 'true');
 
         try {
             const result = await new Promise((resolve, reject) => {
@@ -668,17 +684,138 @@ document.addEventListener('DOMContentLoaded', () => {
         currentProcessingStep = 'idle';
         priorityActions.classList.add('hidden');
         const dict = window.translations[currentLang] || window.translations['es'];
-        progressText.textContent = dict['done'] || '¡Listo!';
+        progressText.textContent = (isSecondPassMode ? 'Segunda pasada: ' : '') + (dict['done'] || '¡Listo!');
         updateProgressBar(100);
         etaText.textContent = '';
 
-        const blobs = frames.map(base64StringToBlob);
-        displayResultFrames(blobs);
-        await createSpriteSheet(blobs);
+        // Store the original blobs from the server
+        processedFrameBlobs = frames.map(base64StringToBlob);
+
+        // Process UI
+        await updateFinalSpriteSheet();
 
         progressContainer.classList.add('hidden');
-        resultContainer.classList.remove('hidden');
-        framePreviewContainer.classList.add('hidden');
+        goToStep(4);
+
+        // Reset mode after success
+        isSecondPassMode = false;
+    }
+
+    async function updateFinalSpriteSheet() {
+        if (processedFrameBlobs.length === 0) return;
+
+        // Apply Smart Crop and Resize Logic to the original results
+        const finalBlobs = await processSmartCropAndResize(processedFrameBlobs);
+
+        displayResultFrames(finalBlobs);
+        await createSpriteSheet(finalBlobs);
+    }
+
+    async function processSmartCropAndResize(blobs) {
+        const smartCrop = smartCropCheck.checked;
+        const pixelArtMode = pixelArtCheck.checked;
+        const exportSizeValue = exportSizeSelect.value;
+
+        let targetWidth = null, targetHeight = null;
+        if (exportSizeValue === '16') { targetWidth = 16; targetHeight = 16; }
+        else if (exportSizeValue === '32') { targetWidth = 32; targetHeight = 32; }
+        else if (exportSizeValue === '64') { targetWidth = 64; targetHeight = 64; }
+        else if (exportSizeValue === 'custom') {
+            targetWidth = parseInt(customWidthInput.value) || 32;
+            targetHeight = parseInt(customHeightInput.value) || 32;
+        }
+
+        const images = await Promise.all(blobs.map(blob => {
+            return new Promise(res => {
+                const img = new Image();
+                img.onload = () => res(img);
+                img.src = URL.createObjectURL(blob);
+            });
+        }));
+
+        let globalBounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+        let hasGlobalPixels = false;
+
+        if (smartCrop) {
+            // Find global bounding box across all frames
+            for (const img of images) {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+
+                let minX = img.width, minY = img.height, maxX = 0, maxY = 0;
+                let hasPixels = false;
+
+                for (let y = 0; y < img.height; y++) {
+                    for (let x = 0; x < img.width; x++) {
+                        const alpha = data[(y * img.width + x) * 4 + 3];
+                        if (alpha > 10) { // Threshold for non-transparency
+                            if (x < minX) minX = x;
+                            if (x > maxX) maxX = x;
+                            if (y < minY) minY = y;
+                            if (y > maxY) maxY = y;
+                            hasPixels = true;
+                        }
+                    }
+                }
+
+                if (hasPixels) {
+                    if (minX < globalBounds.minX) globalBounds.minX = minX;
+                    if (maxX > globalBounds.maxX) globalBounds.maxX = maxX;
+                    if (minY < globalBounds.minY) globalBounds.minY = minY;
+                    if (maxY > globalBounds.maxY) globalBounds.maxY = maxY;
+                    hasGlobalPixels = true;
+                }
+            }
+
+            if (hasGlobalPixels) {
+                // Add 1px padding
+                globalBounds.minX = Math.max(0, globalBounds.minX - 1);
+                globalBounds.minY = Math.max(0, globalBounds.minY - 1);
+                globalBounds.maxX = Math.min(images[0].width - 1, globalBounds.maxX + 1);
+                globalBounds.maxY = Math.min(images[0].height - 1, globalBounds.maxY + 1);
+            } else {
+                globalBounds = { minX: 0, minY: 0, maxX: images[0].width - 1, maxY: images[0].height - 1 };
+            }
+        } else {
+            globalBounds = { minX: 0, minY: 0, maxX: images[0].width - 1, maxY: images[0].height - 1 };
+        }
+
+        const cropWidth = globalBounds.maxX - globalBounds.minX + 1;
+        const cropHeight = globalBounds.maxY - globalBounds.minY + 1;
+
+        // Process each image (crop and resize)
+        const processedBlobs = await Promise.all(images.map(img => {
+            const canvas = document.createElement('canvas');
+
+            const finalWidth = targetWidth || cropWidth;
+            const finalHeight = targetHeight || cropHeight;
+
+            canvas.width = finalWidth;
+            canvas.height = finalHeight;
+            const ctx = canvas.getContext('2d');
+
+            ctx.imageSmoothingEnabled = !pixelArtMode;
+            if (!pixelArtMode) {
+                ctx.imageSmoothingQuality = 'high';
+            } else {
+                ctx.imageSmoothingQuality = 'low'; // Nearest neighbor
+            }
+
+            ctx.drawImage(
+                img,
+                globalBounds.minX, globalBounds.minY, cropWidth, cropHeight, // Source crop
+                0, 0, finalWidth, finalHeight // Destination resize
+            );
+
+            return new Promise(r => canvas.toBlob(r, 'image/png'));
+        }));
+
+        return processedBlobs;
     }
 
     function displayResultFrames(blobs) {
@@ -705,17 +842,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     reprocessBtn.addEventListener('click', async () => {
         const selectedElements = document.querySelectorAll('.result-frame.selected');
+        if (selectedElements.length === 0) return;
+
         const selectedBlobs = Array.from(selectedElements).map(el => {
             const imgSrc = el.querySelector('img').src;
-            // Note: In a real app we might want to store the original blobs instead of fetching from URL
             return fetch(imgSrc).then(r => r.blob());
         });
 
         extractedFrames = (await Promise.all(selectedBlobs)).map((blob, index) => ({ id: index, blob }));
+        isSecondPassMode = true;
 
         resultContainer.classList.add('hidden');
         reprocessBtn.classList.add('hidden');
-        // Trigger queue processing with these new frames
+
+        // Trigger queue processing with these new frames (second pass)
         generateBtn.click();
     });
 
@@ -771,13 +911,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 img.src = URL.createObjectURL(blob);
             });
         }));
+
+        if (images.length === 0) return;
+
         const totalWidth = images.reduce((sum, img) => sum + img.width, 0);
         const maxHeight = Math.max(...images.map(img => img.height));
         const canvas = document.createElement('canvas');
-        canvas.width = totalWidth; canvas.height = maxHeight;
+        canvas.width = totalWidth;
+        canvas.height = maxHeight;
         const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
         let x = 0;
-        images.forEach(img => { ctx.drawImage(img, x, 0); x += img.width; });
+        images.forEach(img => {
+            ctx.drawImage(img, x, 0);
+            x += img.width;
+        });
 
         const cols = images.length;
         const rows = 1;
@@ -803,6 +952,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
         }, 'image/png');
+    }
 
     async function saveSpriteToHistory(dataUrl) {
         const dbName = "VidSpriHistory";
@@ -827,13 +977,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 store.add({
                     type: 'sprite',
-                    data: dataUrl,
+                    dataUrl: dataUrl,
                     prompt: "Sprite Sheet",
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    metadata: {
+                        cols: parseInt(localStorage.getItem('vidspri_last_cols')) || 1,
+                        rows: parseInt(localStorage.getItem('vidspri_last_rows')) || 1
+                    }
                 });
             };
         };
-    }
     }
 
     function updateProgressBar(percentage) {

@@ -151,29 +151,44 @@ BEGIN
     AND status != 'offline';
 
     -- 2. Free servers assigned to abandoned jobs (no client heartbeat for 40s)
-    UPDATE server_status s
+    -- Optimized with subquery to avoid large locks
+    UPDATE server_status
     SET status = 'free'
-    FROM processing_queue q
-    WHERE q.assigned_server_url = s.url
-    AND q.status IN ('authorized', 'processing')
-    AND q.last_heartbeat < NOW() - INTERVAL '40 seconds';
+    WHERE url IN (
+        SELECT s.url
+        FROM server_status s
+        JOIN processing_queue q ON q.assigned_server_url = s.url
+        WHERE q.status IN ('authorized', 'processing')
+        AND q.last_heartbeat < NOW() - INTERVAL '40 seconds'
+        LIMIT 10
+    );
 
     -- 3. Mark jobs as failed if client heartbeat is missing for > 40 seconds
     -- We add a check on created_at to avoid killing very new jobs due to clock drift
+    -- Added LIMIT to prevent stack depth issues and long transactions
     UPDATE processing_queue
     SET status = 'failed'
-    WHERE status IN ('waiting', 'authorized', 'processing')
-    AND last_heartbeat < NOW() - INTERVAL '40 seconds'
-    AND created_at < NOW() - INTERVAL '1 minute';
+    WHERE id IN (
+        SELECT id FROM processing_queue
+        WHERE status IN ('waiting', 'authorized', 'processing')
+        AND last_heartbeat < NOW() - INTERVAL '40 seconds'
+        AND created_at < NOW() - INTERVAL '1 minute'
+        LIMIT 20
+    );
 
     -- 4. Reset 'processing' jobs to 'waiting' if the assigned server is now offline
-    UPDATE processing_queue q
+    -- Added LIMIT to prevent massive updates in a single trigger
+    UPDATE processing_queue
     SET status = 'waiting',
         assigned_server_url = NULL
-    FROM server_status s
-    WHERE q.status = 'processing'
-    AND q.assigned_server_url = s.url
-    AND s.status = 'offline';
+    WHERE id IN (
+        SELECT q.id
+        FROM processing_queue q
+        JOIN server_status s ON q.assigned_server_url = s.url
+        WHERE q.status = 'processing'
+        AND s.status = 'offline'
+        LIMIT 20
+    );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -185,6 +200,11 @@ DECLARE
     free_server_id_found TEXT;
     free_server_url_found TEXT;
 BEGIN
+    -- Prevent infinite recursion
+    IF pg_trigger_depth() > 1 THEN
+        RETURN NULL;
+    END IF;
+
     -- Run cleanup
     PERFORM cleanup_system();
 
@@ -230,9 +250,13 @@ CREATE OR REPLACE FUNCTION free_server_on_job_end()
 RETURNS TRIGGER AS $$
 BEGIN
     IF (NEW.status = 'completed' OR NEW.status = 'failed') AND OLD.assigned_server_url IS NOT NULL THEN
-        UPDATE server_status
-        SET status = 'free'
-        WHERE url = OLD.assigned_server_url;
+        -- Only update if the status actually changed to completed/failed
+        IF OLD.status != NEW.status THEN
+            UPDATE server_status
+            SET status = 'free'
+            WHERE url = OLD.assigned_server_url
+            AND status != 'free';
+        END IF;
     END IF;
     RETURN NEW;
 END;
