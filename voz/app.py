@@ -48,13 +48,13 @@ def load_models():
         # Limit threads for CPU stability on free tier
         torch.set_num_threads(1)
         print("Loading OuteTTS model (Apache 2.0)...")
-        # Initialize the model interface
-        model_config = outetts.GGUFModelConfig_v1(
-            model_path=None, # Downloads automatically
-            language="es",
-            n_gpu_layers=0 # CPU optimized
-        )
-        model_interface = outetts.InterfaceGGUF(model_config)
+
+        # In outetts 0.2.x, providing a manual config helps avoid 'NoneType' errors
+        # in environments where automatic detection might fail.
+        # For OuteTTS v0.2, InterfaceHF can be initialized more simply.
+        # If the manual config above failed with NoneType, let's use the standard way.
+        model_interface = outetts.InterfaceHF(model_version="0.2")
+
         print("OuteTTS Model loaded successfully.")
         load_error = None
     except Exception as e:
@@ -64,11 +64,9 @@ def load_models():
 is_processing = False
 
 async def update_status(status: str = None):
-    global is_processing
     try:
-        if status:
-            is_processing = (status == "busy")
-        current_status = "busy" if is_processing else "free"
+        # Service is in maintenance mode
+        current_status = "maintenance"
         data = {
             "id": SERVER_ID,
             "url": SERVER_URL,
@@ -97,6 +95,11 @@ async def root():
 
 @app.post("/process-voice/{job_id}")
 async def process_voice(job_id: str, audio_file: UploadFile = File(None), text_override: str = Form(None)):
+    # Service under maintenance
+    await update_status()
+    supabase.table("processing_queue").update({"status": "failed"}).eq("id", job_id).execute()
+    raise HTTPException(status_code=503, detail="Service under maintenance")
+
     global is_processing, model_interface, load_error
 
     if is_processing:
@@ -118,22 +121,29 @@ async def process_voice(job_id: str, audio_file: UploadFile = File(None), text_o
         if audio_file:
             # Save ref audio to temp
             audio_bytes = await audio_file.read()
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-                tmp.write(audio_bytes)
-                temp_ref_path = tmp.name
+            if len(audio_bytes) > 100: # Ensure we have actual audio data
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+                    tmp.write(audio_bytes)
+                    temp_ref_path = tmp.name
 
-            # Create speaker from audio
-            speaker = model_interface.create_speaker(temp_ref_path)
+                # Create speaker from audio
+                print(f"Creating speaker from {temp_ref_path}...")
+                speaker = model_interface.create_speaker(temp_ref_path)
+            else:
+                print("Audio file too small, skipping speaker creation")
 
         def run_tts():
             # Generate audio using the cloned speaker or default
+            # For v0.2, some parameters or speaker handling might differ slightly
             output = model_interface.generate(
                 text=text_to_speak,
                 speaker=speaker,
                 temperature=0.1,
-                repetition_penalty=1.1
+                repetition_penalty=1.1,
+                max_length=4096
             )
-            return output.audio_np, output.sample_rate
+            # In OuteTTS 0.2.0+, attributes are .audio (Tensor) and .sr (int)
+            return output.audio.cpu().numpy(), output.sr
 
         audio_data, sample_rate = await asyncio.to_thread(run_tts)
 
